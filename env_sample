@@ -1,2 +1,4 @@
-CORS_URLS_STR=http://localhost:8081/,http://localhost:8082/
 LOG_LEVEL=INFO
+
+SERVER_HOST=localhost
+SERVER_PORT=8000
