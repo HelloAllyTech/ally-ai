@@ -18,8 +18,8 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="My FastAPI Project",
-    description="A well-structured FastAPI boilerplate",
+    title="Lifeline AI",
+    description="AI Service for Lifeline Project",
     version="1.0.0",
     lifespan=lifespan,
     middleware=get_middlewares(),
