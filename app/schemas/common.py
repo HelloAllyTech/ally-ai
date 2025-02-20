@@ -7,7 +7,7 @@ class ChatMessage(BaseModel):
     content: str = Field(..., description="The content of the message")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "role": "counselor",
                 "content": "Hello, how are you?"

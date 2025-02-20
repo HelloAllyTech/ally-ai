@@ -13,7 +13,7 @@ class AnalyzeRequest(BaseModel):
     )
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "latest_message": "Can you share what happened?",
                 "chat_history": [
@@ -33,7 +33,7 @@ class AnalyzeResponse(BaseModel):
     stage: str = Field(..., description="The current stage of the conversation (always present)")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "nudge": "### Be empathetic and ask open-ended questions",
                 "stage": "Rapport Building"
