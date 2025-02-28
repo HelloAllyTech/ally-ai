@@ -7,7 +7,7 @@ from app.schemas.common import ChatMessage
 class AnalyzeRequest(BaseModel):
     latest_message: str = Field(..., description="The latest message to analyze")
     chat_history: List[ChatMessage] = Field(..., description="Full history of the chat")
-    generate_nudge: Optional[bool] = Field(
+    force_nudge: Optional[bool] = Field(
         False,
         description="Optional flag indicating whether to always generate a nudge"
     )
