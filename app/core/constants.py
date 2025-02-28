@@ -10,4 +10,4 @@ class TextGenerationConstants:
 
 
 class VectorDBCollectionNames:
-    CONVERSATIONS: Final[str] = "Conversations"
+    CONVERSATIONS: Final[str] = "Conversation"
