@@ -6,7 +6,7 @@ class ChatMessage(BaseModel):
     role: str = Field(..., description="The role of the sender (e.g., user, assistant)")
     content: str = Field(..., description="The content of the message")
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "role": "counselor",

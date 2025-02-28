@@ -12,7 +12,7 @@ class AnalyzeRequest(BaseModel):
         description="Optional flag indicating whether to always generate a nudge"
     )
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "latest_message": "Can you share what happened?",
@@ -32,7 +32,7 @@ class AnalyzeResponse(BaseModel):
     )
     stage: str = Field(..., description="The current stage of the conversation (always present)")
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "nudge": "### Be empathetic and ask open-ended questions",
