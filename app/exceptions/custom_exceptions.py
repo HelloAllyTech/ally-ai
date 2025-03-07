@@ -76,3 +76,24 @@ class NudgeGenerationFailedException(BaseCustomException):
 
     def __init__(self, message="Nudge generation failed", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) -> None:
         super().__init__(message, status_code)
+
+
+class LLMInvocationFailedException(BaseCustomException):
+    """
+    Raised when LLM invocation fails.
+    """
+
+    def __init__(self, message="LLM invocation failed", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) -> None:
+        super().__init__(message, status_code)
+
+
+class SummaryNoteFailedException(BaseCustomException):
+    """
+    Raised when summary note generation fails.
+    """
+
+    def __init__(self,
+                 message="Failed to generate summary note",
+                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                 ) -> None:
+        super().__init__(message, status_code)

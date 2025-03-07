@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict
 
+from app.schemas.summary import SummaryNote
+
 
 class BaseTextGenerationService[ModelT](ABC):
     def __init__(self, models: Dict[str, ModelT], default_model_name: str) -> None:
@@ -26,5 +28,21 @@ class BaseTextGenerationService[ModelT](ABC):
 
         Raises:
             NudgeGenerationFailedException: If the nudge generation fails.
+        """
+        pass
+
+    @abstractmethod
+    async def generate_summary_notes(self, chat_history: str) -> SummaryNote:
+        """
+        Generate notes for the chat history.
+
+        Parameters:
+            chat_history (str): The chat history to summarize.
+
+        Returns:
+            SummaryNote: The summary object.
+
+        Raises:
+            SummaryNoteFailedException: If the note generation fails.
         """
         pass

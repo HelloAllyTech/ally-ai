@@ -6,9 +6,14 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import nudge_prompt
-from app.core.text_generations.structure_classes import NudgeOutput
-from app.exceptions.custom_exceptions import NudgeGenerationFailedException
+from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT
+from app.exceptions.custom_exceptions import (
+    NudgeGenerationFailedException,
+    LLMInvocationFailedException,
+    SummaryNoteFailedException
+)
+from app.schemas.conversation import Nudge
+from app.schemas.summary import SummaryNote
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -70,7 +75,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         if output_class:
             llm = llm.with_structured_output(output_class)
 
-        response = await llm.ainvoke(messages)
+        try:
+            response = await llm.ainvoke(messages)
+        except openai.RateLimitError as e:
+            logger.exception(str(e))
+            raise LLMInvocationFailedException("OpenAI API rate limit exceeded. Please try again later.") from e
+
+        except openai.APIConnectionError as e:
+            logger.exception(str(e))
+            raise LLMInvocationFailedException("OpenAI API error. Please try again later.") from e
+
         return response if output_class else response.content
 
     async def generate_nudge(self, conversation: str, chat_history: str, suggestion: str, **kwargs) -> str:
@@ -96,20 +110,44 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Generating nudge using OpenAI")
         try:
             response = cast(
-                NudgeOutput,
+                Nudge,
                 await self._invoke_llm(
-                    nudge_prompt.format(conversation=conversation, message_history=chat_history, suggestion=suggestion),
-                    NudgeOutput,
+                    NUDGE_PROMPT.format(conversation=conversation, chat_history=chat_history, suggestion=suggestion),
+                    Nudge,
                     **kwargs))
 
-        except openai.RateLimitError as e:
-            logger.exception(str(e))
-            raise NudgeGenerationFailedException("OpenAI API rate limit exceeded. Please try again later.") from e
-
-        except openai.APIConnectionError as e:
-            logger.exception(str(e))
-            raise NudgeGenerationFailedException("OpenAI API error. Please try again later.") from e
+        except LLMInvocationFailedException as e:
+            raise NudgeGenerationFailedException("Failed to invoke LLM.") from e
 
         logger.info("Nudge generated successfully")
 
         return response.nudge
+
+    async def generate_summary_notes(self, chat_history: str, **kwargs) -> SummaryNote:
+        """
+        Generate notes for the chat history using the OpenAI language model.
+
+        Parameters:
+            chat_history (str): Chat history to summarize.
+            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+
+        Returns:
+            SummaryNote: Object with different fields of the summary.
+
+        Raises:
+            SummaryNoteFailedException: If the note generation fails.
+        """
+        logger.info("Generating note summary using OpenAI")
+        try:
+            response = cast(
+                SummaryNote,
+                await self._invoke_llm(
+                    SUMMARY_PROMPT.format(chat_history=chat_history),
+                    SummaryNote,
+                    **kwargs))
+
+        except LLMInvocationFailedException as e:
+            raise SummaryNoteFailedException("Failed to invoke LLM.") from e
+
+        logger.info("Note generated successfully")
+        return response

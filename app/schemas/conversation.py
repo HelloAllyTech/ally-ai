@@ -4,6 +4,18 @@ from pydantic import BaseModel, Field
 from app.schemas.common import ChatMessage
 
 
+class Nudge(BaseModel):
+    """Generated Nudge response"""
+    nudge: str = Field(..., description="The generated nudge in markdown format.")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "nudge": "### Be empathetic and ask open-ended questions"
+            }
+        }
+
+
 class AnalyzeRequest(BaseModel):
     latest_message: str = Field(..., description="The latest message to analyze")
     chat_history: List[ChatMessage] = Field(..., description="Full history of the chat")

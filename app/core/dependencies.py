@@ -6,6 +6,7 @@ from weaviate.client import WeaviateAsyncClient
 from app.core.constants import EmbeddingConstants, TextGenerationConstants
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
 from app.core.vector_db.base import VectorDB
@@ -63,3 +64,13 @@ async def get_conversation_service(
     Returns an instance of ConversationService.
     """
     return ConversationService(text_generation_service, vector_db)
+
+
+# Dependency for the summary service, which uses the text generation service
+async def get_summary_service(
+        text_generation_service=Depends(get_text_generation_service),
+) -> SummaryService:
+    """
+    Returns an instance of SummaryService.
+    """
+    return SummaryService(text_generation_service)
