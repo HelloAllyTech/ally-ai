@@ -46,3 +46,20 @@ class BaseTextGenerationService[ModelT](ABC):
             SummaryNoteFailedException: If the note generation fails.
         """
         pass
+
+    @abstractmethod
+    async def enhance_content(self, content: str, **kwargs) -> str:
+        """
+        Enhance the content.
+
+        Parameters:
+            content (str): The content to enhance.
+            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+
+        Returns:
+            str: The enhanced content.
+
+        Raises:
+            ContentEnhancementFailedException: If the content enhancement fails.
+        """
+        pass

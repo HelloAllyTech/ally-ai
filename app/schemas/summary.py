@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from app.schemas.common import ChatMessage
 
 
-class SummaryRequest(BaseModel):
+class SummaryNoteRequest(BaseModel):
     """
     A Pydantic model representing the request for summarizing chat messages.
     """
@@ -288,7 +288,7 @@ class SummaryNote(BaseModel):
         }
 
 
-class SummaryResponse(BaseModel):
+class SummaryNoteResponse(BaseModel):
     """
     A Pydantic model representing the response of the summary
     """
@@ -361,5 +361,47 @@ class SummaryResponse(BaseModel):
                         "follow-up"
                     ]
                 }
+            }
+        }
+
+
+class ContentEnhanceRequest(BaseModel):
+    """
+    A Pydantic model representing the request for enhancing the content.
+    """
+    content: str = Field(..., description="Content to be enhanced")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "content": "Exam stress - pressure from parents."
+            }
+        }
+
+
+class ContentEnhanceResponse(BaseModel):
+    """
+    A Pydantic model representing the response of the content enhancement.
+    """
+    enhanced_content: str = Field(..., description="Enhanced content")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "enhanced_content": "The student is experiencing stress due to parental pressure."
+            }
+        }
+
+
+class ContentEnhance(BaseModel):
+    """
+    A Pydantic model representing the response of the content enhancement.
+    """
+    enhanced_content: str = Field(..., description="Enhanced content")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "enhanced_content": "The student is experiencing stress due to parental pressure."
             }
         }

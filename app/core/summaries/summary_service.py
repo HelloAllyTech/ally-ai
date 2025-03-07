@@ -1,5 +1,9 @@
 from app.core.text_generations.base import BaseTextGenerationService
-from app.exceptions.custom_exceptions import SummarizationFailedException, SummaryNoteFailedException
+from app.exceptions.custom_exceptions import (
+    SummarizationFailedException,
+    SummaryNoteFailedException,
+    ContentEnhancementFailedException
+)
 from app.schemas.summary import SummaryNote
 from app.utils.logger import get_logger
 
@@ -29,3 +33,23 @@ class SummaryService:
             raise SummarizationFailedException("Failed to generate the summary. Please try again later.") from e
 
         return summary
+
+    async def enhance_content(self, content: str) -> str:
+        """
+        Enhances the content
+
+        Parameters:
+            content (str): The content to enhance.
+
+        Returns:
+            str: The enhanced content.
+
+        Raises:
+            ContentEnhancementFailedException: If content enhancement fails.
+        """
+        try:
+            enhanced_content = await self.text_generation_service.enhance_content(content)
+        except ContentEnhancementFailedException as e:
+            raise SummarizationFailedException("Failed to enhance content. Please try again later.") from e
+
+        return enhanced_content

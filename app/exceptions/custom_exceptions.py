@@ -97,3 +97,15 @@ class SummaryNoteFailedException(BaseCustomException):
                  status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                  ) -> None:
         super().__init__(message, status_code)
+
+
+class ContentEnhancementFailedException(BaseCustomException):
+    """
+    Raised when content enhancement fails.
+    """
+
+    def __init__(self,
+                 message="Content enhancement failed",
+                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                 ) -> None:
+        super().__init__(message, status_code)

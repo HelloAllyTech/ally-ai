@@ -29,3 +29,16 @@ SUMMARY_PROMPT = PromptTemplate(
     """),
     input_variables=["chat_history"]
 )
+
+CONTENT_ENHANCE_PROMPT = PromptTemplate(
+    template=textwrap.dedent("""
+        You are an AI assistant that enhances notes by mental health counselors
+        The content given might be simple points and may contain grammatical errors and may not be well structured.
+        Your task is to enhance the content by making it more structured and grammatically correct.
+        Use simple language unless it's a technical term.
+        
+        Content:
+        {content}
+    """),
+    input_variables=["content"]
+)

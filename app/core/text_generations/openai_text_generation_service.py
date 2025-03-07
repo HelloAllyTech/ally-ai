@@ -6,14 +6,15 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT
+from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT
 from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
     LLMInvocationFailedException,
-    SummaryNoteFailedException
+    SummaryNoteFailedException,
+    ContentEnhancementFailedException
 )
 from app.schemas.conversation import Nudge
-from app.schemas.summary import SummaryNote
+from app.schemas.summary import SummaryNote, ContentEnhance
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -151,3 +152,32 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         logger.info("Note generated successfully")
         return response
+
+    async def enhance_content(self, content: str, **kwargs) -> str:
+        """
+        Enhance the content by generating a summary and tags.
+
+        Parameters:
+            content (str): The content to enhance.
+            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+
+        Returns:
+            str: The enhanced content.
+
+        Raises:
+            ContentEnhancementFailedException: If the content enhancement fails.
+        """
+        logger.info("Enhancing content using OpenAI")
+        try:
+            response = cast(
+                ContentEnhance,
+                await self._invoke_llm(
+                    CONTENT_ENHANCE_PROMPT.format(content=content),
+                    ContentEnhance,
+                    **kwargs))
+
+        except LLMInvocationFailedException as e:
+            raise ContentEnhancementFailedException("Failed to invoke LLM.") from e
+
+        logger.info("Content enhanced successfully")
+        return response.enhanced_content
