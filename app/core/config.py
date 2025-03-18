@@ -1,44 +1,53 @@
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional, Tuple
 
-from dotenv import find_dotenv, dotenv_values
-import os
-
-# Load environment variables from .env
-dotenv_path = find_dotenv()
-env_vars = dotenv_values(dotenv_path)
-
-os.environ.update(env_vars)
 
 class Settings(BaseSettings):
+    """
+    Application settings loaded from environment variables and .env files.
+
+    This class defines the configuration settings for the application, including log settings,
+    server configuration, API version, Weaviate database settings, and OpenAI credentials.
+    """
+    model_config = SettingsConfigDict(env_file=[".env", "./.env", "../.env"])
+
+    # Log settings
     LOG_LEVEL: str = "INFO"
 
     # Server configuration
     SERVER_HOST: str = "localhost"
     SERVER_PORT: int = 8000
 
-    # Accept CORS_URLS as either a tuple or a comma-separated string.
-    CORS_URLS: Tuple[str, ...] = Field(default=())
-
     # API Version
     API_V1_STR: str = "/api/v1"
 
-    @field_validator('CORS_URLS', mode='before')
-    @classmethod
-    def parse_cors_urls(cls, v):
-        # If v is already a tuple or list, return it as a tuple.
-        if isinstance(v, (tuple, list)):
-            return tuple(url.strip().rstrip('/') for url in v if url.strip())
-        # Otherwise, assume it's a comma-separated string.
-        if isinstance(v, str):
-            return tuple(url.strip().rstrip('/') for url in v.split(",") if url.strip())
-        return v
+    # Weaviate
+    WEAVIATE_HTTP_HOST: str = Field(...)
+    WEAVIATE_HTTP_PORT: int = Field(...)
+    WEAVIATE_HTTP_SECURE: bool = Field(...)
+    WEAVIATE_GRPC_HOST: str = Field(...)
+    WEAVIATE_GRPC_PORT: int = Field(...)
+    WEAVIATE_GRPC_SECURE: bool = Field(...)
+
+    # OpenAI Creds
+    OPENAI_API_KEY: str = Field(...)
+    OPENAI_ORGANIZATION_ID: str = Field(...)
 
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
     def parse_str_to_int(cls, v):
+        """
+        Parses a string value to an integer.
+        """
         return int(v)
+
+    @field_validator('WEAVIATE_HTTP_SECURE', 'WEAVIATE_GRPC_SECURE', mode='before')
+    @classmethod
+    def parse_str_to_bool(cls, v):
+        """
+        Parses a string value to a boolean.
+        """
+        return isinstance(v, str) and v.lower() == 'true'
 
 
 settings = Settings()

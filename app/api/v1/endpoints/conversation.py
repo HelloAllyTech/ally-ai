@@ -1,0 +1,36 @@
+from fastapi import APIRouter, HTTPException, status
+from fastapi.params import Depends
+
+from app.core.conversations.conversation_service import ConversationService
+from app.core.dependencies import get_conversation_service
+from app.exceptions.custom_exceptions import ConversationAnalysisFailedException
+from app.schemas.conversation import AnalyzeRequest, AnalyzeResponse
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+router = APIRouter()
+
+
+@router.post("/analyze", tags=["nudge", "stage"], response_model=AnalyzeResponse)
+async def analyze(
+        request: AnalyzeRequest,
+        conversation_service: ConversationService = Depends(get_conversation_service)) -> AnalyzeResponse:
+    """
+    Analyzes the conversation and provides a stage & optional nudge.
+    """
+    try:
+        stage, nudge = await conversation_service.analyze(request.latest_message, request.chat_history,
+                                                          request.force_nudge)
+
+        return AnalyzeResponse(nudge=nudge, stage=stage)
+
+    except ConversationAnalysisFailedException as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    except Exception as e:
+        logger.exception(str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str("Something went wrong. Please try again later.")
+        )
