@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT
+from app.core.text_generations.structured_output_models import StructuredSummaryNote
 from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
     LLMInvocationFailedException,
@@ -14,7 +15,7 @@ from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException
 )
 from app.schemas.conversation import Nudge
-from app.schemas.summary import SummaryNote, ContentEnhance
+from app.schemas.summary import ContentEnhance
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -124,7 +125,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         return response.nudge
 
-    async def generate_summary_notes(self, chat_history: str, **kwargs) -> SummaryNote:
+    async def generate_summary_notes(self, chat_history: str, **kwargs) -> StructuredSummaryNote:
         """
         Generate notes for the chat history using the OpenAI language model.
 
@@ -133,7 +134,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
 
         Returns:
-            SummaryNote: Object with different fields of the summary.
+            StructuredSummaryNote: Object with different fields of the summary.
 
         Raises:
             SummaryNoteFailedException: If the note generation fails.
@@ -141,10 +142,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Generating note summary using OpenAI")
         try:
             response = cast(
-                SummaryNote,
+                StructuredSummaryNote,
                 await self._invoke_llm(
                     SUMMARY_PROMPT.format(chat_history=chat_history),
-                    SummaryNote,
+                    StructuredSummaryNote,
                     **kwargs))
 
         except LLMInvocationFailedException as e:

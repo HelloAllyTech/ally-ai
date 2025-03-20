@@ -1,27 +1,142 @@
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ChatMessage
 
+DominantFeelingLiteral = Literal[
+    "Betrayed:Let Down",
+    "Resentful:Let Down",
+    "Disrespected:Humiliated",
+    "Ridiculed:Humiliated",
+    "Indignant:Bitter",
+    "Violated:Bitter",
+    "Furious:Mad",
+    "Jealous:Mad",
+    "Hostile:Aggressive",
+    "Provoked:Aggressive",
+    "Infuriated:Frustrated",
+    "Annoyed:Frustrated",
+    "Withdrawn:Distant",
+    "Numb:Distant",
+    "Dismissive:Critical",
+    "Skeptical:Critical",
+    "Helpless:Scared",
+    "Frightened:Scared",
+    "Overwhelmed:Anxious",
+    "Worried:Anxious",
+    "Inadequate:Insecure",
+    "Inferior:Insecure",
+    "Worthless:Weak",
+    "Insignificant:Weak",
+    "Excluded:Rejected",
+    "Persecuted:Rejected",
+    "Nervous:Threatened",
+    "Exposed:Threatened",
+    "Indifferent:Bored",
+    "Apathetic:Bored",
+    "Pressured:Busy",
+    "Rushed:Busy",
+    "Overwhelmed:Stressed",
+    "Out of control:Stressed",
+    "Sleepy:Tired",
+    "Unfocused:Tired",
+    "Shocked:Startled",
+    "Dismayed:Startled",
+    "Disillusioned:Confused",
+    "Perplexed:Confused",
+    "Astonished:Amazed",
+    "Awe:Amazed",
+    "Eager:Excited",
+    "Energetic:Excited",
+    "Aroused:Playful",
+    "Cheeky:Playful",
+    "Free:Content",
+    "Joyful:Content",
+    "Curious:Interested",
+    "Inquisitive:Interested",
+    "Successful:Proud",
+    "Confident:Proud",
+    "Respected:Accepted",
+    "Valued:Accepted",
+    "Courageous:Powerful",
+    "Creative:Powerful",
+    "Loving:Peaceful",
+    "Thankful:Peaceful",
+    "Sensitive:Trusting",
+    "Intimate:Trusting",
+    "Hopeful:Optimistic",
+    "Inspired:Optimistic",
+    "Judgmental:Disapproving",
+    "Embarrassed:Disapproving",
+    "Appalled:Disappointed",
+    "Revolted:Disappointed",
+    "Nauseated:Awful",
+    "Detestable:Awful",
+    "Horrified:Repelled",
+    "Hesitant:Repelled",
+    "Embarrassed:Hurt",
+    "Disappointed:Hurt",
+    "Inferior:Depressed",
+    "Empty:Depressed",
+    "Remorseful:Guilty",
+    "Ashamed:Guilty",
+    "Grief:Despair",
+    "Powerless:Despair",
+    "Victimized:Vulnerable",
+    "Fragile:Vulnerable",
+    "Isolated:Lonely",
+    "Abandoned:Lonely"
+]
 
-class SummaryNoteAndTagsRequest(BaseModel):
-    """
-    A Pydantic model representing the request for summarizing chat messages.
-    """
-    chat_history: List[ChatMessage] = Field(..., description="List of chat messages")
+CodeOfConcernLiteral = Literal[
+    "Academic Concerns",
+    "Addiction Issues",
+    "Anger Management",
+    "Bereavement / Loss",
+    "Bullying / Harassment",
+    "Career Related Concerns",
+    "Cultural / Identity Concerns",
+    "Disability",
+    "Domestic Abuse",
+    "Financial Crisis",
+    "Emotional Regulation",
+    "Eating Disorders",
+    "Interpersonal Conflicts",
+    "Legal Concerns",
+    "Loneliness / Isolation",
+    "Mental Health",
+    "Overthinking / Worrying",
+    "Phobias / Fears",
+    "Pregnancy and Parenting Stress",
+    "Prank",  # Prank / Sexual Gratification, removing Sexual Gratification to remove confusion with other categories for the LLM
+    "Referral Request",
+    "Non-suicidal Self-Harm",
+    "Self-esteem/ image Concerns",
+    "Sexual Health Issues",
+    "Sleep Issues / Insomnia",
+    "Suicidal self-harm",
+    "Stress Management",
+    "Vicarious Trauma / Compassion Fatigue",
+    "Violence",
+    "Work-life Concerns",
+    "Seeking Information (General Inquiry)"
+]
 
-    class ConfigDict:
-        json_schema_extra = {
-            "example": {
-                "chat_history": [
-                    {"role": "counselor", "content": "How are you feeling?"},
-                    {"role": "client", "content": "Not feeling well"},
-                ]
-            }
-        }
+WorkingStatusLiteral = Literal[
+    "Student",
+    "Working",
+    "Other"
+]
+
+GenderLiteral = Literal[
+    "Male",
+    "Female",
+    "Non-binary",
+    "Client Prefers Not to Say"
+]
 
 
-class SessionDetails(BaseModel):
+class StructuredSessionDetails(BaseModel):
     """
     A Pydantic model representing session details.
     """
@@ -41,20 +156,20 @@ class SessionDetails(BaseModel):
         }
 
 
-class DemographicDetails(BaseModel):
+class StructuredDemographicDetails(BaseModel):
     """
     A Pydantic model representing demographic details of a client.
     """
     client_id: Optional[str] = Field(None, description="Always assign null.")
-    gender: Optional[str] = Field(None,
-                                  description="Gender of the client (e.g., Male, Female, Non-binary, Prefer not to say).")
+    gender: Optional[GenderLiteral] = Field(None,
+                                            description="Gender of the client. If not mentioned keep it as null")
     age: Optional[int] = Field(None, description="Age of the client in years.")
     location: Optional[str] = Field(None, description="Client's geographical location (e.g., country or city).")
     working_status: Optional[str] = Field(None, description="Values can be 'Student', 'Working', or 'Other'.")
     any_formal_diagnosis: Optional[str] = Field(None,
                                                 description="Any formally diagnosed condition of the client (if applicable).")
-    code_of_concern: Optional[str] = Field(None,
-                                           description="A predefined code representing the area of concern for the client.")
+    code_of_concern: Optional[CodeOfConcernLiteral] = Field(None,
+                                                            description="A predefined code representing the area of concern for the client.")
 
     class ConfigDict:
         json_schema_extra = {
@@ -70,7 +185,7 @@ class DemographicDetails(BaseModel):
         }
 
 
-class FollowUpPlan(BaseModel):
+class StructuredFollowUpPlan(BaseModel):
     """
     A Pydantic model capturing the follow-up plan and goals for the next session.
     """
@@ -91,20 +206,24 @@ class FollowUpPlan(BaseModel):
         }
 
 
-class SessionWork(BaseModel):
+class StructuredSessionWork(BaseModel):
     """
     A Pydantic model capturing counseling related work.
     """
-    counseling_process_flow: Optional[str] = Field(None, description="Flow of the counseling process.")
+    counseling_process_flow: Optional[List[str]] = Field(None, description="Flow of the counseling process.")
     therapeutic_interventions: Optional[List[str]] = Field(None, description="Therapeutic interventions used.")
     issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
-    follow_up_plan: Optional[FollowUpPlan] = Field(None, description="Follow-up plan and goals for the next session.")
+    follow_up_plan: Optional[StructuredFollowUpPlan] = Field(None, description="Follow-up plan and goals for the next session.")
 
     class ConfigDict:
         json_schema_extra = {
             "example": {
-                "counseling_process_flow": "- Initial client sharing\n- Discussion of concerns\n- Exploration of coping mechanisms",
+                "counseling_process_flow": [
+                    "Initial client sharing",
+                    "Discussion of concerns",
+                    "Exploration of coping mechanisms"
+                ],
                 "therapeutic_interventions": [
                     "Cognitive Behavioral Therapy",
                     "Mindfulness exercises"
@@ -129,24 +248,31 @@ class SessionWork(BaseModel):
         }
 
 
-class SessionDocumentation(BaseModel):
+class StructuredSessionDocumentation(BaseModel):
     """
     A Pydantic model capturing counseling related documentation.
     """
-    key_concerns: Optional[str] = Field(None, description="Key concerns shared by the client.")
-    dominant_feelings: Optional[List[str]] = Field(None, description="Dominant feelings expressed by the client.")
-    work_done: Optional[SessionWork] = Field(None, description="Counseling related work.")
+    key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
+    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None,
+                                                                      description="Dominant feelings expressed by the client.")
+    work_done: Optional[StructuredSessionWork] = Field(None, description="Counseling related work.")
 
     class ConfigDict:
         json_schema_extra = {
             "example": {
-                "key_concerns": "- Feeling overwhelmed by responsibilities\n- Difficulty in managing stress",
+                "key_concerns": [
+                    "Feeling overwhelmed by responsibilities",
+                    "Difficulty in managing stress"
+                ],
                 "dominant_feelings": [
                     "Ashamed:Guilty",
                     "Grief:Despair"
                 ],
                 "work_done": {
-                    "counseling_process_flow": "- Initial client sharing\n- Discussion of concerns\n- Exploration of coping mechanisms",
+                    "counseling_process_flow": [
+                        "Opened up discussion about stressors",
+                        "Explored relaxation techniques"
+                    ],
                     "therapeutic_interventions": [
                         "Guided meditation",
                         "Cognitive restructuring"
@@ -170,7 +296,7 @@ class SessionDocumentation(BaseModel):
         }
 
 
-class CounselorImpressions(BaseModel):
+class StructuredCounselorImpressions(BaseModel):
     """
     A Pydantic model capturing subjective impressions from the counselor.
     """
@@ -197,16 +323,17 @@ class CounselorImpressions(BaseModel):
         }
 
 
-class SummaryNote(BaseModel):
+class StructuredSummaryNote(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
     """
-    session_details: Optional[SessionDetails] = Field(None, description="Details of the counseling session.")
-    demographic_details: Optional[DemographicDetails] = Field(None, description="Demographic details of the client.")
-    session_documentation: Optional[SessionDocumentation] = Field(None,
+    session_details: Optional[StructuredSessionDetails] = Field(None, description="Details of the counseling session.")
+    demographic_details: Optional[StructuredDemographicDetails] = Field(None, description="Demographic details of the client.")
+    session_documentation: Optional[StructuredSessionDocumentation] = Field(None,
                                                                   description="Documentation related to the counseling session.")
-    counselor_impressions: Optional[CounselorImpressions] = Field(None,
+    counselor_impressions: Optional[StructuredCounselorImpressions] = Field(None,
                                                                   description="Subjective impressions from the counselor.")
+    tags: list[str] = Field(..., description="List of tags to summarize the chat messages")
 
     class ConfigDict:
         json_schema_extra = {
@@ -227,13 +354,19 @@ class SummaryNote(BaseModel):
                     "code_of_concern": "Work-life Concerns"
                 },
                 "session_documentation": {
-                    "key_concerns": "- Feeling overwhelmed by responsibilities\n- Difficulty in managing stress",
+                    "key_concerns": [
+                        "Feeling overwhelmed",
+                        "Difficulty managing time"
+                    ],
                     "dominant_feelings": [
                         "Ashamed:Guilty",
                         "Grief:Despair"
                     ],
                     "work_done": {
-                        "counseling_process_flow": "- Initial client sharing\n- Discussion of concerns\n- Exploration of coping mechanisms",
+                        "counseling_process_flow": [
+                            "Discussed daily stressors",
+                            "Identified coping mechanisms"
+                        ],
                         "therapeutic_interventions": [
                             "Mindfulness",
                             "Cognitive reframing"
@@ -261,120 +394,11 @@ class SummaryNote(BaseModel):
                     "problem_analysis": "Client struggles with self-management",
                     "additional_insights": "Needs consistent follow-up",
                     "counselor_feelings": "Encouraged"
-                }
-            }
-        }
-
-
-class SummaryNoteAndTagsResponse(BaseModel):
-    """
-    A Pydantic model representing the response of the summary
-    """
-    summary_note: SummaryNote = Field(..., description="Summary of the counseling session")
-    tags: list[str] = Field(..., description="List of tags to summarize the chat messages")
-
-    class ConfigDict:
-        json_schema_extra = {
-            "example": {
-                "summary_note": {
-                    "session_details": {
-                        "date_of_session": "2025-02-11",
-                        "new_call_follow_up": "Follow-up",
-                        "session_number": None,
-                        "counselor_name": "Shruti"
-                    },
-                    "demographic_details": {
-                        "client_id": None,
-                        "gender": "Female",
-                        "age": 28,
-                        "location": "Mumbai",
-                        "working_status": "Working",
-                        "any_formal_diagnosis": None,
-                        "code_of_concern": "Work-life Concerns"
-                    },
-                    "session_documentation": {
-                        "key_concerns": "- Feeling overwhelmed by responsibilities\n- Difficulty in managing stress",
-                        "dominant_feelings": [
-                            "Ashamed:Guilty",
-                            "Grief:Despair"
-                        ],
-                        "work_done": {
-                            "counseling_process_flow": "- Initial client sharing\n- Discussion of concerns\n- Exploration of coping mechanisms",
-                            "therapeutic_interventions": [
-                                "Mindfulness",
-                                "Cognitive reframing"
-                            ],
-                            "issues_worked_on": [
-                                "Work-life balance"
-                            ],
-                            "homework": [
-                                "Practice meditation for 5 minutes daily"
-                            ],
-                            "follow_up_plan": {
-                                "status": "Scheduled",
-                                "follow_up_date": "2025-02-15 10:00",
-                                "goals": [
-                                    "Monitor stress levels",
-                                    "Adjust coping strategies"
-                                ]
-                            }
-                        }
-                    },
-                    "counselor_impressions": {
-                        "client_attitude": "Cooperative",
-                        "emotional_state_start": "Anxious",
-                        "emotional_state_change": "Calmer after session",
-                        "problem_analysis": "Client struggles with self-management",
-                        "additional_insights": "Needs consistent follow-up",
-                        "counselor_feelings": "Encouraged"
-                    },
                 },
                 "tags": [
                     "stress",
                     "anxiety",
                     "follow-up"
                 ]
-            }
-        }
-
-
-class ContentEnhanceRequest(BaseModel):
-    """
-    A Pydantic model representing the request for enhancing the content.
-    """
-    content: str = Field(..., description="Content to be enhanced")
-
-    class ConfigDict:
-        json_schema_extra = {
-            "example": {
-                "content": "Exam stress - pressure from parents."
-            }
-        }
-
-
-class ContentEnhanceResponse(BaseModel):
-    """
-    A Pydantic model representing the response of the content enhancement.
-    """
-    enhanced_content: str = Field(..., description="Enhanced content")
-
-    class ConfigDict:
-        json_schema_extra = {
-            "example": {
-                "enhanced_content": "The student is experiencing stress due to parental pressure."
-            }
-        }
-
-
-class ContentEnhance(BaseModel):
-    """
-    A Pydantic model representing the response of the content enhancement.
-    """
-    enhanced_content: str = Field(..., description="Enhanced content")
-
-    class ConfigDict:
-        json_schema_extra = {
-            "example": {
-                "enhanced_content": "The student is experiencing stress due to parental pressure."
             }
         }
