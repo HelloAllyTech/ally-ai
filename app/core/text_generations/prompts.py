@@ -36,9 +36,15 @@ CONTENT_ENHANCE_PROMPT = PromptTemplate(
         The content given might be simple points and may contain grammatical errors and may not be well structured.
         Your task is to enhance the content by making it more structured and grammatically correct.
         Use simple language unless it's a technical term.
+        If content is empty, return the same.
+        
+        Output format:
+        - Content 1\n- Content 2\n- Content 3
         
         Content:
+        ```
         {content}
+        ```
     """),
     input_variables=["content"]
 )

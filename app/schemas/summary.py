@@ -370,7 +370,7 @@ class ContentEnhance(BaseModel):
     """
     A Pydantic model representing the response of the content enhancement.
     """
-    enhanced_content: str = Field(..., description="Enhanced content")
+    enhanced_content: str = Field(..., description="Enhanced content as bulletin points using '-'")
 
     class ConfigDict:
         json_schema_extra = {
