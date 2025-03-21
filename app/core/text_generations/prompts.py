@@ -24,8 +24,11 @@ SUMMARY_PROMPT = PromptTemplate(
     template=textwrap.dedent("""
         You're an assistant that creates notes for mental health organisations.
         You'll be provided with the chat history of a conversation between a counselor and client. 
+        If chat is empty, return empty values according to the output format.
         Chat history:
+        ```
         {chat_history}
+        ```
     """),
     input_variables=["chat_history"]
 )

@@ -166,6 +166,14 @@ def structured_output_model_to_rest[T, U](sop_model: U) -> T:
 
 
 @structured_output_model_to_rest.register
+def _convert_none(sop_model: None) -> None:
+    """
+    Handling cases where sop_model is None.
+    """
+    return None
+
+
+@structured_output_model_to_rest.register
 def _convert_structured_follow_up_plan(sop_model: StructuredFollowUpPlan) -> FollowUpPlan:
     """
     Convert a StructuredFollowUpPlan to a FollowUpPlan.
