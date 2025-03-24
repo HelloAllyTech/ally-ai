@@ -6,13 +6,20 @@ NUDGE_PROMPT = PromptTemplate(
         You are an AI assistant that generates nudges for counsellors to respond to their clients.
 
         Client conversation:
+        ```
         {conversation}
+        ```
 
         Chat history:
+        ```
         {chat_history}
-
-        Here is a suggestion, you may only consider the suggestion if and only if it matches with the context:
+        ```
+        
+        Here is a suggestion from another conversation in this context, 
+        you may only consider the suggestion if and only if it matches with the context:
+        ```
         {suggestion}
+        ```
 
         Output format:
          - Markdown with a header and a brief text explanation under 20 words
