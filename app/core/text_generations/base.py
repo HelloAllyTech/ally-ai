@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict
 
-from app.schemas.summary import SummaryNote
+from app.core.text_generations.structured_output_models import StructuredSummaryNote
 
 
 class BaseTextGenerationService[ModelT](ABC):
@@ -32,7 +32,7 @@ class BaseTextGenerationService[ModelT](ABC):
         pass
 
     @abstractmethod
-    async def generate_summary_notes(self, chat_history: str) -> SummaryNote:
+    async def generate_summary_notes(self, chat_history: str) -> StructuredSummaryNote:
         """
         Generate notes for the chat history.
 
@@ -40,7 +40,7 @@ class BaseTextGenerationService[ModelT](ABC):
             chat_history (str): The chat history to summarize.
 
         Returns:
-            SummaryNote: The summary object.
+            StructuredSummaryNote: The summary object.
 
         Raises:
             SummaryNoteFailedException: If the note generation fails.
