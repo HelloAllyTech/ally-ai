@@ -135,6 +135,8 @@ GenderLiteral = Literal[
     "Client Prefers Not to Say"
 ]
 
+PositivityRatingLiteral = Literal[1, 2, 3, 4, 5]
+
 
 class StructuredSessionDetails(BaseModel):
     """
@@ -214,7 +216,8 @@ class StructuredSessionWork(BaseModel):
     therapeutic_interventions: Optional[List[str]] = Field(None, description="Therapeutic interventions used.")
     issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
-    follow_up_plan: Optional[StructuredFollowUpPlan] = Field(None, description="Follow-up plan and goals for the next session.")
+    follow_up_plan: Optional[StructuredFollowUpPlan] = Field(None,
+                                                             description="Follow-up plan and goals for the next session.")
 
     class ConfigDict:
         json_schema_extra = {
@@ -323,17 +326,36 @@ class StructuredCounselorImpressions(BaseModel):
         }
 
 
+class StructuredTag(BaseModel):
+    """
+    A Pydantic model capturing the summary of the counseling session.
+    """
+    tag: str = Field(..., description="A tag to summarize the chat messages")
+    positivity_rating: PositivityRatingLiteral = Field(...,
+                                                       description="Positivity rating of the tag, 5 for highly positive and 1 for highly negative."
+                                                       )
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "tag": "Stress",
+                "positivity_rating": 2
+            }
+        }
+
+
 class StructuredSummaryNote(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
     """
     session_details: Optional[StructuredSessionDetails] = Field(None, description="Details of the counseling session.")
-    demographic_details: Optional[StructuredDemographicDetails] = Field(None, description="Demographic details of the client.")
+    demographic_details: Optional[StructuredDemographicDetails] = Field(None,
+                                                                        description="Demographic details of the client.")
     session_documentation: Optional[StructuredSessionDocumentation] = Field(None,
-                                                                  description="Documentation related to the counseling session.")
+                                                                            description="Documentation related to the counseling session.")
     counselor_impressions: Optional[StructuredCounselorImpressions] = Field(None,
-                                                                  description="Subjective impressions from the counselor.")
-    tags: list[str] = Field(..., description="List of tags to summarize the chat messages")
+                                                                            description="Subjective impressions from the counselor.")
+    tags: list[StructuredTag] = Field(..., description="List of tags to summarize the chat messages")
 
     class ConfigDict:
         json_schema_extra = {
@@ -396,9 +418,14 @@ class StructuredSummaryNote(BaseModel):
                     "counselor_feelings": "Encouraged"
                 },
                 "tags": [
-                    "stress",
-                    "anxiety",
-                    "follow-up"
+                    {
+                        "tag": "Stress",
+                        "positivity_rating": 2
+                    },
+                    {
+                        "tag": "Work-life balance",
+                        "positivity_rating": 3
+                    }
                 ]
             }
         }

@@ -266,12 +266,28 @@ class SummaryNote(BaseModel):
         }
 
 
+class Tag(BaseModel):
+    """
+    A Pydantic model capturing the summary of the counseling session.
+    """
+    tag: str = Field(..., description="A tag to summarize the chat messages")
+    positivity_rating: int = Field(..., description="Positivity rating of the tag")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "tag": "Stress",
+                "positivity_rating": 2
+            }
+        }
+
+
 class SummaryNoteAndTagsResponse(BaseModel):
     """
     A Pydantic model representing the response of the summary
     """
     summary_note: SummaryNote = Field(..., description="Summary of the counseling session")
-    tags: list[str] = Field(..., description="List of tags to summarize the chat messages")
+    tags: list[Tag] = Field(..., description="List of tags to summarize the chat messages")
 
     class ConfigDict:
         json_schema_extra = {
@@ -330,9 +346,14 @@ class SummaryNoteAndTagsResponse(BaseModel):
                     },
                 },
                 "tags": [
-                    "stress",
-                    "anxiety",
-                    "follow-up"
+                    {
+                        "tag": "Stress",
+                        "positivity_rating": 2
+                    },
+                    {
+                        "tag": "Anxiety",
+                        "positivity_rating": 1
+                    }
                 ]
             }
         }

@@ -9,7 +9,7 @@ from app.core.text_generations.structured_output_models import (
     StructuredSessionDetails,
     StructuredDemographicDetails,
     StructuredCounselorImpressions,
-    StructuredSessionDocumentation,
+    StructuredSessionDocumentation, StructuredTag,
 )
 from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
@@ -19,7 +19,7 @@ from app.schemas.summary import (
     FollowUpPlan,
     SessionDetails,
     DemographicDetails,
-    CounselorImpressions
+    CounselorImpressions, Tag
 )
 
 # Module-level constant for level mapping.
@@ -166,9 +166,9 @@ def structured_output_model_to_rest[T, U](sop_model: U) -> T:
 
 
 @structured_output_model_to_rest.register
-def _convert_none(sop_model: None) -> None:
+def _convert_none(_: None) -> None:
     """
-    Handling cases where sop_model is None.
+    Handling cases where model is None.
     """
     return None
 
@@ -262,6 +262,17 @@ def _convert_structured_session_work(sop_model: StructuredSessionWork) -> Sessio
 
 
 @structured_output_model_to_rest.register
+def _convert_structured_tag(sop_model: StructuredTag) -> Tag:
+    """
+    Convert a StructuredTag to a Tag.
+    """
+    return Tag(
+        tag=sop_model.tag,
+        positivity_rating=sop_model.positivity_rating,
+    )
+
+
+@structured_output_model_to_rest.register
 def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> SummaryNoteAndTagsResponse:
     """
     Convert a StructuredSummaryNote to a SummaryNoteAndTagsResponse.
@@ -273,7 +284,9 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
         counselor_impressions=structured_output_model_to_rest(sop_model.counselor_impressions),
     )
 
+    tags = [structured_output_model_to_rest(tag) for tag in sop_model.tags]
+
     return SummaryNoteAndTagsResponse(
         summary_note=summary_note,
-        tags=sop_model.tags,
+        tags=tags,
     )
