@@ -1,3 +1,5 @@
+import os
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,6 +35,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(...)
     OPENAI_ORGANIZATION_ID: str = Field(...)
 
+    # LangSmith Creds
+    LANGSMITH_TRACING: str = Field(...)
+    LANGSMITH_ENDPOINT: str = Field(...)
+    LANGSMITH_API_KEY: str = Field(...)
+    LANGSMITH_PROJECT: str = Field(...)
+
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
     def parse_str_to_int(cls, v):
@@ -48,6 +56,16 @@ class Settings(BaseSettings):
         Parses a string value to a boolean.
         """
         return isinstance(v, str) and v.lower() == 'true'
+
+    def model_post_init(self, __context=None) -> None:
+        """
+        After initialization, add certain values to os.environ.
+        You can also propagate other settings if needed.
+        """
+        os.environ['LANGSMITH_TRACING'] = self.LANGSMITH_TRACING
+        os.environ['LANGSMITH_ENDPOINT'] = self.LANGSMITH_ENDPOINT
+        os.environ['LANGSMITH_API_KEY'] = self.LANGSMITH_API_KEY
+        os.environ['LANGSMITH_PROJECT'] = self.LANGSMITH_PROJECT
 
 
 settings = Settings()

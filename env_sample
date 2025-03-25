@@ -12,3 +12,8 @@ WEAVIATE_GRPC_SECURE=false
 
 OPENAI_API_KEY=<openai-key>
 OPENAI_ORGANIZATION_ID=<openai-org-id>
+
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=<langsmith-key>
+LANGSMITH_PROJECT=<langsmith-project-name>
