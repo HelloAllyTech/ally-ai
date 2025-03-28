@@ -15,6 +15,10 @@ class Settings(BaseSettings):
 
     # Log settings
     LOG_LEVEL: str = "INFO"
+    SLACK_ALERTS_ENABLED: bool = False
+    SLACK_ALERTS_API_TOKEN: str = Field(...)
+    SLACK_ALERTS_CHANNEL_ID: str = Field(...)
+    SLACK_ALERTS_LOG_LEVEL: str = "WARNING"
 
     # Server configuration
     SERVER_HOST: str = "localhost"
@@ -49,7 +53,7 @@ class Settings(BaseSettings):
         """
         return int(v)
 
-    @field_validator('WEAVIATE_HTTP_SECURE', 'WEAVIATE_GRPC_SECURE', mode='before')
+    @field_validator('WEAVIATE_HTTP_SECURE', 'WEAVIATE_GRPC_SECURE', 'SLACK_ALERTS_ENABLED', mode='before')
     @classmethod
     def parse_str_to_bool(cls, v):
         """
