@@ -220,13 +220,18 @@ def _convert_structured_session_documentation(sop_model: StructuredSessionDocume
     Convert a StructuredSessionDocumentation to a SessionDocumentation.
     """
     # Change format of dominant feelings to Level 1 > Level 2 > Level 3
-    dominant_feelings = [
-        format_dominant_feeling(*fetch_levels_of_feeling_from_dominant_feelings(feeling))
-        for feeling in sop_model.dominant_feelings
-    ]
+    if sop_model.dominant_feelings:
+        dominant_feelings = [
+            format_dominant_feeling(*fetch_levels_of_feeling_from_dominant_feelings(feeling))
+            for feeling in sop_model.dominant_feelings
+        ]
+    else:
+        dominant_feelings = []
+
+    key_concerns = format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None
 
     return SessionDocumentation(
-        key_concerns=format_list_to_bullet_points(sop_model.key_concerns),
+        key_concerns=key_concerns,
         dominant_feelings=dominant_feelings,
         work_done=structured_output_model_to_rest(sop_model.work_done),
     )
@@ -252,8 +257,11 @@ def _convert_structured_session_work(sop_model: StructuredSessionWork) -> Sessio
     """
     Convert a StructuredSessionWork to a SessionWork.
     """
+    counseling_process_flow = format_list_to_bullet_points(
+        sop_model.counseling_process_flow) if sop_model.counseling_process_flow else None
+
     return SessionWork(
-        counseling_process_flow=format_list_to_bullet_points(sop_model.counseling_process_flow),
+        counseling_process_flow=counseling_process_flow,
         therapeutic_interventions=sop_model.therapeutic_interventions,
         issues_worked_on=sop_model.issues_worked_on,
         homework=sop_model.homework,

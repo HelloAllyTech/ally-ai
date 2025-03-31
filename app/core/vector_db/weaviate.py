@@ -102,6 +102,8 @@ class WeaviateDB(VectorDB):
         """
         try:
             vector = await self.embedding_service.embed(query)
+
+            logger.info(f"Fetching relevant conversations for query")
             return await self.similarity_search(vector, top_k)
 
         except EmbeddingFailedException as e:
