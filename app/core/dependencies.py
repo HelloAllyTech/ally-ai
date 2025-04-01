@@ -10,7 +10,8 @@ from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
 from app.core.vector_db.base import VectorDB
-from app.core.vector_db.weaviate import WeaviateClient, WeaviateDB
+from app.core.vector_db.weaviate import WeaviateDB
+from app.core.vector_db.weaviate_client import WeaviateClient
 from app.core.conversations.conversation_service import ConversationService
 
 
@@ -20,12 +21,7 @@ async def get_weaviate_client() -> WeaviateAsyncClient:
     Creates, connects, and yields a Weaviate async client.
     Ensures the client is properly closed after use.
     """
-    client = WeaviateClient.create_client()
-    await WeaviateClient.connect(client)
-    try:
-        yield client
-    finally:
-        await WeaviateClient.close(client)
+    return WeaviateClient.get_client()
 
 
 # Dependency for the OpenAI embedding service

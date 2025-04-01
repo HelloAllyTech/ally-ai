@@ -1,6 +1,6 @@
+from asyncio import Semaphore
 from typing import List
 
-import weaviate
 import weaviate.classes as wvc
 from weaviate.client import WeaviateAsyncClient
 from weaviate.collections.classes.internal import QueryReturn
@@ -19,30 +19,11 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-class WeaviateClient:
-    @staticmethod
-    def create_client():
-        return weaviate.use_async_with_custom(
-            http_host=settings.WEAVIATE_HTTP_HOST,
-            http_port=settings.WEAVIATE_HTTP_PORT,
-            http_secure=settings.WEAVIATE_HTTP_SECURE,
-            grpc_host=settings.WEAVIATE_GRPC_HOST,
-            grpc_port=settings.WEAVIATE_GRPC_PORT,
-            grpc_secure=settings.WEAVIATE_GRPC_SECURE,
-        )
-
-    @staticmethod
-    async def connect(client: WeaviateAsyncClient) -> None:
-        return await client.connect()
-
-    @staticmethod
-    async def close(client: WeaviateAsyncClient) -> None:
-        return await client.close()
+_weaviate_semaphore = Semaphore(settings.WEAVIATE_CONCURRENT_REQUESTS)  # Initialize Semaphore
 
 
 class WeaviateDB(VectorDB):
-    def __init__(self, client, embedding_service: BaseEmbeddingService) -> None:
+    def __init__(self, client: WeaviateAsyncClient, embedding_service: BaseEmbeddingService) -> None:
         self.embedding_service = embedding_service
         super().__init__(client)
 
@@ -67,11 +48,12 @@ class WeaviateDB(VectorDB):
         collection = self.client.collections.get(VectorDBCollectionNames.CONVERSATIONS)
 
         try:
-            return await collection.query.near_vector(
-                near_vector=vector,
-                limit=top_k,
-                return_metadata=wvc.query.MetadataQuery(certainty=True)
-            )
+            async with _weaviate_semaphore:
+                return await collection.query.near_vector(
+                    near_vector=vector,
+                    limit=top_k,
+                    return_metadata=wvc.query.MetadataQuery(certainty=True)
+                )
 
         except WeaviateConnectionError as e:
             logger.exception(str(e))
