@@ -216,8 +216,8 @@ class StructuredSessionWork(BaseModel):
     therapeutic_interventions: Optional[List[str]] = Field(None, description="Therapeutic interventions used.")
     issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
-    follow_up_plan: Optional[StructuredFollowUpPlan] = Field(None,
-                                                             description="Follow-up plan and goals for the next session.")
+    follow_up_plan: StructuredFollowUpPlan = Field(...,
+                                                   description="Follow-up plan and goals for the next session.")
 
     class ConfigDict:
         json_schema_extra = {
@@ -258,7 +258,7 @@ class StructuredSessionDocumentation(BaseModel):
     key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
     dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None,
                                                                       description="Dominant feelings expressed by the client.")
-    work_done: Optional[StructuredSessionWork] = Field(None, description="Counseling related work.")
+    work_done: StructuredSessionWork = Field(..., description="Counseling related work.")
 
     class ConfigDict:
         json_schema_extra = {
@@ -348,13 +348,13 @@ class StructuredSummaryNote(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
     """
-    session_details: Optional[StructuredSessionDetails] = Field(None, description="Details of the counseling session.")
-    demographic_details: Optional[StructuredDemographicDetails] = Field(None,
-                                                                        description="Demographic details of the client.")
-    session_documentation: Optional[StructuredSessionDocumentation] = Field(None,
-                                                                            description="Documentation related to the counseling session.")
-    counselor_impressions: Optional[StructuredCounselorImpressions] = Field(None,
-                                                                            description="Subjective impressions from the counselor.")
+    session_details: StructuredSessionDetails = Field(..., description="Details of the counseling session.")
+    demographic_details: StructuredDemographicDetails = Field(...,
+                                                              description="Demographic details of the client.")
+    session_documentation: StructuredSessionDocumentation = Field(...,
+                                                                  description="Documentation related to the counseling session.")
+    counselor_impressions: StructuredCounselorImpressions = Field(...,
+                                                                  description="Subjective impressions from the counselor.")
     tags: list[StructuredTag] = Field(..., description="List of tags to summarize the chat messages")
 
     class ConfigDict:
