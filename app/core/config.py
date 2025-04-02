@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     WEAVIATE_GRPC_HOST: str = Field(...)
     WEAVIATE_GRPC_PORT: int = Field(...)
     WEAVIATE_GRPC_SECURE: bool = Field(...)
+    WEAVIATE_CONCURRENT_REQUESTS: int = Field(...)
 
     # OpenAI Creds
     OPENAI_API_KEY: str = Field(...)

@@ -1,5 +1,5 @@
 from typing import Optional, List, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, conint
 
 from app.schemas.common import ChatMessage
 
@@ -356,6 +356,7 @@ class StructuredSummaryNote(BaseModel):
     counselor_impressions: StructuredCounselorImpressions = Field(...,
                                                                   description="Subjective impressions from the counselor.")
     tags: list[StructuredTag] = Field(..., description="List of tags to summarize the chat messages")
+    call_quality: int = Field(..., description="Quality rating of the call from 0 to 100 from a client perspective. The minimum is 0 and the maximum is 100.")
 
     class ConfigDict:
         json_schema_extra = {
@@ -426,6 +427,7 @@ class StructuredSummaryNote(BaseModel):
                         "tag": "Work-life balance",
                         "positivity_rating": 3
                     }
-                ]
+                ],
+                "call_quality": 90,
             }
         }

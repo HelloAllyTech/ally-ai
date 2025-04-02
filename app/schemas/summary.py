@@ -288,6 +288,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
     """
     summary_note: SummaryNote = Field(..., description="Summary of the counseling session")
     tags: list[Tag] = Field(..., description="List of tags to summarize the chat messages")
+    call_quality: int = Field(..., description="Quality of the call from a client perspective")
 
     class ConfigDict:
         json_schema_extra = {
@@ -354,7 +355,8 @@ class SummaryNoteAndTagsResponse(BaseModel):
                         "tag": "Anxiety",
                         "positivity_rating": 1
                     }
-                ]
+                ],
+                "call_quality": 40,
             }
         }
 

@@ -297,4 +297,6 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
     return SummaryNoteAndTagsResponse(
         summary_note=summary_note,
         tags=tags,
+        call_quality=max(0, min(sop_model.call_quality, 100))
+        # Adding this since OpenAI doesn't support min and max in schema
     )

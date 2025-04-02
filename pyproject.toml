@@ -16,6 +16,9 @@ langchain-openai = "^0.3.6"
 slack-sdk = "^3.35.0"
 
 
+[tool.poetry.group.dev.dependencies]
+aiohttp = "^3.11.15"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
