@@ -330,7 +330,7 @@ class StructuredTag(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
     """
-    tag: str = Field(..., description="A tag to summarize the chat messages")
+    tag: str = Field(..., description="A tag to summarize the chat messages. Tag shouldn't be lengthy")
     positivity_rating: PositivityRatingLiteral = Field(...,
                                                        description="Positivity rating of the tag, 5 for highly positive and 1 for highly negative."
                                                        )
@@ -355,8 +355,10 @@ class StructuredSummaryNote(BaseModel):
                                                                   description="Documentation related to the counseling session.")
     counselor_impressions: StructuredCounselorImpressions = Field(...,
                                                                   description="Subjective impressions from the counselor.")
-    tags: list[StructuredTag] = Field(..., description="List of tags to summarize the chat messages")
-    call_quality: int = Field(..., description="Quality rating of the call from 0 to 100 from a client perspective. The minimum is 0 and the maximum is 100.")
+    tags: list[StructuredTag] = Field(...,
+                                      description="List of tags to summarize the chat messages. Each tag should be concise.")
+    call_quality: int = Field(...,
+                              description="Quality rating of the call from 0 to 100 from a client perspective. The minimum is 0 and the maximum is 100.")
 
     class ConfigDict:
         json_schema_extra = {
