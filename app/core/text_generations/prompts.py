@@ -21,6 +21,9 @@ NUDGE_PROMPT = PromptTemplate(
         {suggestion}
         ```
 
+        Important: Always refer to the client as "Client" in your response.
+        Do not use pronouns (he/she/they) or any specific names when referring to the client.
+
         Output format:
          - Markdown with a header and a brief text explanation under 20 words
     """),
