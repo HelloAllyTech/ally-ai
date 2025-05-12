@@ -51,3 +51,34 @@ class AnalyzeResponse(BaseModel):
                 "stage": "Rapport Building"
             }
         }
+
+
+class IdentifyRequest(BaseModel):
+    latest_message: str = Field(..., description="The latest message to analyze")
+    chat_history: List[ChatMessage] = Field(..., description="Full history of the chat")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "latest_message": "speaker0: I'm feeling overwhelmed with work and personal life",
+                "chat_history": [
+                    {"role": "speaker1", "content": "Hi, how are you doing today?"},
+                    {"role": "speaker0", "content": "I'm feeling anxious"},
+                    {"role": "speaker1", "content": "Can you tell me more about what's causing this anxiety?"},
+                    {"role": "speaker0", "content": "I'm not sure, it just started this morning"}
+                ]
+            }
+        }
+
+
+class IdentifyResponse(BaseModel):
+    speaker0: str = Field(..., description="The role of speaker0 (client, counselor, or unknown)")
+    speaker1: str = Field(..., description="The role of speaker1 (client, counselor, or unknown)")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "speaker0": "client",
+                "speaker1": "counselor"
+            }
+        }

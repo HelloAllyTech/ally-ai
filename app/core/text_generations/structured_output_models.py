@@ -433,3 +433,30 @@ class StructuredSummaryNote(BaseModel):
                 "call_quality": 90,
             }
         }
+
+UserIdentityLiteral = Literal[
+    "client",
+    "counselor",
+    "unknown"
+]
+
+class StructuredIdentifyUsers(BaseModel):
+    """
+    A Pydantic model for structured output of user identification.
+    """
+    speaker0: UserIdentityLiteral = Field(
+        ...,
+        description="The role of speaker0 (client, counselor, or unknown)"
+    )
+    speaker1: UserIdentityLiteral = Field(
+        ...,
+        description="The role of speaker1 (client, counselor, or unknown)"
+    )
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "speaker0": "client",
+                "speaker1": "counselor"
+            }
+        }
+    }

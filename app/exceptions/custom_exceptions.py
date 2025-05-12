@@ -109,3 +109,15 @@ class ContentEnhancementFailedException(BaseCustomException):
                  status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                  ) -> None:
         super().__init__(message, status_code)
+
+
+class IdentifyUserFailedException(BaseCustomException):
+    """
+    Raised when user identification fails.
+    """
+
+    def __init__(self, 
+                 message="User identification failed", 
+                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) -> None:
+        super().__init__(message, status_code)
+

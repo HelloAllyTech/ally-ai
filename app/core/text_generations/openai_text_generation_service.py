@@ -6,17 +6,19 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT
-from app.core.text_generations.structured_output_models import StructuredSummaryNote
+from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT
+from app.core.text_generations.structured_output_models import StructuredSummaryNote, StructuredIdentifyUsers
 from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
     LLMInvocationFailedException,
     SummaryNoteFailedException,
-    ContentEnhancementFailedException
+    ContentEnhancementFailedException,
+    IdentifyUserFailedException
 )
-from app.schemas.conversation import Nudge
+from app.schemas.conversation import Nudge, IdentifyResponse
 from app.schemas.summary import ContentEnhance
 from app.utils.logger import get_logger
+from app.schemas.common import ChatMessage
 
 logger = get_logger(__name__)
 
@@ -182,3 +184,52 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         logger.info("Content enhanced successfully")
         return response.enhanced_content
+    
+    async def identify_user(self, latest_message: str, chat_history: List[ChatMessage], **kwargs) -> IdentifyResponse:
+        """
+        Identify whether speaker0 and speaker1 are client or counselor based on chat history.
+
+        This method analyzes the chat history and latest message to determine the roles of both speakers.
+        The latest message should be in the format "role: content" (e.g., "speaker0: I'm feeling anxious").
+        The chat history should be a list of ChatMessage objects with role and content.
+
+        Args:
+            latest_message (str): The latest message in the format "role: content"
+            chat_history (List[ChatMessage]): List of previous messages with role and content
+            **kwargs: Additional arguments to pass to the LLM
+
+        Returns:
+            IdentifyResponse: An object containing:
+                - speaker0: The role of the first speaker ("client", "counselor", or "unknown")
+                - speaker1: The role of the second speaker ("client", "counselor", or "unknown")
+
+        Raises:
+            IdentifyUserFailedException: If the LLM fails to identify speakers or if the message format is invalid
+        """
+        logger.info("Identifying users using llm")
+        
+        try:
+            role, content = latest_message.split(":", 1)
+            role = role.strip().lower()
+            content = content.strip()
+
+            # Add latest message to chat history
+            formatted_chat_history = chat_history + [ChatMessage(role=role, content=content)]
+            response = cast(
+                StructuredIdentifyUsers,
+                await self._invoke_llm(
+                    IDENTIFY_USER_PROMPT.format(conversations=formatted_chat_history),
+                    StructuredIdentifyUsers,
+                    **kwargs))
+            
+            logger.info("Users identified successfully")
+            return response
+        except ValueError as e:
+            raise IdentifyUserFailedException(f"Failed to identify user: Invalid message format. {str(e)}") from e
+        except LLMInvocationFailedException as e:
+            raise IdentifyUserFailedException(f"Failed to invoke LLM: {str(e)}") from e
+        except Exception as e:
+            raise IdentifyUserFailedException(f"Unexpected error during user identification: {str(e)}") from e
+        
+
+    

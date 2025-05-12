@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from app.core.text_generations.structured_output_models import StructuredSummaryNote
+from app.schemas.conversation import IdentifyResponse
+from app.schemas.common import ChatMessage
 
 
 class BaseTextGenerationService[ModelT](ABC):
@@ -61,5 +63,12 @@ class BaseTextGenerationService[ModelT](ABC):
 
         Raises:
             ContentEnhancementFailedException: If the content enhancement fails.
+        """
+        pass
+
+    @abstractmethod
+    async def identify_user(self, latest_message: str, chat_history: List[ChatMessage]) -> IdentifyResponse:
+        """
+        Identify the users who did the conversation from the conversation history.
         """
         pass
