@@ -72,3 +72,19 @@ class BaseTextGenerationService[ModelT](ABC):
         Identify the users who did the conversation from the conversation history.
         """
         pass
+
+    @abstractmethod
+    async def get_tag_positivity_ratings(self, tags: List[str]) -> List[Dict]:
+        """
+        Get positivity ratings for a list of tags.
+
+        Parameters:
+            tags (List[str]): List of tags to get positivity ratings for.
+
+        Returns:
+            List[Dict]: List of tags with their positivity ratings.
+
+        Raises:
+            Exception: If the positivity rating generation fails.
+        """
+        pass

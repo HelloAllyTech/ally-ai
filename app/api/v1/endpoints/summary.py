@@ -3,7 +3,7 @@ from fastapi.params import Depends
 
 from app.core.dependencies import get_summary_service
 from app.core.summaries.summary_service import SummaryService
-from app.schemas.summary import SummaryNoteAndTagsRequest, SummaryNoteAndTagsResponse, ContentEnhanceResponse, ContentEnhanceRequest
+from app.schemas.summary import SummaryNoteAndTagsRequest, SummaryNoteAndTagsResponse, ContentEnhanceResponse, ContentEnhanceRequest, TagPositivityRatingRequest, TagPositivityRatingResponse
 from app.utils.common import convert_chat_messages_to_string
 
 router = APIRouter()
@@ -35,3 +35,16 @@ async def enhance(
     enhanced_content = await summary_service.enhance_content(request.content)
 
     return ContentEnhanceResponse(enhanced_content=enhanced_content)
+
+
+@router.post("/tag-positivity-ratings", tags=["tags", "summary"], response_model=TagPositivityRatingResponse)
+async def get_tag_positivity_ratings(
+        request: TagPositivityRatingRequest,
+        summary_service: SummaryService = Depends(get_summary_service)
+):
+    """
+    Get positivity ratings for a list of tags.
+    """
+    tags = await summary_service.get_tag_positivity_ratings(request.tags)
+    
+    return TagPositivityRatingResponse(tags=tags)

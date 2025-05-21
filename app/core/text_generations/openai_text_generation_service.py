@@ -1,4 +1,4 @@
-from typing import Type, Optional, List, cast
+from typing import Type, Optional, List, cast, Dict
 
 import openai
 from langchain_core.messages import BaseMessage
@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT
+from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT, TAG_POSITIVITY_RATING_PROMPT
 from app.core.text_generations.structured_output_models import StructuredSummaryNote, StructuredIdentifyUsers
 from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
@@ -16,9 +16,10 @@ from app.exceptions.custom_exceptions import (
     IdentifyUserFailedException
 )
 from app.schemas.conversation import Nudge, IdentifyResponse
-from app.schemas.summary import ContentEnhance
+from app.schemas.summary import ContentEnhance, Tag
 from app.utils.logger import get_logger
 from app.schemas.common import ChatMessage
+from pydantic import create_model
 
 logger = get_logger(__name__)
 
@@ -199,37 +200,69 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             **kwargs: Additional arguments to pass to the LLM
 
         Returns:
-            IdentifyResponse: An object containing:
-                - speaker0: The role of the first speaker ("client", "counselor", or "unknown")
-                - speaker1: The role of the second speaker ("client", "counselor", or "unknown")
-
-        Raises:
-            IdentifyUserFailedException: If the LLM fails to identify speakers or if the message format is invalid
+            IdentifyResponse: Object containing the identified roles for speaker0 and speaker1
         """
-        logger.info("Identifying users using llm")
+        logger.info("Identifying users using OpenAI")
+        
+        # Format chat history for the prompt
+        formatted_conversations = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+        if latest_message:
+            formatted_conversations += f"\n{latest_message}"
         
         try:
-            role, content = latest_message.split(":", 1)
-            role = role.strip().lower()
-            content = content.strip()
-
-            # Add latest message to chat history
-            formatted_chat_history = chat_history + [ChatMessage(role=role, content=content)]
             response = cast(
                 StructuredIdentifyUsers,
                 await self._invoke_llm(
-                    IDENTIFY_USER_PROMPT.format(conversations=formatted_chat_history),
+                    IDENTIFY_USER_PROMPT.format(conversations=formatted_conversations),
                     StructuredIdentifyUsers,
-                    **kwargs))
-            
-            logger.info("Users identified successfully")
-            return response
-        except ValueError as e:
-            raise IdentifyUserFailedException(f"Failed to identify user: Invalid message format. {str(e)}") from e
+                    **kwargs
+                )
+            )
         except LLMInvocationFailedException as e:
-            raise IdentifyUserFailedException(f"Failed to invoke LLM: {str(e)}") from e
-        except Exception as e:
-            raise IdentifyUserFailedException(f"Unexpected error during user identification: {str(e)}") from e
+            raise IdentifyUserFailedException("Failed to invoke LLM.") from e
         
+        logger.info("Users identified successfully")
+        return IdentifyResponse(speaker0=response.speaker0, speaker1=response.speaker1)
+        
+    async def get_tag_positivity_ratings(self, tags: List[str], **kwargs) -> List[Dict]:
+        """
+        Get positivity ratings for a list of tags.
 
-    
+        Parameters:
+            tags (List[str]): List of tags to get positivity ratings for.
+            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+
+        Returns:
+            List[Dict]: List of tags with their positivity ratings.
+
+        Raises:
+            Exception: If the positivity rating generation fails.
+        """
+        logger.info("Getting positivity ratings for tags using OpenAI")
+        
+        # Format tags for the prompt
+        formatted_tags = "\n".join(tags)
+        
+        try:
+            # Using a list of Tag objects as the structured output
+            TagList = create_model('TagList', tags=(List[Tag], ...))
+            
+            response = cast(
+                TagList,
+                await self._invoke_llm(
+                    TAG_POSITIVITY_RATING_PROMPT.format(tags=formatted_tags),
+                    TagList,
+                    **kwargs
+                )
+            )
+            
+            # Convert to list of dictionaries
+            return [{"tag": tag.tag, "positivity_rating": tag.positivity_rating} for tag in response.tags]
+            
+        except LLMInvocationFailedException as e:
+            logger.exception(f"Failed to get positivity ratings: {str(e)}")
+            raise Exception("Failed to get positivity ratings for tags.") from e
+        
+        except Exception as e:
+            logger.exception(f"Unexpected error getting positivity ratings: {str(e)}")
+            raise Exception("An unexpected error occurred while getting positivity ratings.") from e

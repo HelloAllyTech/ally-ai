@@ -401,3 +401,44 @@ class ContentEnhance(BaseModel):
                 "enhanced_content": "The student is experiencing stress due to parental pressure."
             }
         }
+
+
+class TagPositivityRatingRequest(BaseModel):
+    """
+    A Pydantic model representing the request for getting positivity ratings for tags.
+    """
+    tags: list[str] = Field(..., description="List of tags to get positivity ratings for")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "tags": ["Stress", "Anxiety", "Work-life balance"]
+            }
+        }
+
+
+class TagPositivityRatingResponse(BaseModel):
+    """
+    A Pydantic model representing the response with positivity ratings for tags.
+    """
+    tags: list[Tag] = Field(..., description="List of tags with their positivity ratings")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "tags": [
+                    {
+                        "tag": "Stress",
+                        "positivity_rating": 2
+                    },
+                    {
+                        "tag": "Anxiety",
+                        "positivity_rating": 1
+                    },
+                    {
+                        "tag": "Work-life balance",
+                        "positivity_rating": 3
+                    }
+                ]
+            }
+        }

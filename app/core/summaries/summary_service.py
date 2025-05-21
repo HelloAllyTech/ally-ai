@@ -4,7 +4,7 @@ from app.exceptions.custom_exceptions import (
     SummaryNoteFailedException,
     ContentEnhancementFailedException,
 )
-from app.schemas.summary import SummaryNoteAndTagsResponse
+from app.schemas.summary import SummaryNoteAndTagsResponse, Tag
 from app.utils.logger import get_logger
 from app.utils.structured_model_converter import structured_output_model_to_rest
 
@@ -55,3 +55,25 @@ class SummaryService:
             raise SummarizationFailedException("Failed to enhance content. Please try again later.") from e
 
         return enhanced_content
+        
+    async def get_tag_positivity_ratings(self, tags: list[str]) -> list[Tag]:
+        """
+        Get positivity ratings for a list of tags.
+
+        Parameters:
+            tags (list[str]): List of tags to get positivity ratings for.
+
+        Returns:
+            list[Tag]: List of tags with their positivity ratings.
+
+        Raises:
+            SummarizationFailedException: If the positivity rating generation fails.
+        """
+        try:
+            tag_ratings = await self.text_generation_service.get_tag_positivity_ratings(tags)
+            
+            # Convert the list of dictionaries to a list of Tag objects
+            return [Tag(tag=item["tag"], positivity_rating=item["positivity_rating"]) for item in tag_ratings]
+            
+        except Exception as e:
+            raise SummarizationFailedException("Failed to get positivity ratings for tags. Please try again later.") from e
