@@ -86,6 +86,42 @@ IDENTIFY_USER_PROMPT = PromptTemplate(
     input_variables=["conversations"]
 )
 
+DYNAMIC_SUMMARY_PROMPT = PromptTemplate(
+    template = textwrap.dedent("""
+        You are an AI assistant that creates structured notes for mental health organizations.
+        Analyze the following counseling session chat history and provide values for ONLY the requested fields.
+        Do not include any other fields in your response.
+
+        Requested fields:
+        {key_descriptions}
+
+        Chat History:
+        ```
+        {chat_history}
+        ```
+
+        You must return a function call with the following structure:
+        {{
+            "name": "generate_dynamic_summary",
+            "arguments": {{
+                "fields": {{
+                    "field1": "value1",
+                    "field2": 42
+                }}
+            }}
+        }}
+
+        Note:
+        - Only include the requested fields
+        - For integer fields (like work_life_balance_score), provide integer values
+        - For non-numeric fields, provide string values
+        - If a field's value cannot be determined, use an empty string
+        - Keep values concise and relevant
+        - The response must be a valid JSON object
+    """),
+    input_variables=["chat_history", "key_descriptions"]
+)
+
 TAG_POSITIVITY_RATING_PROMPT = PromptTemplate(
     template=textwrap.dedent("""
         You are an AI assistant that assigns positivity ratings to mental health related tags.

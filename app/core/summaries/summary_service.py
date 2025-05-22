@@ -1,12 +1,12 @@
+from typing import Optional, List, Union
 from app.core.text_generations.base import BaseTextGenerationService
 from app.exceptions.custom_exceptions import (
     SummarizationFailedException,
     SummaryNoteFailedException,
     ContentEnhancementFailedException,
 )
-from app.schemas.summary import SummaryNoteAndTagsResponse, Tag
+from app.schemas.summary import SummaryNoteAndTagsResponse, Tag, DynamicSummaryNoteResponse
 from app.utils.logger import get_logger
-from app.utils.structured_model_converter import structured_output_model_to_rest
 
 logger = get_logger(__name__)
 
@@ -15,30 +15,39 @@ class SummaryService:
     def __init__(self, text_generation_service: BaseTextGenerationService) -> None:
         self.text_generation_service = text_generation_service
 
-    async def generate_summary_and_tags(self, chat_history: str) -> SummaryNoteAndTagsResponse:
+    async def generate_summary_and_tags(
+        self,
+        chat_history: str,
+        keys: Optional[List[str]] = None
+    ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
-        Generate a summary and associated tags from the provided chat history.
+        Generate a summary and tags from the given chat history.
 
         Parameters:
-            chat_history (str): A string representing the chat history to be summarized and analyzed.
+            chat_history (str): The chat history to summarize.
+            keys (Optional[List[str]]): The keys to include in the summary.
 
         Returns:
-            SummaryNoteAndTagsResponse: An object that contains the summary note along with a list of tags derived from the chat history.
+            Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]: 
+                - If keys are provided, returns a DynamicSummaryNoteResponse
+                - Otherwise, returns a SummaryNoteAndTagsResponse
 
         Raises:
-            SummarizationFailedException: If the summary generation or tagging process fails.
-            NotImplementedError: If conversion for the type of `sop_model` is not implemented.
+            Exception: If summary generation fails.
         """
         try:
-            summary = await self.text_generation_service.generate_summary_notes(chat_history)
+            # Generate the summary note
+            return await self.text_generation_service.generate_summary_notes(
+                chat_history,
+                keys
+            )
         except SummaryNoteFailedException as e:
+            logger.error(f"Failed to generate summary: {str(e)}")
             raise SummarizationFailedException("Failed to generate the summary. Please try again later.") from e
-
-        return structured_output_model_to_rest(summary)
 
     async def enhance_content(self, content: str) -> str:
         """
-        Enhances the content
+        Enhance the given content using the text generation service.
 
         Parameters:
             content (str): The content to enhance.

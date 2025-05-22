@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Optional, Union
 
-from app.core.text_generations.structured_output_models import StructuredSummaryNote
 from app.schemas.conversation import IdentifyResponse
 from app.schemas.common import ChatMessage
+from app.schemas.summary import SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse
 
 
 class BaseTextGenerationService[ModelT](ABC):
@@ -34,18 +34,21 @@ class BaseTextGenerationService[ModelT](ABC):
         pass
 
     @abstractmethod
-    async def generate_summary_notes(self, chat_history: str) -> StructuredSummaryNote:
+    async def generate_summary_notes(
+        self,
+        chat_history: str,
+        keys: Optional[List[str]] = None
+    ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
-        Generate notes for the chat history.
+        Generate summary notes from chat history.
 
         Parameters:
-            chat_history (str): The chat history to summarize.
+            chat_history (str): The chat history to summarize
+            keys (Optional[List[str]]): Optional list of keys to generate. If provided, returns a DynamicSummaryNoteResponse
+                with only the requested fields. If None, returns a SummaryNoteAndTagsResponse with all predefined fields.
 
         Returns:
-            StructuredSummaryNote: The summary object.
-
-        Raises:
-            SummaryNoteFailedException: If the note generation fails.
+            Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]: The generated summary notes
         """
         pass
 
