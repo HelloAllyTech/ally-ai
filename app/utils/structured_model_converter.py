@@ -115,6 +115,15 @@ def format_dominant_feeling(level1: str, level2: str, level3: str) -> str | None
         return None
     return f"{level1} > {level2} > {level3}"
 
+def format_list_to_bullet_points(items: list[str]) -> str:
+    """
+    Formats a list of strings as a bullet-point string.
+    Parameters:
+        items (list[str]): The list of strings to format.
+    Returns:
+        str: The formatted bullet-point string.
+    """
+    return "\n".join(f"- {item}" for item in items)
 
 @singledispatch
 def structured_output_model_to_rest[T, U](sop_model: U) -> T:
@@ -193,19 +202,43 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
         working_status=sop_model.working_status,
         any_formal_diagnosis=sop_model.any_formal_diagnosis,
         code_of_concern=sop_model.code_of_concern,
+        call_id=sop_model.call_id,
+        call_duration=sop_model.call_duration,
+        call_time=sop_model.call_time,
+        counsellor=sop_model.counsellor,
+        call_type=sop_model.call_type,
+        profession=sop_model.profession,
+        relationship_status=sop_model.relationship_status,
 
         # Session Documentation
-        key_concerns=sop_model.key_concerns,
+        key_concerns = format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None,
         dominant_feelings=dominant_feelings,
-        counseling_process_flow=sop_model.counseling_process_flow,
-        therapeutic_interventions=sop_model.therapeutic_interventions,
-        issues_worked_on=sop_model.issues_worked_on,
-        homework=sop_model.homework,
+        counseling_process_flow = format_list_to_bullet_points(
+        sop_model.counseling_process_flow) if sop_model.counseling_process_flow else None,
+        therapeutic_interventions=format_list_to_bullet_points(
+        sop_model.therapeutic_interventions) if sop_model.therapeutic_interventions else None,
+        issues_worked_on=format_list_to_bullet_points(
+        sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
+        homework=format_list_to_bullet_points(sop_model.homework) if sop_model.homework else None,
+        session_summary=sop_model.session_summary,
+        subjective_observations=format_list_to_bullet_points(
+        sop_model.subjective_observations) if sop_model.subjective_observations else None,
+        objective_observations=format_list_to_bullet_points(
+        sop_model.objective_observations) if sop_model.objective_observations else None,
+        assessment=sop_model.assessment,
+        key_therapeutic_techniques=format_list_to_bullet_points(
+        sop_model.key_therapeutic_techniques) if sop_model.key_therapeutic_techniques else None,
+        referrals_provided=format_list_to_bullet_points(
+        sop_model.referrals_provided) if sop_model.referrals_provided else None,
+        plan_for_next_call=format_list_to_bullet_points(
+        sop_model.plan_for_next_call) if sop_model.plan_for_next_call else None,
+        metrics=format_list_to_bullet_points(sop_model.metrics) if sop_model.metrics else None,
 
         # Follow-up Plan
         follow_up_status=sop_model.follow_up_status,
         follow_up_date=sop_model.follow_up_date,
-        follow_up_goals=sop_model.follow_up_goals,
+        follow_up_goals=format_list_to_bullet_points(
+        sop_model.follow_up_goals) if sop_model.follow_up_goals else None,
 
         # Counselor Impressions
         client_attitude=sop_model.client_attitude,

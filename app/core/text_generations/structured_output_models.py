@@ -164,6 +164,13 @@ class StructuredSummaryNote(BaseModel):
     working_status: Optional[WorkingStatusLiteral] = Field(None, description="Client's working status.")
     any_formal_diagnosis: Optional[str] = Field(None, description="Any formal diagnosis if available.")
     code_of_concern: Optional[CodeOfConcernLiteral] = Field(None, description="Code of concern for the session.")
+    call_id: Optional[str] = Field(None, description="Call ID of the session.")
+    call_duration: Optional[int] = Field(None, description="Duration of the call in seconds.")
+    call_time: Optional[str] = Field(None, description="Time of the call.")
+    counsellor: Optional[str] = Field(None, description="Counsellor of the session.")
+    call_type: Optional[str] = Field(None, description="Type of the call.")
+    profession: Optional[str] = Field(None, description="Profession of the client.")
+    relationship_status: Optional[str] = Field(None, description="Relationship status of the client.")
 
     # Session Documentation
     key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
@@ -172,6 +179,14 @@ class StructuredSummaryNote(BaseModel):
     therapeutic_interventions: Optional[List[str]] = Field(None, description="Therapeutic interventions used.")
     issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
+    session_summary: Optional[str] = Field(None, description="Summary of the session.")
+    subjective_observations: Optional[List[str]] = Field(None, description="Subjective observations of the client.")
+    objective_observations: Optional[List[str]] = Field(None, description="Objective observations of the client.")
+    assessment: Optional[str] = Field(None, description="Assessment of the client.")
+    key_therapeutic_techniques: Optional[List[str]] = Field(None, description="Key therapeutic techniques used.")
+    referrals_provided: Optional[List[str]] = Field(None, description="Referrals provided to the client.")
+    plan_for_next_call: Optional[List[str]] = Field(None, description="Plan for the next call.")
+    metrics: Optional[List[str]] = Field(None, description="Metrics for the session.")
 
     # Follow-up Plan
     follow_up_status: Optional[str] = Field(None, description="Status of the follow-up session.")
@@ -189,6 +204,7 @@ class StructuredSummaryNote(BaseModel):
     # Tags and Quality
     tags: List[StructuredTag] = Field(..., description="List of tags to summarize the chat messages.")
     call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
+
     class ConfigDict:
         json_schema_extra = {
             "example": {
@@ -203,6 +219,13 @@ class StructuredSummaryNote(BaseModel):
                 "working_status": "Working",
                 "any_formal_diagnosis": None,
                 "code_of_concern": "Work-life Concerns",
+                "call_id": "CALL123",
+                "call_duration": 1800,
+                "call_time": "10:00 AM",
+                "counsellor": "Shruti",
+                "call_type": "Follow-up",
+                "profession": "Software Engineer",
+                "relationship_status": "Single",
                 "key_concerns": [
                     "Feeling overwhelmed by responsibilities",
                     "Difficulty managing time"
@@ -227,6 +250,32 @@ class StructuredSummaryNote(BaseModel):
                 "homework": [
                     "Practice meditation for 5 minutes daily",
                     "Keep a time log"
+                ],
+                "session_summary": "Client discussed work-life balance challenges and developed coping strategies.",
+                "subjective_observations": [
+                    "Client appears tired",
+                    "Shows interest in learning new techniques"
+                ],
+                "objective_observations": [
+                    "Maintained good eye contact",
+                    "Engaged in discussion"
+                ],
+                "assessment": "Client is experiencing work-related stress but is motivated to improve.",
+                "key_therapeutic_techniques": [
+                    "Deep breathing",
+                    "Thought challenging"
+                ],
+                "referrals_provided": [
+                    "Stress management workshop",
+                    "Time management course"
+                ],
+                "plan_for_next_call": [
+                    "Review progress",
+                    "Adjust strategies if needed"
+                ],
+                "metrics": [
+                    "Stress level reduced by 20%",
+                    "Sleep quality improved"
                 ],
                 "follow_up_status": "Scheduled",
                 "follow_up_date": "2025-02-15 10:00",
