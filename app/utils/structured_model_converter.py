@@ -8,7 +8,7 @@ from app.core.text_generations.structured_output_models import (
 )
 from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
-    Tag
+    Tag,
 )
 
 # Module-level constant for level mapping.
@@ -188,67 +188,49 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
 
     # Create flattened response
     return SummaryNoteAndTagsResponse(
-        # Session Details
-        date_of_session=sop_model.date_of_session,
-        new_call_follow_up=sop_model.new_call_follow_up,
-        session_number=sop_model.session_number,
-        counselor_name=sop_model.counselor_name,
-
-        # Demographic Details
-        client_id=sop_model.client_id,
-        gender=sop_model.gender,
-        age=sop_model.age,
-        location=sop_model.location,
-        working_status=sop_model.working_status,
-        any_formal_diagnosis=sop_model.any_formal_diagnosis,
-        code_of_concern=sop_model.code_of_concern,
         call_id=sop_model.call_id,
         call_duration=sop_model.call_duration,
+        call_date=sop_model.date_of_session,
         call_time=sop_model.call_time,
+        client_id=sop_model.client_id,
         counsellor=sop_model.counsellor,
         call_type=sop_model.call_type,
+        age=sop_model.age,
+        gender=sop_model.gender,
         profession=sop_model.profession,
         relationship_status=sop_model.relationship_status,
-
-        # Session Documentation
-        key_concerns = format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None,
-        dominant_feelings=dominant_feelings,
+        languages=[
+                    {
+                        "language": "English",
+                        "percentage": 0.85
+                    }
+                ],
+        location=sop_model.location,
+        code_of_concern=sop_model.code_of_concern,
+        session_summary=sop_model.session_summary,
         counseling_process_flow = format_list_to_bullet_points(
         sop_model.counseling_process_flow) if sop_model.counseling_process_flow else None,
-        therapeutic_interventions=format_list_to_bullet_points(
-        sop_model.therapeutic_interventions) if sop_model.therapeutic_interventions else None,
-        issues_worked_on=format_list_to_bullet_points(
-        sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
-        homework=format_list_to_bullet_points(sop_model.homework) if sop_model.homework else None,
-        session_summary=sop_model.session_summary,
+
+        key_concerns = format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None,
         subjective_observations=format_list_to_bullet_points(
         sop_model.subjective_observations) if sop_model.subjective_observations else None,
         objective_observations=format_list_to_bullet_points(
         sop_model.objective_observations) if sop_model.objective_observations else None,
         assessment=sop_model.assessment,
+        dominant_feelings=dominant_feelings,
+        issues_worked_on=format_list_to_bullet_points(
+        sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
         key_therapeutic_techniques=format_list_to_bullet_points(
         sop_model.key_therapeutic_techniques) if sop_model.key_therapeutic_techniques else None,
         referrals_provided=format_list_to_bullet_points(
         sop_model.referrals_provided) if sop_model.referrals_provided else None,
+        homework=format_list_to_bullet_points(sop_model.homework) if sop_model.homework else None,
         plan_for_next_call=format_list_to_bullet_points(
         sop_model.plan_for_next_call) if sop_model.plan_for_next_call else None,
-        metrics=format_list_to_bullet_points(sop_model.metrics) if sop_model.metrics else None,
-
-        # Follow-up Plan
-        follow_up_status=sop_model.follow_up_status,
-        follow_up_date=sop_model.follow_up_date,
-        follow_up_goals=format_list_to_bullet_points(
-        sop_model.follow_up_goals) if sop_model.follow_up_goals else None,
-
-        # Counselor Impressions
-        client_attitude=sop_model.client_attitude,
-        emotional_state_start=sop_model.emotional_state_start,
-        emotional_state_change=sop_model.emotional_state_change,
-        problem_analysis=sop_model.problem_analysis,
-        additional_insights=sop_model.additional_insights,
-        counselor_feelings=sop_model.counselor_feelings,
-
-        # Tags and Quality
         tags=tags,
+        reflective_questions_asked=len(
+        sop_model.reflective_questions_asked) if sop_model.reflective_questions_asked else None,
+        listening_share=None,
+        emotional_lift=sop_model.emotional_lift,        
         call_quality=max(0, min(sop_model.call_quality, 100))
     )

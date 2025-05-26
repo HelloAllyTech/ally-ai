@@ -1,7 +1,7 @@
 from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
-from app.schemas.common import ChatMessage
+from app.core.constants import AgeRange
 
 DominantFeelingLiteral = Literal[
     "Betrayed:Let Down",
@@ -146,6 +146,7 @@ class StructuredTag(BaseModel):
     positivity_rating: int = Field(..., description="Positivity rating of the tag, 5 for highly positive and 1 for highly negative.")
 
 
+
 class StructuredSummaryNote(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
@@ -159,7 +160,7 @@ class StructuredSummaryNote(BaseModel):
     # Demographic Details
     client_id: Optional[str] = Field(None, description="Client ID if available.")
     gender: Optional[GenderLiteral] = Field(None, description="Gender of the client.")
-    age: Optional[int] = Field(None, description="Age of the client.")
+    age: Optional[AgeRange] = Field(None, description="Age range of the client.")
     location: Optional[str] = Field(None, description="Client's location.")
     working_status: Optional[WorkingStatusLiteral] = Field(None, description="Client's working status.")
     any_formal_diagnosis: Optional[str] = Field(None, description="Any formal diagnosis if available.")
@@ -171,87 +172,50 @@ class StructuredSummaryNote(BaseModel):
     call_type: Optional[str] = Field(None, description="Type of the call.")
     profession: Optional[str] = Field(None, description="Profession of the client.")
     relationship_status: Optional[str] = Field(None, description="Relationship status of the client.")
-
-    # Session Documentation
-    key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
-    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None, description="Dominant feelings expressed by the client.")
-    counseling_process_flow: Optional[List[str]] = Field(None, description="Flow of the counseling process.")
-    therapeutic_interventions: Optional[List[str]] = Field(None, description="Therapeutic interventions used.")
-    issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
-    homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
     session_summary: Optional[str] = Field(None, description="Summary of the session.")
+    counseling_process_flow: Optional[List[str]] = Field(None, description="Flow of the counseling process.")
+
+    key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
     subjective_observations: Optional[List[str]] = Field(None, description="Subjective observations of the client.")
     objective_observations: Optional[List[str]] = Field(None, description="Objective observations of the client.")
     assessment: Optional[str] = Field(None, description="Assessment of the client.")
+    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None, description="Dominant feelings expressed by the client.")
+    issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
     key_therapeutic_techniques: Optional[List[str]] = Field(None, description="Key therapeutic techniques used.")
     referrals_provided: Optional[List[str]] = Field(None, description="Referrals provided to the client.")
+    homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
     plan_for_next_call: Optional[List[str]] = Field(None, description="Plan for the next call.")
-    metrics: Optional[List[str]] = Field(None, description="Metrics for the session.")
-
-    # Follow-up Plan
-    follow_up_status: Optional[str] = Field(None, description="Status of the follow-up session.")
-    follow_up_date: Optional[str] = Field(None, description="Date and time for the follow-up session.")
-    follow_up_goals: Optional[List[str]] = Field(None, description="Goals set for the next session.")
-
-    # Counselor Impressions
-    client_attitude: Optional[str] = Field(None, description="Client's attitude towards therapy.")
-    emotional_state_start: Optional[str] = Field(None, description="Client's emotional state at the beginning.")
-    emotional_state_change: Optional[str] = Field(None, description="Changes in client's emotional state.")
-    problem_analysis: Optional[str] = Field(None, description="Counselor's analysis of the problem.")
-    additional_insights: Optional[str] = Field(None, description="Additional insights from the counselor.")
-    counselor_feelings: Optional[str] = Field(None, description="How the counselor felt during the session.")
-
-    # Tags and Quality
     tags: List[StructuredTag] = Field(..., description="List of tags to summarize the chat messages.")
+    reflective_questions_asked: Optional[List[str]] = Field(None, description="Reflective questions asked by the counselor.")
+    emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
     call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
 
     class ConfigDict:
         json_schema_extra = {
             "example": {
-                "date_of_session": "2025-02-11",
-                "new_call_follow_up": "Follow-up",
-                "session_number": "2",
-                "counselor_name": "Shruti",
-                "client_id": "CL123",
-                "gender": "Female",
-                "age": 28,
-                "location": "Mumbai",
-                "working_status": "Working",
-                "any_formal_diagnosis": None,
-                "code_of_concern": "Work-life Concerns",
                 "call_id": "CALL123",
+                "call_date": "2025-02-11",
                 "call_duration": 1800,
                 "call_time": "10:00 AM",
+                "caller_id": "CL123",
                 "counsellor": "Shruti",
                 "call_type": "Follow-up",
+                "age": "25-34",
+                "gender": "Female",
                 "profession": "Software Engineer",
                 "relationship_status": "Single",
-                "key_concerns": [
-                    "Feeling overwhelmed by responsibilities",
-                    "Difficulty managing time"
-                ],
-                "dominant_feelings": [
-                    "Anxious",
-                    "Overwhelmed"
-                ],
+                "location": "Mumbai",
+                "code_of_concern": "Work-life Concerns",
+                "session_summary": "Client discussed work-life balance challenges and developed coping strategies.",
                 "counseling_process_flow": [
                     "Initial assessment",
                     "Discussion of concerns",
                     "Strategy development"
                 ],
-                "therapeutic_interventions": [
-                    "Mindfulness",
-                    "Cognitive reframing"
+                "key_concerns": [
+                    "Feeling overwhelmed by responsibilities",
+                    "Difficulty managing time"
                 ],
-                "issues_worked_on": [
-                    "Time management",
-                    "Stress reduction"
-                ],
-                "homework": [
-                    "Practice meditation for 5 minutes daily",
-                    "Keep a time log"
-                ],
-                "session_summary": "Client discussed work-life balance challenges and developed coping strategies.",
                 "subjective_observations": [
                     "Client appears tired",
                     "Shows interest in learning new techniques"
@@ -261,6 +225,15 @@ class StructuredSummaryNote(BaseModel):
                     "Engaged in discussion"
                 ],
                 "assessment": "Client is experiencing work-related stress but is motivated to improve.",
+                
+                "dominant_feelings": [
+                    "Anxious",
+                    "Overwhelmed"
+                ],
+                "issues_worked_on": [
+                    "Time management",
+                    "Stress reduction"
+                ],
                 "key_therapeutic_techniques": [
                     "Deep breathing",
                     "Thought challenging"
@@ -269,26 +242,14 @@ class StructuredSummaryNote(BaseModel):
                     "Stress management workshop",
                     "Time management course"
                 ],
+                "homework": [
+                    "Practice meditation for 5 minutes daily",
+                    "Keep a time log"
+                ],
                 "plan_for_next_call": [
                     "Review progress",
                     "Adjust strategies if needed"
                 ],
-                "metrics": [
-                    "Stress level reduced by 20%",
-                    "Sleep quality improved"
-                ],
-                "follow_up_status": "Scheduled",
-                "follow_up_date": "2025-02-15 10:00",
-                "follow_up_goals": [
-                    "Monitor stress levels",
-                    "Adjust coping strategies"
-                ],
-                "client_attitude": "Cooperative",
-                "emotional_state_start": "Anxious",
-                "emotional_state_change": "Calmer after session",
-                "problem_analysis": "Client struggles with self-management",
-                "additional_insights": "Needs consistent follow-up",
-                "counselor_feelings": "Encouraged",
                 "tags": [
                     {
                         "tag": "Stress",
@@ -299,6 +260,11 @@ class StructuredSummaryNote(BaseModel):
                         "positivity_rating": 3
                     }
                 ],
+                "reflective_questions_asked": [
+                    "What are your thoughts on the session?",
+                    "What did you think of the strategies we discussed?"
+                ],
+                "emotional_lift": "Client felt more relaxed after the session",
                 "call_quality": 90
             }
         }

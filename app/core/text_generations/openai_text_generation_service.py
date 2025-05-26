@@ -237,6 +237,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         **kwargs
                     )
                 )
+                
                 logger.info("Note generated successfully")
                 # Convert the summary to a response using the appropriate converter
                 return structured_output_model_to_rest(response)
