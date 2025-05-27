@@ -217,7 +217,7 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
         objective_observations=format_list_to_bullet_points(
         sop_model.objective_observations) if sop_model.objective_observations else None,
         assessment=sop_model.assessment,
-        dominant_feelings=dominant_feelings,
+        dominant_feelings= format_list_to_bullet_points(dominant_feelings),
         issues_worked_on=format_list_to_bullet_points(
         sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
         key_therapeutic_techniques=format_list_to_bullet_points(
