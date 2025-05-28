@@ -143,8 +143,8 @@ class StructuredTag(BaseModel):
     A Pydantic model capturing the summary of the counseling session.
     """
     tag: str = Field(..., description="A tag to summarize the chat messages. Tag shouldn't be lengthy")
-    positivity_rating: int = Field(..., description="Positivity rating of the tag, 5 for highly positive and 1 for highly negative.")
-
+    positivity_rating: int = Field(...,
+                                   description="Positivity rating of the tag, 5 for highly positive and 1 for highly negative.")
 
 
 class StructuredSummaryNote(BaseModel):
@@ -179,14 +179,18 @@ class StructuredSummaryNote(BaseModel):
     subjective_observations: Optional[List[str]] = Field(None, description="Subjective observations of the client.")
     objective_observations: Optional[List[str]] = Field(None, description="Objective observations of the client.")
     assessment: Optional[str] = Field(None, description="Assessment of the client.")
-    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None, description="Dominant feelings expressed by the client.")
+    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None,
+                                                                      description="Dominant feelings expressed by the client.")
     issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
     key_therapeutic_techniques: Optional[List[str]] = Field(None, description="Key therapeutic techniques used.")
     referrals_provided: Optional[List[str]] = Field(None, description="Referrals provided to the client.")
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
     plan_for_next_call: Optional[List[str]] = Field(None, description="Plan for the next call.")
     tags: List[StructuredTag] = Field(..., description="List of tags to summarize the chat messages.")
-    reflective_questions_asked: Optional[List[str]] = Field(None, description="Reflective questions asked by the counselor.")
+    reflective_questions_asked: Optional[List[str]] = Field(None,
+                                                            description="Reflective questions asked by the counselor.")
+    open_ended_questions_asked: Optional[List[str]] = Field(None,
+                                                            description="Open-ended questions asked by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
     call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
 
@@ -225,7 +229,7 @@ class StructuredSummaryNote(BaseModel):
                     "Engaged in discussion"
                 ],
                 "assessment": "Client is experiencing work-related stress but is motivated to improve.",
-                
+
                 "dominant_feelings": [
                     "Anxious",
                     "Overwhelmed"
@@ -264,6 +268,10 @@ class StructuredSummaryNote(BaseModel):
                     "What are your thoughts on the session?",
                     "What did you think of the strategies we discussed?"
                 ],
+                "open_ended_questions_asked": [
+                    "Can you tell me more about your work-life balance challenges?",
+                    "How do you think we can work together to improve your time management skills?"
+                ],
                 "emotional_lift": "Client felt more relaxed after the session",
                 "call_quality": 90
             }
@@ -275,6 +283,7 @@ UserIdentityLiteral = Literal[
     "counselor",
     "unknown"
 ]
+
 
 class StructuredIdentifyUsers(BaseModel):
     """

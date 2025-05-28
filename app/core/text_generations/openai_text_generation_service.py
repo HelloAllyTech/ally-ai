@@ -8,7 +8,8 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, DYNAMIC_SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT, TAG_POSITIVITY_RATING_PROMPT
+from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, DYNAMIC_SUMMARY_PROMPT, \
+    CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT, TAG_POSITIVITY_RATING_PROMPT
 from app.core.text_generations.structured_output_models import StructuredSummaryNote, StructuredIdentifyUsers
 from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
@@ -24,7 +25,9 @@ from app.schemas.common import ChatMessage
 from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 from pydantic import create_model
+
 logger = get_logger(__name__)
+
 
 @tool
 def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Union[str, int]]:
@@ -51,6 +54,7 @@ def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Un
     except Exception as e:
         logger.error(f"Validation failed: {str(e)}")
         return {}
+
 
 class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     """Text generation service using OpenAI models."""
@@ -155,13 +159,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Nudge generated successfully")
 
         return response.nudge
-    
 
     async def generate_summary_notes(
-        self,
-        chat_history: str,
-        keys: Optional[List[str]] = None,
-        **kwargs
+            self,
+            chat_history: str,
+            keys: Optional[List[str]] = None,
+            **kwargs
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate summary notes from chat history.
@@ -200,11 +203,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     chat_history=chat_history,
                     key_descriptions=key_descriptions_text
                 )
-                
+
                 # Get the model and bind the tool
                 model = self.models[kwargs.get("model_name", self.default_model_name)]
                 model = model.bind_tools([generate_dynamic_summary])
-                
+
                 # Generate the response
                 response = await model.ainvoke(prompt)
                 # The LLM processes the prompt
@@ -226,7 +229,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             else:
                 # Handle structured summary without keys
                 prompt = SUMMARY_PROMPT.format(chat_history=chat_history)
-                
+
                 logger.info("Generating structured summary")
                 # Generate structured summary
                 response = cast(
@@ -237,7 +240,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         **kwargs
                     )
                 )
-                
+
                 logger.info("Note generated successfully")
                 # Convert the summary to a response using the appropriate converter
                 return structured_output_model_to_rest(response)
@@ -277,7 +280,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         logger.info("Content enhanced successfully")
         return response.enhanced_content
-    
+
     async def identify_user(self, latest_message: str, chat_history: List[ChatMessage], **kwargs) -> IdentifyResponse:
         """
         Identify whether speaker0 and speaker1 are client or counselor based on chat history.
@@ -295,12 +298,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             IdentifyResponse: Object containing the identified roles for speaker0 and speaker1
         """
         logger.info("Identifying users using OpenAI")
-        
+
         # Format chat history for the prompt
         formatted_conversations = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
         if latest_message:
             formatted_conversations += f"\n{latest_message}"
-        
+
         try:
             response = cast(
                 StructuredIdentifyUsers,
@@ -312,10 +315,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             )
         except LLMInvocationFailedException as e:
             raise IdentifyUserFailedException("Failed to invoke LLM.") from e
-        
+
         logger.info("Users identified successfully")
         return IdentifyResponse(speaker0=response.speaker0, speaker1=response.speaker1)
-        
+
     async def get_tag_positivity_ratings(self, tags: List[str], **kwargs) -> List[Dict]:
         """
         Get positivity ratings for a list of tags.
@@ -331,14 +334,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             Exception: If the positivity rating generation fails.
         """
         logger.info("Getting positivity ratings for tags using OpenAI")
-        
+
         # Format tags for the prompt
         formatted_tags = "\n".join(tags)
-        
+
         try:
             # Using a list of Tag objects as the structured output
             TagList = create_model('TagList', tags=(List[Tag], ...))
-            
+
             response = cast(
                 TagList,
                 await self._invoke_llm(
@@ -347,14 +350,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     **kwargs
                 )
             )
-            
+
             # Convert to list of dictionaries
             return [{"tag": tag.tag, "positivity_rating": tag.positivity_rating} for tag in response.tags]
-            
+
         except LLMInvocationFailedException as e:
             logger.exception(f"Failed to get positivity ratings: {str(e)}")
             raise Exception("Failed to get positivity ratings for tags.") from e
-        
+
         except Exception as e:
             logger.exception(f"Unexpected error getting positivity ratings: {str(e)}")
             raise Exception("An unexpected error occurred while getting positivity ratings.") from e

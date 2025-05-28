@@ -88,8 +88,8 @@ class SummaryNoteAndTagsResponse(BaseModel):
     tags: List[Tag] = Field(..., description="List of tags to summarize the chat messages")
 
     listening_share: Optional[str] = Field(None, description="Listening share of the counselor.")
-    reflective_questions_asked: Optional[int] = Field(None,
-                                                      description="Count of reflective questions asked by the counselor.")
+    reflective_questions_asked: int = Field(0, description="Count of reflective questions asked by the counselor.")
+    open_ended_questions_asked: int = Field(0, description="Count of open-ended questions asked by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
 
     call_quality: int = Field(..., description="Quality of the call from a client perspective")
@@ -143,7 +143,8 @@ class SummaryNoteAndTagsResponse(BaseModel):
                     }
                 ],
                 "listening_share": None,
-                "reflective_questions_asked": None,
+                "reflective_questions_asked": 0,
+                "open_ended_questions_asked": 0,
                 "emotional_lift": "Calmer after breathing exercise",
                 "call_quality": 85
             }

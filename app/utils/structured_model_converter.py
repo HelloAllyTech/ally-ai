@@ -115,6 +115,7 @@ def format_dominant_feeling(level1: str, level2: str, level3: str) -> str | None
         return None
     return f"{level1} > {level2} > {level3}"
 
+
 def format_list_to_bullet_points(items: list[str]) -> str:
     """
     Formats a list of strings as a bullet-point string.
@@ -124,6 +125,7 @@ def format_list_to_bullet_points(items: list[str]) -> str:
         str: The formatted bullet-point string.
     """
     return "\n".join(f"- {item}" for item in items)
+
 
 @singledispatch
 def structured_output_model_to_rest[T, U](sop_model: U) -> T:
@@ -200,37 +202,39 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
         profession=sop_model.profession,
         relationship_status=sop_model.relationship_status,
         languages=[
-                    {
-                        "language": "English",
-                        "percentage": 0.85
-                    }
-                ],
+            {
+                "language": "English",
+                "percentage": 0.85
+            }
+        ],
         location=sop_model.location,
         code_of_concern=sop_model.code_of_concern,
         session_summary=sop_model.session_summary,
-        counseling_process_flow = format_list_to_bullet_points(
-        sop_model.counseling_process_flow) if sop_model.counseling_process_flow else None,
+        counseling_process_flow=format_list_to_bullet_points(
+            sop_model.counseling_process_flow) if sop_model.counseling_process_flow else None,
 
-        key_concerns = format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None,
+        key_concerns=format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None,
         subjective_observations=format_list_to_bullet_points(
-        sop_model.subjective_observations) if sop_model.subjective_observations else None,
+            sop_model.subjective_observations) if sop_model.subjective_observations else None,
         objective_observations=format_list_to_bullet_points(
-        sop_model.objective_observations) if sop_model.objective_observations else None,
+            sop_model.objective_observations) if sop_model.objective_observations else None,
         assessment=sop_model.assessment,
-        dominant_feelings= format_list_to_bullet_points(dominant_feelings),
+        dominant_feelings=format_list_to_bullet_points(dominant_feelings),
         issues_worked_on=format_list_to_bullet_points(
-        sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
+            sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
         key_therapeutic_techniques=format_list_to_bullet_points(
-        sop_model.key_therapeutic_techniques) if sop_model.key_therapeutic_techniques else None,
+            sop_model.key_therapeutic_techniques) if sop_model.key_therapeutic_techniques else None,
         referrals_provided=format_list_to_bullet_points(
-        sop_model.referrals_provided) if sop_model.referrals_provided else None,
+            sop_model.referrals_provided) if sop_model.referrals_provided else None,
         homework=format_list_to_bullet_points(sop_model.homework) if sop_model.homework else None,
         plan_for_next_call=format_list_to_bullet_points(
-        sop_model.plan_for_next_call) if sop_model.plan_for_next_call else None,
+            sop_model.plan_for_next_call) if sop_model.plan_for_next_call else None,
         tags=tags,
         reflective_questions_asked=len(
-        sop_model.reflective_questions_asked) if sop_model.reflective_questions_asked else None,
+            sop_model.reflective_questions_asked) if sop_model.reflective_questions_asked else 0,
+        open_ended_questions_asked=len(
+            sop_model.open_ended_questions_asked) if sop_model.open_ended_questions_asked else 0,
         listening_share=None,
-        emotional_lift=sop_model.emotional_lift,        
+        emotional_lift=sop_model.emotional_lift,
         call_quality=max(0, min(sop_model.call_quality, 100))
     )
