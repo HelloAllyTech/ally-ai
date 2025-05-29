@@ -201,12 +201,6 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
         gender=sop_model.gender,
         profession=sop_model.profession,
         relationship_status=sop_model.relationship_status,
-        languages=[
-            {
-                "language": "English",
-                "percentage": 0.85
-            }
-        ],
         location=sop_model.location,
         code_of_concern=sop_model.code_of_concern,
         session_summary=sop_model.session_summary,

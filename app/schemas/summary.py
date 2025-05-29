@@ -155,7 +155,7 @@ class DynamicSummaryNoteResponse(BaseModel):
     """
     A Pydantic model representing the response for dynamic summary notes.
     """
-    fields: dict[str, Union[str, int]] = Field(default_factory=dict,
+    fields: dict[str, Union[str, int, List[dict]]] = Field(default_factory=dict,
                                                description="A dictionary of dynamic fields in the summary")
 
     class ConfigDict:
@@ -166,7 +166,17 @@ class DynamicSummaryNoteResponse(BaseModel):
                     "sleep_quality_rating": 2,
                     "stress_level": "High",
                     "boundary_setting_attempts": "No emails after 8 PM",
-                    "self_care_practices": "Morning yoga, Regular meals"
+                    "self_care_practices": "Morning yoga, Regular meals",
+                    "languages": [
+                        {
+                            "language": "English",
+                            "percentage": 85.5
+                        },
+                        {
+                            "language": "Hindi",
+                            "percentage": 14.5
+                        }
+                    ]
                 }
             }
         }

@@ -25,6 +25,7 @@ from app.schemas.common import ChatMessage
 from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 from pydantic import create_model
+from app.utils.language_detector import detect_languages
 
 logger = get_logger(__name__)
 
@@ -184,19 +185,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Generating note summary using OpenAI")
         try:
             if keys:
+                languages = None
                 logger.info("Generating dynamic summary")
                 # Get field descriptions from StructuredSummaryNote
                 key_descriptions = []
                 for key in keys:
-                    # Get the field from StructuredSummaryNote if it exists
-                    field = StructuredSummaryNote.model_fields.get(key)
-                    if field:
-                        description = field.description
-                        key_descriptions.append(f"- {key}: {description}")
+                    if key == "languages":
+                        languages = detect_languages(chat_history)
                     else:
-                        logger.info(f"Key not found in StructuredSummaryNote: {key}")
-                        # If key doesn't exist in StructuredSummaryNote, use a default description
-                        key_descriptions.append(f"- {key}: {key.replace('_', ' ').title()}")
+                        # Get the field from StructuredSummaryNote if it exists
+                        field = StructuredSummaryNote.model_fields.get(key)
+                        if field:
+                            description = field.description
+                            key_descriptions.append(f"- {key}: {description}")
+                        else:
+                            logger.info(f"Key not found in StructuredSummaryNote: {key}")
+                            # If key doesn't exist in StructuredSummaryNote, use a default description
+                            key_descriptions.append(f"- {key}: {key.replace('_', ' ').title()}")
 
                 key_descriptions_text = "\n".join(key_descriptions)
                 prompt = DYNAMIC_SUMMARY_PROMPT.format(
@@ -216,16 +221,27 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # The tool isn't executed, but its structure is used
                 # The response is captured in response.additional_kwargs
 
+                dynamic_summary_response = None
                 # Extract the tool call result
                 if hasattr(response, 'additional_kwargs') and 'tool_calls' in response.additional_kwargs:
                     tool_call = response.additional_kwargs['tool_calls'][0]
                     if tool_call['function']['name'] == 'generate_dynamic_summary':
                         fields = json.loads(tool_call['function']['arguments'])
+                        fields_dict = fields.get('fields', {})
+                        
+                        # Add languages to fields if it was requested in keys
+                        if languages and 'languages' in keys:
+                            fields_dict['languages'] = languages
+                            
                         logger.info("Note generated successfully")
-                        return DynamicSummaryNoteResponse(fields=fields.get('fields', {}))
-                logger.info("No fields found in the response")
-                return DynamicSummaryNoteResponse(fields={})
-
+                        return DynamicSummaryNoteResponse(fields=fields_dict)
+                else:
+                    # If no tool call result but languages was requested, return just languages
+                    if languages and 'languages' in keys:
+                        logger.info("Returning only languages field")
+                        return DynamicSummaryNoteResponse(fields={'languages': languages})
+                    logger.info("No fields found in the response")
+                    return DynamicSummaryNoteResponse(fields={})
             else:
                 # Handle structured summary without keys
                 prompt = SUMMARY_PROMPT.format(chat_history=chat_history)
@@ -240,10 +256,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         **kwargs
                     )
                 )
-
                 logger.info("Note generated successfully")
+
                 # Convert the summary to a response using the appropriate converter
-                return structured_output_model_to_rest(response)
+                response = structured_output_model_to_rest(response)
+                languages = detect_languages(chat_history)  
+                response.languages = languages
+                return response
 
         except LLMInvocationFailedException as e:
             logger.error(f"Failed to invoke LLM: {str(e)}")
