@@ -1,6 +1,7 @@
 import re
-from typing import List, Dict
+from typing import List
 from collections import defaultdict
+from app.core.constants import Language
 
 # Step 1: Unicode block mapping
 UNICODE_SCRIPT_RANGES = {
@@ -78,7 +79,7 @@ def parse_chat_messages(chat_history: str) -> List[str]:
             messages.append(content.strip())
     return messages
 
-def detect_languages(chat_history: str) -> List[Dict[str, float]]:
+def detect_languages(chat_history: str) -> List[Language]:
     """
     Detect languages in chat history using Unicode script ranges.
     
@@ -86,7 +87,7 @@ def detect_languages(chat_history: str) -> List[Dict[str, float]]:
         chat_history: A string containing the chat history
         
     Returns:
-        List of dictionaries with language and percentage
+        List of Language objects with language and percentage
     """
 
     # Parse messages from chat history
@@ -113,10 +114,10 @@ def detect_languages(chat_history: str) -> List[Dict[str, float]]:
     for script, count in script_counter.items():
         if total_words > 0:
             percentage = (count / total_words) * 100
-            result.append({
-                "language": script,
-                "percentage": round(percentage, 1)
-            })
+            result.append(Language(
+                language=script,
+                percentage=round(percentage, 1)
+            ))
     
     # Sort by percentage in descending order
-    return sorted(result, key=lambda x: x["percentage"], reverse=True)
+    return sorted(result, key=lambda x: x.percentage, reverse=True)

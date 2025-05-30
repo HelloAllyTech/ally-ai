@@ -191,6 +191,8 @@ class StructuredSummaryNote(BaseModel):
                                                             description="Reflective questions asked by the counselor.")
     open_ended_questions_asked: Optional[List[str]] = Field(None,
                                                             description="Open-ended questions asked by the counselor.")
+    back_channel_cues: Optional[List[str]] = Field(None,
+                                                   description="Back channel cues used by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
     call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
 
@@ -271,6 +273,11 @@ class StructuredSummaryNote(BaseModel):
                 "open_ended_questions_asked": [
                     "Can you tell me more about your work-life balance challenges?",
                     "How do you think we can work together to improve your time management skills?"
+                ],
+                "back_channel_cues": [
+                    "I see what you mean.",
+                    "Hmm, I understand.",
+                    "I'm with you."
                 ],
                 "emotional_lift": "Client felt more relaxed after the session",
                 "call_quality": 90
