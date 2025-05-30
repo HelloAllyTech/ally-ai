@@ -70,7 +70,7 @@ class BaseTextGenerationService[ModelT](ABC):
         pass
 
     @abstractmethod
-    async def identify_user(self, latest_message: str, chat_history: List[ChatMessage]) -> IdentifyResponse:
+    async def identify_user(self, chat_history: List[ChatMessage]) -> IdentifyResponse:
         """
         Identify the users who did the conversation from the conversation history.
         """

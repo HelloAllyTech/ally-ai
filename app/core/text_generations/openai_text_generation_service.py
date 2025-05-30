@@ -300,17 +300,15 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Content enhanced successfully")
         return response.enhanced_content
 
-    async def identify_user(self, latest_message: str, chat_history: List[ChatMessage], **kwargs) -> IdentifyResponse:
+    async def identify_user(self, chat_history: List[ChatMessage], **kwargs) -> IdentifyResponse:
         """
         Identify whether speaker0 and speaker1 are client or counselor based on chat history.
 
-        This method analyzes the chat history and latest message to determine the roles of both speakers.
-        The latest message should be in the format "role: content" (e.g., "speaker0: I'm feeling anxious").
+        This method analyzes the chat history to determine the roles of both speakers.
         The chat history should be a list of ChatMessage objects with role and content.
 
         Args:
-            latest_message (str): The latest message in the format "role: content"
-            chat_history (List[ChatMessage]): List of previous messages with role and content
+            chat_history (List[ChatMessage]): List of messages with role and content
             **kwargs: Additional arguments to pass to the LLM
 
         Returns:
@@ -320,8 +318,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         # Format chat history for the prompt
         formatted_conversations = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
-        if latest_message:
-            formatted_conversations += f"\n{latest_message}"
 
         try:
             response = cast(

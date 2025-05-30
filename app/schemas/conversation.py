@@ -54,13 +54,11 @@ class AnalyzeResponse(BaseModel):
 
 
 class IdentifyRequest(BaseModel):
-    latest_message: str = Field(..., description="The latest message to analyze")
     chat_history: List[ChatMessage] = Field(..., description="Full history of the chat")
 
     class ConfigDict:
         json_schema_extra = {
             "example": {
-                "latest_message": "speaker0: I'm feeling overwhelmed with work and personal life",
                 "chat_history": [
                     {"role": "speaker1", "content": "Hi, how are you doing today?"},
                     {"role": "speaker0", "content": "I'm feeling anxious"},

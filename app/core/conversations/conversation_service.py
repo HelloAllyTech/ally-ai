@@ -88,9 +88,9 @@ class ConversationService:
 
         return stage, generated_nudge
     
-    async def identify(self, latest_message: str, chat_history: List[ChatMessage]) -> IdentifyResponse:
+    async def identify(self, chat_history: List[ChatMessage]) -> IdentifyResponse:
         """
         Identifies the users who did the conversation from the conversation history.
         """
-        return await self.text_generation_service.identify_user(latest_message, chat_history)
+        return await self.text_generation_service.identify_user(chat_history)
     

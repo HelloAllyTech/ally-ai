@@ -42,4 +42,4 @@ async def identify(
     """
     Identifies the users who did the conversation from the conversation history.
     """
-    return await conversation_service.identify(request.latest_message, request.chat_history)
+    return await conversation_service.identify(request.chat_history)
