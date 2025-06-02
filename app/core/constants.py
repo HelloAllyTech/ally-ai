@@ -1,4 +1,6 @@
 from typing import Final
+from enum import Enum
+from pydantic import BaseModel, Field
 
 
 class EmbeddingConstants:
@@ -11,3 +13,17 @@ class TextGenerationConstants:
 
 class VectorDBCollectionNames:
     CONVERSATIONS: Final[str] = "Conversation"
+
+
+class AgeRange(str, Enum):
+    EIGHTEEN_TO_TWENTY_FOUR = "18-24"
+    TWENTY_FIVE_TO_THIRTY_FOUR = "25-34"
+    THIRTY_FIVE_TO_FORTY_FOUR = "35-44"
+    FORTY_FIVE_TO_FIFTY_FOUR = "45-54"
+    FIFTY_FIVE_TO_SIXTY_FOUR = "55-64"
+    SIXTY_FIVE_PLUS = "65+"
+
+class Language(BaseModel):
+    """Model for language and its percentage in the conversation."""
+    language: str = Field(..., description="Name of the language")
+    percentage: float = Field(..., description="Percentage of the language used in conversation")

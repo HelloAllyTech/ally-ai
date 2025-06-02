@@ -10,6 +10,7 @@ from app.exceptions.custom_exceptions import (
 from app.schemas.common import ChatMessage
 from app.utils.common import convert_chat_messages_to_string
 from app.utils.logger import get_logger
+from app.schemas.conversation import IdentifyResponse
 
 logger = get_logger(__name__)
 
@@ -86,3 +87,10 @@ class ConversationService:
             stage = "Unknown"
 
         return stage, generated_nudge
+    
+    async def identify(self, chat_history: List[ChatMessage]) -> IdentifyResponse:
+        """
+        Identifies the users who did the conversation from the conversation history.
+        """
+        return await self.text_generation_service.identify_user(chat_history)
+    

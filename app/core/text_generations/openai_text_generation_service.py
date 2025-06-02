@@ -1,24 +1,60 @@
-from typing import Type, Optional, List, cast
+from typing import Type, Optional, List, cast, Dict, Union
+import json
 
 import openai
+from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, CONTENT_ENHANCE_PROMPT
-from app.core.text_generations.structured_output_models import StructuredSummaryNote
+from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, DYNAMIC_SUMMARY_PROMPT, \
+    CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT, TAG_POSITIVITY_RATING_PROMPT
+from app.core.text_generations.structured_output_models import StructuredSummaryNote, StructuredIdentifyUsers
 from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
     LLMInvocationFailedException,
     SummaryNoteFailedException,
-    ContentEnhancementFailedException
+    ContentEnhancementFailedException,
+    IdentifyUserFailedException
 )
-from app.schemas.conversation import Nudge
-from app.schemas.summary import ContentEnhance
+from app.schemas.conversation import Nudge, IdentifyResponse
+from app.schemas.summary import ContentEnhance, Tag
 from app.utils.logger import get_logger
+from app.schemas.common import ChatMessage
+from app.utils.structured_model_converter import structured_output_model_to_rest
+from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
+from pydantic import create_model
+from app.utils.language_detector import detect_languages
 
 logger = get_logger(__name__)
+
+
+@tool
+def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Union[str, int]]:
+    """Generate a dynamic summary with the given fields."""
+    # Create a temporary StructuredSummaryNote instance for validation
+    try:
+        # Convert values to appropriate types based on StructuredSummaryNote fields
+        validated_fields = {}
+        for key, value in fields.items():
+            field = StructuredSummaryNote.model_fields.get(key)
+            if field:
+                if field.annotation == int:
+                    validated_fields[key] = int(value)
+                elif field.annotation == List[str]:
+                    validated_fields[key] = value.split(',') if isinstance(value, str) else value
+                else:
+                    validated_fields[key] = value
+            else:
+                validated_fields[key] = value
+
+        # Validate using StructuredSummaryNote
+        _ = StructuredSummaryNote(**validated_fields)
+        return validated_fields
+    except Exception as e:
+        logger.error(f"Validation failed: {str(e)}")
+        return {}
 
 
 class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
@@ -125,34 +161,115 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         return response.nudge
 
-    async def generate_summary_notes(self, chat_history: str, **kwargs) -> StructuredSummaryNote:
+    async def generate_summary_notes(
+            self,
+            chat_history: str,
+            keys: Optional[List[str]] = None,
+            **kwargs
+    ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
-        Generate notes for the chat history using the OpenAI language model.
+        Generate summary notes from chat history.
 
         Parameters:
-            chat_history (str): Chat history to summarize.
-            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+            chat_history (str): The chat history to summarize
+            keys (Optional[List[str]]): Optional list of keys to generate. If provided, returns a DynamicSummaryNoteResponse
+                with only the requested fields. If None, returns a SummaryNoteAndTagsResponse with all predefined fields.
+            **kwargs: Additional keyword arguments
 
         Returns:
-            StructuredSummaryNote: Object with different fields of the summary.
+            Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]: The generated summary notes
 
         Raises:
-            SummaryNoteFailedException: If the note generation fails.
+            SummaryNoteFailedException: If the summary generation fails
         """
         logger.info("Generating note summary using OpenAI")
         try:
-            response = cast(
-                StructuredSummaryNote,
-                await self._invoke_llm(
-                    SUMMARY_PROMPT.format(chat_history=chat_history),
+            if keys:
+                languages = None
+                logger.info("Generating dynamic summary")
+                # Get field descriptions from StructuredSummaryNote
+                key_descriptions = []
+                for key in keys:
+                    if key == "languages":
+                        languages = detect_languages(chat_history)
+                    else:
+                        # Get the field from StructuredSummaryNote if it exists
+                        field = StructuredSummaryNote.model_fields.get(key)
+                        if field:
+                            description = field.description
+                            key_descriptions.append(f"- {key}: {description}")
+                        else:
+                            logger.info(f"Key not found in StructuredSummaryNote: {key}")
+                            # If key doesn't exist in StructuredSummaryNote, use a default description
+                            key_descriptions.append(f"- {key}: {key.replace('_', ' ').title()}")
+
+                key_descriptions_text = "\n".join(key_descriptions)
+                prompt = DYNAMIC_SUMMARY_PROMPT.format(
+                    chat_history=chat_history,
+                    key_descriptions=key_descriptions_text
+                )
+
+                # Get the model and bind the tool
+                model = self.models[kwargs.get("model_name", self.default_model_name)]
+                model = model.bind_tools([generate_dynamic_summary])
+
+                # Generate the response
+                response = await model.ainvoke(prompt)
+                # The LLM processes the prompt
+                # The LLM generates a response in the function/tool call format
+                # The LLM generates the data and puts it in this tool's format but doesn't execute it
+                # The tool isn't executed, but its structure is used
+                # The response is captured in response.additional_kwargs
+
+                dynamic_summary_response = None
+                # Extract the tool call result
+                if hasattr(response, 'additional_kwargs') and 'tool_calls' in response.additional_kwargs:
+                    tool_call = response.additional_kwargs['tool_calls'][0]
+                    if tool_call['function']['name'] == 'generate_dynamic_summary':
+                        fields = json.loads(tool_call['function']['arguments'])
+                        fields_dict = fields.get('fields', {})
+                        
+                        # Add languages to fields if it was requested in keys
+                        if languages and 'languages' in keys:
+                            fields_dict['languages'] = languages
+                            
+                        logger.info("Note generated successfully")
+                        return DynamicSummaryNoteResponse(fields=fields_dict)
+                else:
+                    # If no tool call result but languages was requested, return just languages
+                    if languages and 'languages' in keys:
+                        logger.info("Returning only languages field")
+                        return DynamicSummaryNoteResponse(fields={'languages': languages})
+                    logger.info("No fields found in the response")
+                    return DynamicSummaryNoteResponse(fields={})
+            else:
+                # Handle structured summary without keys
+                prompt = SUMMARY_PROMPT.format(chat_history=chat_history)
+
+                logger.info("Generating structured summary")
+                # Generate structured summary
+                response = cast(
                     StructuredSummaryNote,
-                    **kwargs))
+                    await self._invoke_llm(
+                        prompt,
+                        StructuredSummaryNote,
+                        **kwargs
+                    )
+                )
+                logger.info("Note generated successfully")
+
+                # Convert the summary to a response using the appropriate converter
+                response = structured_output_model_to_rest(response)
+                languages = detect_languages(chat_history)  
+                response.languages = languages
+                return response
 
         except LLMInvocationFailedException as e:
+            logger.error(f"Failed to invoke LLM: {str(e)}")
             raise SummaryNoteFailedException("Failed to invoke LLM.") from e
-
-        logger.info("Note generated successfully")
-        return response
+        except Exception as e:
+            logger.error(f"Failed to generate summary: {str(e)}")
+            raise SummaryNoteFailedException(f"Failed to generate summary: {str(e)}") from e
 
     async def enhance_content(self, content: str, **kwargs) -> str:
         """
@@ -182,3 +299,80 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         logger.info("Content enhanced successfully")
         return response.enhanced_content
+
+    async def identify_user(self, chat_history: List[ChatMessage], **kwargs) -> IdentifyResponse:
+        """
+        Identify whether speaker0 and speaker1 are client or counselor based on chat history.
+
+        This method analyzes the chat history to determine the roles of both speakers.
+        The chat history should be a list of ChatMessage objects with role and content.
+
+        Args:
+            chat_history (List[ChatMessage]): List of messages with role and content
+            **kwargs: Additional arguments to pass to the LLM
+
+        Returns:
+            IdentifyResponse: Object containing the identified roles for speaker0 and speaker1
+        """
+        logger.info("Identifying users using OpenAI")
+
+        # Format chat history for the prompt
+        formatted_conversations = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+
+        try:
+            response = cast(
+                StructuredIdentifyUsers,
+                await self._invoke_llm(
+                    IDENTIFY_USER_PROMPT.format(conversations=formatted_conversations),
+                    StructuredIdentifyUsers,
+                    **kwargs
+                )
+            )
+        except LLMInvocationFailedException as e:
+            raise IdentifyUserFailedException("Failed to invoke LLM.") from e
+
+        logger.info("Users identified successfully")
+        return IdentifyResponse(speaker0=response.speaker0, speaker1=response.speaker1)
+
+    async def get_tag_positivity_ratings(self, tags: List[str], **kwargs) -> List[Dict]:
+        """
+        Get positivity ratings for a list of tags.
+
+        Parameters:
+            tags (List[str]): List of tags to get positivity ratings for.
+            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+
+        Returns:
+            List[Dict]: List of tags with their positivity ratings.
+
+        Raises:
+            Exception: If the positivity rating generation fails.
+        """
+        logger.info("Getting positivity ratings for tags using OpenAI")
+
+        # Format tags for the prompt
+        formatted_tags = "\n".join(tags)
+
+        try:
+            # Using a list of Tag objects as the structured output
+            TagList = create_model('TagList', tags=(List[Tag], ...))
+
+            response = cast(
+                TagList,
+                await self._invoke_llm(
+                    TAG_POSITIVITY_RATING_PROMPT.format(tags=formatted_tags),
+                    TagList,
+                    **kwargs
+                )
+            )
+
+            # Convert to list of dictionaries
+            return [{"tag": tag.tag, "positivity_rating": tag.positivity_rating} for tag in response.tags]
+
+        except LLMInvocationFailedException as e:
+            logger.exception(f"Failed to get positivity ratings: {str(e)}")
+            raise Exception("Failed to get positivity ratings for tags.") from e
+
+        except Exception as e:
+            logger.exception(f"Unexpected error getting positivity ratings: {str(e)}")
+            raise Exception("An unexpected error occurred while getting positivity ratings.") from e
