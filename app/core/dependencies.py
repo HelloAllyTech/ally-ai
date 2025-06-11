@@ -6,6 +6,7 @@ from weaviate.client import WeaviateAsyncClient
 from app.core.constants import EmbeddingConstants, TextGenerationConstants
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.core.reference_documents.reference_document_service import ReferenceDocumentService
 from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
@@ -70,3 +71,14 @@ async def get_summary_service(
     Returns an instance of SummaryService.
     """
     return SummaryService(text_generation_service)
+
+
+# Dependency for the reference document service
+async def get_reference_document_service(
+        vector_db=Depends(get_vector_db),
+        embedding_service=Depends(get_embedding_service)
+) -> ReferenceDocumentService:
+    """
+    Returns an instance of ReferenceDocumentService.
+    """
+    return ReferenceDocumentService(vector_db, embedding_service)
