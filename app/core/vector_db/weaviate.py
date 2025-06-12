@@ -2,6 +2,7 @@ from asyncio import Semaphore
 from typing import List, Dict, Any, Optional
 
 import weaviate.classes as wvc
+from weaviate.classes.query import Filter
 from weaviate.client import WeaviateAsyncClient
 from weaviate.collections.classes.grpc import MetadataQuery
 from weaviate.collections.classes.internal import QueryReturn
