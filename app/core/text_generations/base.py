@@ -35,15 +35,15 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def generate_summary_notes(
-        self,
-        chat_history: str,
-        keys: Optional[List[str]] = None
+            self,
+            chat_history: List[ChatMessage],
+            keys: Optional[List[str]] = None
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate summary notes from chat history.
 
         Parameters:
-            chat_history (str): The chat history to summarize
+            chat_history (List[ChatMessage]): The chat history to summarize as a list of ChatMessage objects
             keys (Optional[List[str]]): Optional list of keys to generate. If provided, returns a DynamicSummaryNoteResponse
                 with only the requested fields. If None, returns a SummaryNoteAndTagsResponse with all predefined fields.
 

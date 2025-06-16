@@ -194,6 +194,7 @@ class StructuredSummaryNote(BaseModel):
     back_channel_cues: Optional[List[str]] = Field(None,
                                                    description="Back channel cues used by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
+    affirmations: int = Field(0, description="Count of affirmations used by the counselor.")
     call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
 
     class ConfigDict:

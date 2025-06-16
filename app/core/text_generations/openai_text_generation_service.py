@@ -26,6 +26,7 @@ from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 from pydantic import create_model
 from app.utils.language_detector import detect_languages
+from app.utils.affirmation_counter import count_affirmations
 
 logger = get_logger(__name__)
 
@@ -163,7 +164,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
     async def generate_summary_notes(
             self,
-            chat_history: str,
+            chat_history: List[ChatMessage],
             keys: Optional[List[str]] = None,
             **kwargs
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
@@ -171,7 +172,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         Generate summary notes from chat history.
 
         Parameters:
-            chat_history (str): The chat history to summarize
+            chat_history (List[ChatMessage]): The chat history to summarize as a list of ChatMessage objects
             keys (Optional[List[str]]): Optional list of keys to generate. If provided, returns a DynamicSummaryNoteResponse
                 with only the requested fields. If None, returns a SummaryNoteAndTagsResponse with all predefined fields.
             **kwargs: Additional keyword arguments
@@ -184,6 +185,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Generating note summary using OpenAI")
         try:
+            # Count affirmations directly from ChatMessage objects
+            affirmation_count = count_affirmations(chat_history)
+
+            # Convert ChatMessage objects to string format for LLM prompt
+            chat_history_str = '\n'.join(f'{msg.role}: {msg.content}' for msg in chat_history)
+
             if keys:
                 languages = None
                 logger.info("Generating dynamic summary")
@@ -191,7 +198,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 key_descriptions = []
                 for key in keys:
                     if key == "languages":
-                        languages = detect_languages(chat_history)
+                        languages = detect_languages(chat_history_str)
+                    elif key == "affirmations" and affirmation_count > 0:
+                        # If affirmations is requested and we have a count, we'll add it later
+                        continue
                     else:
                         # Get the field from StructuredSummaryNote if it exists
                         field = StructuredSummaryNote.model_fields.get(key)
@@ -200,51 +210,60 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             key_descriptions.append(f"- {key}: {description}")
                         else:
                             logger.info(f"Key not found in StructuredSummaryNote: {key}")
-                            # If key doesn't exist in StructuredSummaryNote, use a default description
-                            key_descriptions.append(f"- {key}: {key.replace('_', ' ').title()}")
 
-                key_descriptions_text = "\n".join(key_descriptions)
-                prompt = DYNAMIC_SUMMARY_PROMPT.format(
-                    chat_history=chat_history,
-                    key_descriptions=key_descriptions_text
-                )
+                if key_descriptions:
+                    key_descriptions_text = "\n".join(key_descriptions)
+                    prompt = DYNAMIC_SUMMARY_PROMPT.format(
+                        chat_history=chat_history_str,
+                        key_descriptions=key_descriptions_text
+                    )
 
-                # Get the model and bind the tool
-                model = self.models[kwargs.get("model_name", self.default_model_name)]
-                model = model.bind_tools([generate_dynamic_summary])
+                    # Get the model and bind the tool
+                    model = self.models[kwargs.get("model_name", self.default_model_name)]
+                    model = model.bind_tools([generate_dynamic_summary])
 
-                # Generate the response
-                response = await model.ainvoke(prompt)
-                # The LLM processes the prompt
-                # The LLM generates a response in the function/tool call format
-                # The LLM generates the data and puts it in this tool's format but doesn't execute it
-                # The tool isn't executed, but its structure is used
-                # The response is captured in response.additional_kwargs
+                    # Generate the response
+                    response = await model.ainvoke(prompt)
 
-                dynamic_summary_response = None
-                # Extract the tool call result
-                if hasattr(response, 'additional_kwargs') and 'tool_calls' in response.additional_kwargs:
-                    tool_call = response.additional_kwargs['tool_calls'][0]
-                    if tool_call['function']['name'] == 'generate_dynamic_summary':
-                        fields = json.loads(tool_call['function']['arguments'])
-                        fields_dict = fields.get('fields', {})
-                        
-                        # Add languages to fields if it was requested in keys
-                        if languages and 'languages' in keys:
-                            fields_dict['languages'] = languages
-                            
-                        logger.info("Note generated successfully")
-                        return DynamicSummaryNoteResponse(fields=fields_dict)
+                    # Extract the tool call result
+                    if hasattr(response, 'additional_kwargs') and 'tool_calls' in response.additional_kwargs:
+                        tool_call = response.additional_kwargs['tool_calls'][0]
+                        if tool_call['function']['name'] == 'generate_dynamic_summary':
+                            fields = json.loads(tool_call['function']['arguments'])
+                            fields_dict = fields.get('fields', {})
+
+                            # Add languages to fields if it was requested in keys
+                            if languages and 'languages' in keys:
+                                fields_dict['languages'] = [lang.model_dump() for lang in languages]
+
+                            # Add affirmations count if requested
+                            if 'affirmations' in keys and affirmation_count > 0:
+                                fields_dict['affirmations'] = affirmation_count
+
+                            logger.info("Note generated successfully")
+                            return DynamicSummaryNoteResponse(fields=fields_dict)
                 else:
                     # If no tool call result but languages was requested, return just languages
+                    fields_dict = {}
+
                     if languages and 'languages' in keys:
-                        logger.info("Returning only languages field")
-                        return DynamicSummaryNoteResponse(fields={'languages': languages})
+                        logger.info("Adding languages field")
+                        fields_dict['languages'] = [lang.model_dump() for lang in languages]
+
+                    # Add affirmations count if requested
+                    if 'affirmations' in keys and affirmation_count > 0:
+                        logger.info("Adding affirmations field")
+                        fields_dict['affirmations'] = affirmation_count
+
+                    if fields_dict:
+                        logger.info("Returning fields")
+                        return DynamicSummaryNoteResponse(fields=fields_dict)
+
                     logger.info("No fields found in the response")
                     return DynamicSummaryNoteResponse(fields={})
             else:
                 # Handle structured summary without keys
-                prompt = SUMMARY_PROMPT.format(chat_history=chat_history)
+                prompt = SUMMARY_PROMPT.format(chat_history=chat_history_str)
 
                 logger.info("Generating structured summary")
                 # Generate structured summary
@@ -258,17 +277,21 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 )
                 logger.info("Note generated successfully")
 
+                response.affirmations = affirmation_count
+
                 # Convert the summary to a response using the appropriate converter
                 response = structured_output_model_to_rest(response)
-                languages = detect_languages(chat_history)  
+                languages = detect_languages(chat_history_str)
+
                 response.languages = languages
+                response.affirmations = affirmation_count
                 return response
 
         except LLMInvocationFailedException as e:
             logger.error(f"Failed to invoke LLM: {str(e)}")
             raise SummaryNoteFailedException("Failed to invoke LLM.") from e
         except Exception as e:
-            logger.error(f"Failed to generate summary: {str(e)}")
+            logger.exception(f"Failed to generate summary: {str(e)}")
             raise SummaryNoteFailedException(f"Failed to generate summary: {str(e)}") from e
 
     async def enhance_content(self, content: str, **kwargs) -> str:

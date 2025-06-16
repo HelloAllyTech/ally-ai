@@ -92,6 +92,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
     open_ended_questions_asked: int = Field(0, description="Count of open-ended questions asked by the counselor.")
     back_channel_cues: int = Field(0, description="Count of back channel cues used by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
+    affirmations: int = Field(0, description="Count of affirmations used by the counselor.")
 
     call_quality: int = Field(..., description="Quality of the call from a client perspective")
 
@@ -148,6 +149,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
                 "open_ended_questions_asked": 0,
                 "back_channel_cues": 0,
                 "emotional_lift": "Calmer after breathing exercise",
+                "affirmations": 0,
                 "call_quality": 85
             }
         }
