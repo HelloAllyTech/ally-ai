@@ -93,6 +93,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
     back_channel_cues: int = Field(0, description="Count of back channel cues used by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
     affirmations: int = Field(0, description="Count of affirmations used by the counselor.")
+    reflective_listening: int = Field(0, description="Reflective listening score as percentage (0-100). Calculated as the ratio of counselor words that rephrase client content.")
 
     call_quality: int = Field(..., description="Quality of the call from a client perspective")
 
@@ -150,6 +151,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
                 "back_channel_cues": 0,
                 "emotional_lift": "Calmer after breathing exercise",
                 "affirmations": 0,
+                "reflective_listening": 75,
                 "call_quality": 85
             }
         }

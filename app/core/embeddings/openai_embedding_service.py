@@ -55,3 +55,33 @@ class OpenAIEmbeddingService(BaseEmbeddingService[OpenAIEmbeddings]):
         except APIConnectionError as e:
             logger.exception(str(e))
             raise EmbeddingFailedException("OpenAI API error. Please try again later.") from e
+
+    async def embed_many(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate embedding vectors for a list of texts using the OpenAI model.
+
+        Parameters:
+            texts (List[str]): The list of texts to embed.
+
+        Returns:
+            List[List[float]]: The resulting embedding vectors.
+
+        Raises:
+            EmbeddingFailedException: If the OpenAI API rate limit is exceeded (triggering a RateLimitError) or
+                if there is an API connection error (triggering an APIConnectionError).
+        """
+        try:
+            # TODO: Add retry mechanism
+            # TODO: Add divide and conquer to avoid rate limit.
+            #  Not expecting exceed now, but OpenAI doesn't have a proper limit.
+            #  Refer to https://community.openai.com/t/max-total-embeddings-tokens-per-request/1254699?utm_source=chatgpt.com
+
+            return await self.client.aembed_documents(texts)
+
+        except RateLimitError as e:
+            logger.exception(str(e))
+            raise EmbeddingFailedException("OpenAI API rate limit exceeded. Please try again later.") from e
+
+        except APIConnectionError as e:
+            logger.exception(str(e))
+            raise EmbeddingFailedException("OpenAI API error. Please try again later.") from e

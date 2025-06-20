@@ -34,11 +34,16 @@ def get_embedding_service() -> BaseEmbeddingService:
 
 
 # Dependency for the OpenAI text generation service
-def get_text_generation_service() -> BaseTextGenerationService:
+def get_text_generation_service(
+    embedding_service=Depends(get_embedding_service)
+) -> BaseTextGenerationService:
     """
     Returns an instance of the BaseTextGenerationService.
     """
-    return OpenAITextGenerationService(model_name=TextGenerationConstants.DEFAULT_MODEL)
+    return OpenAITextGenerationService(
+        model_name=TextGenerationConstants.DEFAULT_MODEL,
+        embedding_service=embedding_service
+    )
 
 
 # Dependency for the vector database, which combines the Weaviate client and embedding service

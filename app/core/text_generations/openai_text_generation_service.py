@@ -7,6 +7,7 @@ from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
+from app.core.embeddings.base import BaseEmbeddingService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, DYNAMIC_SUMMARY_PROMPT, \
     CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT, TAG_POSITIVITY_RATING_PROMPT
@@ -27,6 +28,7 @@ from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsRe
 from pydantic import create_model
 from app.utils.language_detector import detect_languages
 from app.utils.affirmation_counter import count_affirmations
+from app.utils.reflective_listening_calculator import calculate_reflective_listening
 
 logger = get_logger(__name__)
 
@@ -61,14 +63,18 @@ def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Un
 class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     """Text generation service using OpenAI models."""
 
-    def __init__(self, model_name: str, *model_names: str) -> None:
+    def __init__(self, model_name: str, embedding_service: BaseEmbeddingService, *model_names: str) -> None:
         """
-        Initialize the OpenAITextGenerator with one or more model names.
+        Initialize the OpenAITextGenerator with one or more model names and embedding service.
 
         Parameters:
             model_name (str): The primary model name (mandatory).
+            embedding_service (BaseEmbeddingService): The embedding service for reflective listening calculation.
             *model_names (str): Additional optional model names.
         """
+        # Store the embedding service
+        self.embedding_service = embedding_service
+        
         # Combine the primary model name with any additional ones
         all_model_names = (model_name,) + model_names
 
@@ -187,12 +193,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         try:
             # Count affirmations directly from ChatMessage objects
             affirmation_count = count_affirmations(chat_history)
+            
+            # Use the injected embedding service for reflective listening calculation
+            embedding_service = self.embedding_service
 
             # Convert ChatMessage objects to string format for LLM prompt
             chat_history_str = '\n'.join(f'{msg.role}: {msg.content}' for msg in chat_history)
 
             if keys:
                 languages = None
+                reflective_listening_score = None
                 logger.info("Generating dynamic summary")
                 # Get field descriptions from StructuredSummaryNote
                 key_descriptions = []
@@ -201,6 +211,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         languages = detect_languages(chat_history_str)
                     elif key == "affirmations" and affirmation_count > 0:
                         # If affirmations is requested and we have a count, we'll add it later
+                        continue
+                    elif key == "reflective_listening":
+                        # Calculate reflective listening if requested
+                        reflective_listening_score = await calculate_reflective_listening(chat_history, embedding_service)
                         continue
                     else:
                         # Get the field from StructuredSummaryNote if it exists
@@ -240,6 +254,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             if 'affirmations' in keys and affirmation_count > 0:
                                 fields_dict['affirmations'] = affirmation_count
 
+                            # Add reflective listening if requested
+                            if reflective_listening_score is not None:
+                                fields_dict['reflective_listening'] = reflective_listening_score
+
                             logger.info("Note generated successfully")
                             return DynamicSummaryNoteResponse(fields=fields_dict)
                 else:
@@ -251,9 +269,15 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         fields_dict['languages'] = [lang.model_dump() for lang in languages]
 
                     # Add affirmations count if requested
-                    if 'affirmations' in keys and affirmation_count > 0:
+                    if 'affirmations' in keys :
                         logger.info("Adding affirmations field")
                         fields_dict['affirmations'] = affirmation_count
+
+                    # Add reflective listening if requested
+                    if 'reflective_listening' in keys:
+                        logger.info("Adding reflective_listening field")
+                        reflective_listening_score = await calculate_reflective_listening(chat_history, embedding_service)
+                        fields_dict['reflective_listening'] = reflective_listening_score
 
                     if fields_dict:
                         logger.info("Returning fields")
@@ -285,6 +309,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
                 response.languages = languages
                 response.affirmations = affirmation_count
+
+                # Calculate reflective listening using the embedding service
+                reflective_listening = await calculate_reflective_listening(chat_history, embedding_service)
+                response.reflective_listening = reflective_listening
+
                 return response
 
         except LLMInvocationFailedException as e:

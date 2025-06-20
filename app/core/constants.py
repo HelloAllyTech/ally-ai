@@ -25,6 +25,11 @@ class AgeRange(str, Enum):
     SIXTY_FIVE_PLUS = "65+"
 
 
+class ReferenceDocumentConstants(BaseModel):
+    """Model for reference document."""
+    SIMILARITY_THRESHOLD: Final[float] = 0.5
+
+
 class Language(BaseModel):
     """Model for language and its percentage in the conversation."""
     language: str = Field(..., description="Name of the language")
