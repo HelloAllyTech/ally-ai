@@ -7,12 +7,14 @@ from app.schemas.summary import SummaryNoteAndTagsResponse, DynamicSummaryNoteRe
 
 
 class BaseTextGenerationService[ModelT](ABC):
-    def __init__(self, models: Dict[str, ModelT], default_model_name: str) -> None:
-        if default_model_name not in models:
-            raise ValueError(f"Default model '{default_model_name}' not found in provided models.")
-
-        self.models = models
-        self.default_model_name = default_model_name
+    def __init__(self, model: ModelT) -> None:
+        """
+        Initialize the base text generation service with a model.
+        
+        Parameters:
+            model (ModelT): The model to use for text generation.
+        """
+        self.model = model
 
     @abstractmethod
     async def generate_nudge(self, conversation: str, chat_history: str, suggestion: str, **kwargs) -> str:

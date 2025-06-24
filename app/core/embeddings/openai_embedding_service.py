@@ -4,8 +4,7 @@ from langchain_openai import OpenAIEmbeddings
 from openai import RateLimitError, APIConnectionError
 
 from app.core.embeddings.base import BaseEmbeddingService
-from app.core.config import settings
-from app.exceptions.custom_exceptions import ConversationAnalysisFailedException, EmbeddingFailedException
+from app.exceptions.custom_exceptions import EmbeddingFailedException
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -13,21 +12,16 @@ logger = get_logger(__name__)
 
 class OpenAIEmbeddingService(BaseEmbeddingService[OpenAIEmbeddings]):
     """
-    OpenAI Embedding Service for generating embedding vectors using a specified OpenAI model.
-
-    Parameters:
-        model (str): The name of the OpenAI model to use for embeddings.
+    OpenAI Embedding Service for generating embedding vectors.
     """
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, client: OpenAIEmbeddings) -> None:
         """
-        Initialize the OpenAI embedding service with a specified model.
+        Initialize the OpenAI embedding service with a client.
 
         Parameters:
-            model (str): The name of the OpenAI model to use for embeddings.
+            client (OpenAIEmbeddings): The OpenAI embedding client to use.
         """
-        client = OpenAIEmbeddings(model=model, openai_api_key=settings.OPENAI_API_KEY,
-                                  openai_organization=settings.OPENAI_ORGANIZATION_ID)
         super().__init__(client)
 
     async def embed(self, text: str) -> List[float]:
