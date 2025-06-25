@@ -9,7 +9,7 @@ from weaviate.collections.classes.internal import QueryReturn
 from weaviate.exceptions import WeaviateConnectionError, AuthenticationFailedException
 
 from app.core.config import settings
-from app.core.constants import VectorDBCollectionNames
+from app.core.constants import VectorDBCollectionNames, ReferenceDocumentConstants
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.vector_db.base import VectorDB
 from app.exceptions.custom_exceptions import (
@@ -319,16 +319,35 @@ class WeaviateDB(VectorDB):
                         else:
                             query_filters = property_filter
 
-            # Execute the query with the appropriate parameters
+            total = 0
+            categories = {}
+            # Single aggregation call that gets both total count and category breakdown
+            async with _weaviate_semaphore:
+                # Use near_vector for aggregation (more reliable than near_text)
+                agg_result = await collection.aggregate.near_vector(
+                    near_vector=vector,
+                    filters=query_filters,
+                    distance=ReferenceDocumentConstants.SIMILARITY_THRESHOLD,
+                    group_by="category"
+                )
+                # Get category breakdown
+                categories = {}
+                for group in agg_result.groups:
+                    category_name = group.grouped_by.value
+                    category_count = group.total_count
+                    categories[category_name] = category_count
+                    total += category_count
+                                    
+            # Execute the main query with the appropriate parameters
             async with _weaviate_semaphore:
                 result = await collection.query.near_vector(
                     near_vector=vector,
                     limit=limit,
                     filters=query_filters,
                     include_vector=include_vector,
-                    return_metadata=MetadataQuery(distance=True)  # Correctly specify metadata to return
+                    distance=0.5, # 0.5 or less.
+                    return_metadata=MetadataQuery(distance=True),  # Correctly specify metadata to return
                 )
-
             # Process the results
             documents = []
             for obj in result.objects:
@@ -350,7 +369,8 @@ class WeaviateDB(VectorDB):
             # Return the search results
             return {
                 "documents": documents,
-                "total": len(documents)
+                "total": total if total is not None else len(documents),
+                "categories": categories
             }
         except Exception as e:
             logger.exception(f"Failed to search documents: {str(e)}")
