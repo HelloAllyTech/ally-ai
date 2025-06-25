@@ -54,5 +54,6 @@ class ReferenceDocumentSearchItem(ReferenceDocumentResponse):
 class ReferenceDocumentSearchResponse(BaseModel):
     """Schema for reference document search response."""
     documents: List[ReferenceDocumentSearchItem] = Field(..., description="List of matching documents")
-    total: int = Field(..., description="Total number of matching documents")
+    total: int = Field(..., description="Total number of matching documents found (unlimited)")
     limit: int = Field(..., description="Maximum number of results returned")
+    categories: Dict[str, int] = Field(default_factory=dict, description="Count of documents by category")

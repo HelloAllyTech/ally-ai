@@ -324,12 +324,11 @@ class ReferenceDocumentService:
                 reverse = sort_order.lower() == "desc"
                 documents.sort(key=lambda x: x.get(sort_by, ""), reverse=reverse)
 
-            total_documents = len(documents)
-
             return {
                 "documents": documents,
-                "total": total_documents,
-                "limit": limit
+                "total": results["total"],
+                "limit": limit,
+                "categories": results["categories"]
             }
 
         except ValueError as e:
