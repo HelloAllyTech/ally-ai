@@ -9,7 +9,7 @@ from weaviate.collections.classes.internal import QueryReturn
 from weaviate.exceptions import WeaviateConnectionError, AuthenticationFailedException
 
 from app.core.config import settings
-from app.core.constants import VectorDBCollectionNames, ReferenceDocumentConstants
+from app.core.constants import VectorDBCollectionNames
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.vector_db.base import VectorDB
 from app.exceptions.custom_exceptions import (
@@ -327,7 +327,7 @@ class WeaviateDB(VectorDB):
                 agg_result = await collection.aggregate.near_vector(
                     near_vector=vector,
                     filters=query_filters,
-                    distance=ReferenceDocumentConstants.SIMILARITY_THRESHOLD,
+                    distance=0.8,
                     group_by="category"
                 )
                 # Get category breakdown
@@ -345,7 +345,7 @@ class WeaviateDB(VectorDB):
                     limit=limit,
                     filters=query_filters,
                     include_vector=include_vector,
-                    distance=0.5, # 0.5 or less.
+                    distance=0.8, # 0.8 or less.
                     return_metadata=MetadataQuery(distance=True),  # Correctly specify metadata to return
                 )
             # Process the results
