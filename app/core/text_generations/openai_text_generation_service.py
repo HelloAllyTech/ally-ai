@@ -6,29 +6,39 @@ from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 
-from app.core.config import settings
-from app.core.embeddings.base import BaseEmbeddingService
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import NUDGE_PROMPT, SUMMARY_PROMPT, DYNAMIC_SUMMARY_PROMPT, \
-    CONTENT_ENHANCE_PROMPT, IDENTIFY_USER_PROMPT, TAG_POSITIVITY_RATING_PROMPT
-from app.core.text_generations.structured_output_models import StructuredSummaryNote, StructuredIdentifyUsers
+from app.core.text_generations.structured_output_models import (
+    StructuredSummaryNote,
+    StructuredIdentifyUsers,
+)
+from app.core.embeddings.base import BaseEmbeddingService
 from app.exceptions.custom_exceptions import (
-    NudgeGenerationFailedException,
     LLMInvocationFailedException,
     SummaryNoteFailedException,
+    NudgeGenerationFailedException,
     ContentEnhancementFailedException,
     IdentifyUserFailedException
 )
 from app.schemas.conversation import Nudge, IdentifyResponse
 from app.schemas.summary import ContentEnhance, Tag
-from app.utils.logger import get_logger
 from app.schemas.common import ChatMessage
-from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 from pydantic import create_model
-from app.utils.language_detector import detect_languages
 from app.utils.affirmation_counter import count_affirmations
+from app.utils.language_detector import detect_languages
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
+from app.utils.utterance_duration_calculator import calculate_avg_client_utterance_duration
+from app.utils.silence_calculator import calculate_silence_by_counselor
+from app.utils.structured_model_converter import structured_output_model_to_rest
+from app.core.text_generations.prompts import (
+    SUMMARY_PROMPT,
+    DYNAMIC_SUMMARY_PROMPT,
+    NUDGE_PROMPT,
+    CONTENT_ENHANCE_PROMPT,
+    IDENTIFY_USER_PROMPT,
+    TAG_POSITIVITY_RATING_PROMPT
+)
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -63,32 +73,19 @@ def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Un
 class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     """Text generation service using OpenAI models."""
 
-    def __init__(self, model_name: str, embedding_service: BaseEmbeddingService, *model_names: str) -> None:
+    def __init__(self, client: ChatOpenAI, embedding_service: BaseEmbeddingService) -> None:
         """
-        Initialize the OpenAITextGenerator with one or more model names and embedding service.
+        Initialize the OpenAITextGenerator with a client and embedding service.
 
         Parameters:
-            model_name (str): The primary model name (mandatory).
+            client (ChatOpenAI): The OpenAI chat client to use.
             embedding_service (BaseEmbeddingService): The embedding service for reflective listening calculation.
-            *model_names (str): Additional optional model names.
         """
         # Store the embedding service
         self.embedding_service = embedding_service
-        
-        # Combine the primary model name with any additional ones
-        all_model_names = (model_name,) + model_names
 
-        # Create a dictionary to cache model instances keyed by model name
-        models = {
-            name: ChatOpenAI(
-                model_name=name,
-                openai_api_key=settings.OPENAI_API_KEY,
-                openai_organization=settings.OPENAI_ORGANIZATION_ID
-            ) for name in all_model_names
-        }
-
-        # Initialize the base class with the model instances and the default model name
-        super().__init__(models, model_name)
+        # Initialize the base class with the client
+        super().__init__(client)
 
     async def _invoke_llm[T](
             self,
@@ -107,14 +104,15 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 - An optional Pydantic model or class to structure the output.
                 - If provided, the response will be parsed into an instance of this class.
             **kwargs:
-                - Additional keyword arguments (e.g., `model_name` to select a specific model).
+                - Additional keyword arguments.
 
         Returns:
             T | str:
                 - If `output_class` is provided, returns an instance of `output_class` (T).
                 - Otherwise, returns the raw response content as a string.
         """
-        llm = self.models[kwargs.get("model_name", self.default_model_name)]
+        # Use the model from base class
+        llm = self.model
 
         # Bind structured output class with the llm if passed by user
         if output_class:
@@ -193,7 +191,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         try:
             # Count affirmations directly from ChatMessage objects
             affirmation_count = count_affirmations(chat_history)
-            
+
             # Use the injected embedding service for reflective listening calculation
             embedding_service = self.embedding_service
 
@@ -203,6 +201,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             if keys:
                 languages = None
                 reflective_listening_score = None
+                avg_client_utterance_duration = None
+                silence_by_counselor = None
                 logger.info("Generating dynamic summary")
                 # Get field descriptions from StructuredSummaryNote
                 key_descriptions = []
@@ -214,7 +214,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         continue
                     elif key == "reflective_listening":
                         # Calculate reflective listening if requested
-                        reflective_listening_score = await calculate_reflective_listening(chat_history, embedding_service)
+                        reflective_listening_score = await calculate_reflective_listening(chat_history,
+                                                                                          embedding_service)
+                        continue
+                    elif key == "avg_client_utterance_duration":
+                        avg_client_utterance_duration = calculate_avg_client_utterance_duration(chat_history)
+                        continue
+                    elif key == "silence_by_counselor":
+                        silence_by_counselor = calculate_silence_by_counselor(chat_history)
                         continue
                     else:
                         # Get the field from StructuredSummaryNote if it exists
@@ -233,7 +240,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     )
 
                     # Get the model and bind the tool
-                    model = self.models[kwargs.get("model_name", self.default_model_name)]
+                    model = self.model
                     model = model.bind_tools([generate_dynamic_summary])
 
                     # Generate the response
@@ -258,6 +265,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             if reflective_listening_score is not None:
                                 fields_dict['reflective_listening'] = reflective_listening_score
 
+                            # Add avg_client_utterance_duration if requested
+                            if avg_client_utterance_duration is not None:
+                                fields_dict['avg_client_utterance_duration'] = avg_client_utterance_duration
+
+                            # Add silence_by_counselor if requested
+                            if 'silence_by_counselor' in keys:
+                                fields_dict['silence_by_counselor'] = silence_by_counselor
+
                             logger.info("Note generated successfully")
                             return DynamicSummaryNoteResponse(fields=fields_dict)
                 else:
@@ -269,15 +284,28 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         fields_dict['languages'] = [lang.model_dump() for lang in languages]
 
                     # Add affirmations count if requested
-                    if 'affirmations' in keys :
+                    if 'affirmations' in keys:
                         logger.info("Adding affirmations field")
                         fields_dict['affirmations'] = affirmation_count
 
                     # Add reflective listening if requested
                     if 'reflective_listening' in keys:
                         logger.info("Adding reflective_listening field")
-                        reflective_listening_score = await calculate_reflective_listening(chat_history, embedding_service)
+                        reflective_listening_score = await calculate_reflective_listening(chat_history,
+                                                                                          embedding_service)
                         fields_dict['reflective_listening'] = reflective_listening_score
+
+                    # Add avg_client_utterance_duration if requested
+                    if 'avg_client_utterance_duration' in keys:
+                        logger.info("Adding avg_client_utterance_duration field")
+                        avg_client_utterance_duration = calculate_avg_client_utterance_duration(chat_history)
+                        fields_dict['avg_client_utterance_duration'] = avg_client_utterance_duration
+
+                    # Add silence_by_counselor if requested
+                    if 'silence_by_counselor' in keys:
+                        logger.info("Adding silence_by_counselor field")
+                        silence_by_counselor = calculate_silence_by_counselor(chat_history)
+                        fields_dict['silence_by_counselor'] = silence_by_counselor
 
                     if fields_dict:
                         logger.info("Returning fields")
@@ -313,6 +341,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Calculate reflective listening using the embedding service
                 reflective_listening = await calculate_reflective_listening(chat_history, embedding_service)
                 response.reflective_listening = reflective_listening
+
+                # Calculate avg_client_utterance_duration
+                avg_client_utterance_duration = calculate_avg_client_utterance_duration(chat_history)
+                response.avg_client_utterance_duration = avg_client_utterance_duration
+
+                # Calculate silence_by_counselor
+                silence_by_counselor = calculate_silence_by_counselor(chat_history)
+                response.silence_by_counselor = silence_by_counselor
 
                 return response
 

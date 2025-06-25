@@ -7,14 +7,20 @@ from app.core.config import settings
 from app.core.vector_db.weaviate_client import WeaviateClient
 from app.middleware import get_middlewares
 from app.utils.logger import logger, logging_config
+from app.utils.startup import initialize_openai_clients
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Application startup and shutdown lifecycle"""
     logger.info("Starting application...")
+    # Initialize Weaviate client
     WeaviateClient.create_client()
     await WeaviateClient.connect(WeaviateClient.get_client())
+    
+    # Initialize OpenAI clients
+    initialize_openai_clients()
+    logger.info("OpenAI clients initialized")
 
     yield
     await WeaviateClient.close(WeaviateClient.get_client())
