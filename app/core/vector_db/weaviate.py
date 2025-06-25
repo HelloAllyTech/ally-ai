@@ -327,7 +327,7 @@ class WeaviateDB(VectorDB):
                 agg_result = await collection.aggregate.near_vector(
                     near_vector=vector,
                     filters=query_filters,
-                    distance=0.8,
+                    distance=0.5,
                     group_by="category"
                 )
                 # Get category breakdown
@@ -345,7 +345,7 @@ class WeaviateDB(VectorDB):
                     limit=limit,
                     filters=query_filters,
                     include_vector=include_vector,
-                    distance=0.8, # 0.8 or less.
+                    distance=0.5, # 0.5 or less.
                     return_metadata=MetadataQuery(distance=True),  # Correctly specify metadata to return
                 )
             # Process the results
