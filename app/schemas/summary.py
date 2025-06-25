@@ -97,6 +97,8 @@ class SummaryNoteAndTagsResponse(BaseModel):
                                       description="Reflective listening score as percentage (0-100). Calculated as the ratio of counselor words that rephrase client content.")
     avg_client_utterance_duration: Optional[float] = Field(None,
                                                            description="Average duration of client utterances in seconds.")
+    silence_by_counselor: int = Field(0,
+                                      description="Count of silence moments by counselor. Only counts silence periods of 3+ seconds that occur after a client message and before a counselor message, or between two client messages.")
 
     call_quality: int = Field(..., description="Quality of the call from a client perspective")
 
@@ -156,6 +158,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
                 "affirmations": 0,
                 "reflective_listening": 75,
                 "avg_client_utterance_duration": 10.5,
+                "silence_by_counselor": 15,
                 "call_quality": 85
             }
         }

@@ -28,6 +28,7 @@ from app.utils.affirmation_counter import count_affirmations
 from app.utils.language_detector import detect_languages
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
 from app.utils.utterance_duration_calculator import calculate_avg_client_utterance_duration
+from app.utils.silence_calculator import calculate_silence_by_counselor
 from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.core.text_generations.prompts import (
     SUMMARY_PROMPT,
@@ -201,6 +202,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 languages = None
                 reflective_listening_score = None
                 avg_client_utterance_duration = None
+                silence_by_counselor = None
                 logger.info("Generating dynamic summary")
                 # Get field descriptions from StructuredSummaryNote
                 key_descriptions = []
@@ -217,6 +219,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         continue
                     elif key == "avg_client_utterance_duration":
                         avg_client_utterance_duration = calculate_avg_client_utterance_duration(chat_history)
+                        continue
+                    elif key == "silence_by_counselor":
+                        silence_by_counselor = calculate_silence_by_counselor(chat_history)
                         continue
                     else:
                         # Get the field from StructuredSummaryNote if it exists
@@ -264,6 +269,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             if avg_client_utterance_duration is not None:
                                 fields_dict['avg_client_utterance_duration'] = avg_client_utterance_duration
 
+                            # Add silence_by_counselor if requested
+                            if 'silence_by_counselor' in keys:
+                                fields_dict['silence_by_counselor'] = silence_by_counselor
+
                             logger.info("Note generated successfully")
                             return DynamicSummaryNoteResponse(fields=fields_dict)
                 else:
@@ -291,6 +300,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         logger.info("Adding avg_client_utterance_duration field")
                         avg_client_utterance_duration = calculate_avg_client_utterance_duration(chat_history)
                         fields_dict['avg_client_utterance_duration'] = avg_client_utterance_duration
+
+                    # Add silence_by_counselor if requested
+                    if 'silence_by_counselor' in keys:
+                        logger.info("Adding silence_by_counselor field")
+                        silence_by_counselor = calculate_silence_by_counselor(chat_history)
+                        fields_dict['silence_by_counselor'] = silence_by_counselor
 
                     if fields_dict:
                         logger.info("Returning fields")
@@ -330,6 +345,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Calculate avg_client_utterance_duration
                 avg_client_utterance_duration = calculate_avg_client_utterance_duration(chat_history)
                 response.avg_client_utterance_duration = avg_client_utterance_duration
+
+                # Calculate silence_by_counselor
+                silence_by_counselor = calculate_silence_by_counselor(chat_history)
+                response.silence_by_counselor = silence_by_counselor
 
                 return response
 
