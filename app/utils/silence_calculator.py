@@ -3,6 +3,9 @@ import logging
 
 from app.schemas.common import ChatMessage
 
+# Constants
+MIN_SILENCE_DURATION = 3
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,7 +15,7 @@ def calculate_silence_by_counselor(chat_messages: List[ChatMessage]) -> int:
     
     Silence is defined as a time frame during which neither the counselor nor client has spoken.
     A silence moment is only counted if:
-    1. The duration is 3 seconds or more
+    1. The duration is MIN_SILENCE_DURATION seconds or more
     2. The silence occurs after a client message and before a counselor message OR
        between two client messages
     
@@ -48,8 +51,8 @@ def calculate_silence_by_counselor(chat_messages: List[ChatMessage]) -> int:
         # Calculate silence duration between messages
         silence_duration = next_msg.start_time - current_msg.end_time
 
-        # Only count silence if it's 3 seconds or more
-        if silence_duration < 3:
+        # Only count silence if it's MIN_SILENCE_DURATION seconds or more
+        if silence_duration < MIN_SILENCE_DURATION:
             continue
 
         # Check if silence is after client message and before counselor message
