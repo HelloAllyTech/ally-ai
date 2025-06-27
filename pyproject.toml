@@ -20,6 +20,7 @@ langchain-openai = "^0.3.6"
 slack-sdk = "^3.35.0"
 numpy = "^2.3.0"
 scikit-learn = "^1.7.0"
+vadersentiment = "^3.3.2"
 
 [tool.poetry.group.dev.dependencies]
 aiohttp = "^3.11.15"

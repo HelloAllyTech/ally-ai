@@ -99,6 +99,8 @@ class SummaryNoteAndTagsResponse(BaseModel):
                                                            description="Average duration of client utterances in seconds.")
     silence_by_counselor: int = Field(0,
                                       description="Count of silence moments by counselor. Only counts silence periods of 3+ seconds that occur after a client message and before a counselor message, or between two client messages.")
+    client_positivity_lift: Optional[float] = Field(None,
+                                                   description="Percentage change in client positivity over the conversation. Calculated by dividing client messages into 10 segments and measuring sentiment change between segments.")
 
     call_quality: int = Field(..., description="Quality of the call from a client perspective")
 
@@ -159,6 +161,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
                 "reflective_listening": 75,
                 "avg_client_utterance_duration": 10.5,
                 "silence_by_counselor": 15,
+                "client_positivity_lift": 12.5,
                 "call_quality": 85
             }
         }
@@ -168,7 +171,7 @@ class DynamicSummaryNoteResponse(BaseModel):
     """
     A Pydantic model representing the response for dynamic summary notes.
     """
-    fields: dict[str, Union[str, int, float, List[dict]]] = Field(default_factory=dict,
+    fields: dict[str, Optional[Union[str, int, float, List[dict]]]] = Field(default_factory=dict,
                                                                   description="A dictionary of dynamic fields in the summary")
 
     class ConfigDict:

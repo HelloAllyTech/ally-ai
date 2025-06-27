@@ -1,4 +1,4 @@
-from typing import Type, Optional, List, cast, Dict, Union
+from typing import Type, Optional, List, cast, Dict, Union, TypeVar
 import json
 
 import openai
@@ -25,6 +25,7 @@ from app.schemas.common import ChatMessage
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 from pydantic import create_model
 from app.utils.affirmation_counter import count_affirmations
+from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.language_detector import detect_languages
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
 from app.utils.utterance_duration_calculator import calculate_avg_client_utterance_duration
@@ -187,22 +188,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         Raises:
             SummaryNoteFailedException: If the summary generation fails
         """
-        logger.info("Generating note summary using OpenAI")
+        logger.info("Generating summary notes using OpenAI")
         try:
-            # Count affirmations directly from ChatMessage objects
+            # Convert chat history to string
+            chat_history_str = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+
+            # Count affirmations
             affirmation_count = count_affirmations(chat_history)
 
-            # Use the injected embedding service for reflective listening calculation
+            # Get the embedding service
             embedding_service = self.embedding_service
-
-            # Convert ChatMessage objects to string format for LLM prompt
-            chat_history_str = '\n'.join(f'{msg.role}: {msg.content}' for msg in chat_history)
 
             if keys:
                 languages = None
                 reflective_listening_score = None
                 avg_client_utterance_duration = None
                 silence_by_counselor = None
+                client_positivity_lift = None
                 logger.info("Generating dynamic summary")
                 # Get field descriptions from StructuredSummaryNote
                 key_descriptions = []
@@ -222,6 +224,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         continue
                     elif key == "silence_by_counselor":
                         silence_by_counselor = calculate_silence_by_counselor(chat_history)
+                        continue
+                    elif key == "client_positivity_lift":
+                        client_positivity_lift = calculate_client_positivity_lift(chat_history)
                         continue
                     else:
                         # Get the field from StructuredSummaryNote if it exists
@@ -272,6 +277,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             # Add silence_by_counselor if requested
                             if 'silence_by_counselor' in keys:
                                 fields_dict['silence_by_counselor'] = silence_by_counselor
+                                
+                            # Add client_positivity_lift if requested
+                            if 'client_positivity_lift' in keys:
+                                fields_dict['client_positivity_lift'] = client_positivity_lift
 
                             logger.info("Note generated successfully")
                             return DynamicSummaryNoteResponse(fields=fields_dict)
@@ -306,6 +315,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         logger.info("Adding silence_by_counselor field")
                         silence_by_counselor = calculate_silence_by_counselor(chat_history)
                         fields_dict['silence_by_counselor'] = silence_by_counselor
+                        
+                    # Add client_positivity_lift if requested
+                    if 'client_positivity_lift' in keys:
+                        logger.info("Adding client_positivity_lift field")
+                        client_positivity_lift = calculate_client_positivity_lift(chat_history)
+                        fields_dict['client_positivity_lift'] = client_positivity_lift
 
                     if fields_dict:
                         logger.info("Returning fields")
@@ -349,6 +364,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Calculate silence_by_counselor
                 silence_by_counselor = calculate_silence_by_counselor(chat_history)
                 response.silence_by_counselor = silence_by_counselor
+                
+                # Calculate client_positivity_lift
+                client_positivity_lift = calculate_client_positivity_lift(chat_history)
+                response.client_positivity_lift = client_positivity_lift
 
                 return response
 
