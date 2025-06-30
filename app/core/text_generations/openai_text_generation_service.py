@@ -30,6 +30,7 @@ from app.utils.language_detector import detect_languages
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
 from app.utils.utterance_duration_calculator import calculate_avg_client_utterance_duration
 from app.utils.silence_calculator import calculate_silence_by_counselor
+from app.utils.counselor_interruption_calculator import calculate_counselor_interruptions
 from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.core.text_generations.prompts import (
     SUMMARY_PROMPT,
@@ -205,6 +206,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 avg_client_utterance_duration = None
                 silence_by_counselor = None
                 client_positivity_lift = None
+                counselor_interruptions = None
                 logger.info("Generating dynamic summary")
                 # Get field descriptions from StructuredSummaryNote
                 key_descriptions = []
@@ -227,6 +229,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         continue
                     elif key == "client_positivity_lift":
                         client_positivity_lift = calculate_client_positivity_lift(chat_history)
+                        continue
+                    elif key == "counselor_interruptions":
+                        counselor_interruptions = calculate_counselor_interruptions(chat_history)
                         continue
                     else:
                         # Get the field from StructuredSummaryNote if it exists
@@ -282,6 +287,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             if 'client_positivity_lift' in keys:
                                 fields_dict['client_positivity_lift'] = client_positivity_lift
 
+                            # Add counselor_interruptions if requested
+                            if 'counselor_interruptions' in keys:
+                                fields_dict['counselor_interruptions'] = counselor_interruptions
+
                             logger.info("Note generated successfully")
                             return DynamicSummaryNoteResponse(fields=fields_dict)
                 else:
@@ -321,6 +330,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         logger.info("Adding client_positivity_lift field")
                         client_positivity_lift = calculate_client_positivity_lift(chat_history)
                         fields_dict['client_positivity_lift'] = client_positivity_lift
+
+                    # Add counselor_interruptions if requested
+                    if 'counselor_interruptions' in keys:
+                        logger.info("Adding counselor_interruptions field")
+                        counselor_interruptions = calculate_counselor_interruptions(chat_history)
+                        fields_dict['counselor_interruptions'] = counselor_interruptions
 
                     if fields_dict:
                         logger.info("Returning fields")
@@ -368,6 +383,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Calculate client_positivity_lift
                 client_positivity_lift = calculate_client_positivity_lift(chat_history)
                 response.client_positivity_lift = client_positivity_lift
+
+                # Calculate counselor_interruptions
+                counselor_interruptions = calculate_counselor_interruptions(chat_history)
+                response.counselor_interruptions = counselor_interruptions
 
                 return response
 
