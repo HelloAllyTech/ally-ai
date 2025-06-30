@@ -4,7 +4,7 @@ import logging
 from app.schemas.common import ChatMessage
 
 # Constants
-MIN_SILENCE_DURATION = 3
+MIN_SILENCE_DURATION = 3.0
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +56,12 @@ def calculate_silence_by_counselor(chat_messages: List[ChatMessage]) -> int:
             continue
 
         # Check if silence is after client message and before counselor message
-        if current_msg.role == "client" and next_msg.role == "counselor":
+        if current_msg.role.lower() == "client" and next_msg.role.lower() == "counselor":
             silence_count += 1
             logger.debug(f"Adding silence moment (client → counselor)")
 
         # Check if silence is between two client messages
-        elif current_msg.role == "client" and next_msg.role == "client":
+        elif current_msg.role.lower() == "client" and next_msg.role.lower() == "client":
             silence_count += 1
             logger.debug(f"Adding silence moment (client → client)")
 
