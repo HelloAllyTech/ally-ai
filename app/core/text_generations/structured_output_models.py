@@ -173,8 +173,7 @@ class StructuredSummaryNote(BaseModel):
     profession: Optional[str] = Field(None, description="Profession of the client.")
     relationship_status: Optional[str] = Field(None, description="Relationship status of the client.")
     session_summary: Optional[str] = Field(None, description="Summary of the session.")
-    counseling_process_flow: Optional[List[str]] = Field(None, description="Flow of the counseling process.")
-
+    counseling_process_flow: Optional[List[str]] = Field(None, description="Sequential flow of the counseling session broken down into distinct phases or stages")
     key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
     subjective_observations: Optional[List[str]] = Field(None, description="Subjective observations of the client.")
     objective_observations: Optional[List[str]] = Field(None, description="Objective observations of the client.")
