@@ -6,6 +6,7 @@ from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
 )
 from app.schemas.summary import SummaryNoteAndTagsResponse, Tag, DynamicSummaryNoteResponse
+from app.schemas.common import ChatMessage
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,15 +17,15 @@ class SummaryService:
         self.text_generation_service = text_generation_service
 
     async def generate_summary_and_tags(
-        self,
-        chat_history: str,
-        keys: Optional[List[str]] = None
+            self,
+            chat_history: List[ChatMessage],
+            keys: Optional[List[str]] = None
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate a summary and tags from the given chat history.
 
         Parameters:
-            chat_history (str): The chat history to summarize.
+            chat_history (List[ChatMessage]): The chat history to summarize as a list of ChatMessage objects.
             keys (Optional[List[str]]): The keys to include in the summary.
 
         Returns:
@@ -64,7 +65,7 @@ class SummaryService:
             raise SummarizationFailedException("Failed to enhance content. Please try again later.") from e
 
         return enhanced_content
-        
+
     async def get_tag_positivity_ratings(self, tags: list[str]) -> list[Tag]:
         """
         Get positivity ratings for a list of tags.
@@ -80,9 +81,10 @@ class SummaryService:
         """
         try:
             tag_ratings = await self.text_generation_service.get_tag_positivity_ratings(tags)
-            
+
             # Convert the list of dictionaries to a list of Tag objects
             return [Tag(tag=item["tag"], positivity_rating=item["positivity_rating"]) for item in tag_ratings]
-            
+
         except Exception as e:
-            raise SummarizationFailedException("Failed to get positivity ratings for tags. Please try again later.") from e
+            raise SummarizationFailedException(
+                "Failed to get positivity ratings for tags. Please try again later.") from e

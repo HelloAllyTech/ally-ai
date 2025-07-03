@@ -13,6 +13,7 @@ class TextGenerationConstants:
 
 class VectorDBCollectionNames:
     CONVERSATIONS: Final[str] = "Conversation"
+    REFERENCE_DOCUMENTS: Final[str] = "ReferenceDocument"
 
 
 class AgeRange(str, Enum):
@@ -22,6 +23,12 @@ class AgeRange(str, Enum):
     FORTY_FIVE_TO_FIFTY_FOUR = "45-54"
     FIFTY_FIVE_TO_SIXTY_FOUR = "55-64"
     SIXTY_FIVE_PLUS = "65+"
+
+
+class ReferenceDocumentConstants(BaseModel):
+    """Model for reference document."""
+    SIMILARITY_THRESHOLD: Final[float] = 0.5
+
 
 class Language(BaseModel):
     """Model for language and its percentage in the conversation."""

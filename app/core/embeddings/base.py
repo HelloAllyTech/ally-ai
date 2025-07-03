@@ -34,3 +34,19 @@ class BaseEmbeddingService[ClientT](ABC):
             EmbeddingFailedException: If the embedding generation fails.
         """
         pass
+
+    @abstractmethod
+    async def embed_many(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate embedding vectors for a list of texts.
+
+        Parameters:
+            texts (List[str]): The list of texts to embed.
+
+        Returns:
+            List[List[float]]: The resulting embedding vectors.
+
+        Raises:
+            EmbeddingFailedException: If the embedding generation fails.
+        """
+        pass

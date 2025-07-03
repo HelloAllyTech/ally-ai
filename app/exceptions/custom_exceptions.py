@@ -121,3 +121,60 @@ class IdentifyUserFailedException(BaseCustomException):
                  status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) -> None:
         super().__init__(message, status_code)
 
+
+class DocumentNotFoundException(BaseCustomException):
+    """
+    Raised when a document is not found.
+    """
+
+    def __init__(self, 
+                 message="Document not found", 
+                 status_code=status.HTTP_404_NOT_FOUND) -> None:
+        super().__init__(message, status_code)
+
+
+class DocumentAlreadyExistsException(BaseCustomException):
+    """
+    Raised when attempting to create a document with an ID that already exists.
+    """
+
+    def __init__(self, 
+                 message="Document with this ID already exists", 
+                 status_code=status.HTTP_409_CONFLICT) -> None:
+        super().__init__(message, status_code)
+
+
+class VectorDBInsertFailedException(BaseCustomException):
+    """
+    Raised when vector DB insertion fails.
+    """
+
+    def __init__(self,
+                 message="Vector DB insertion failed",
+                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                 ) -> None:
+        super().__init__(message, status_code)
+
+
+class VectorDBUpdateFailedException(BaseCustomException):
+    """
+    Raised when vector DB update fails.
+    """
+
+    def __init__(self,
+                 message="Vector DB update failed",
+                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                 ) -> None:
+        super().__init__(message, status_code)
+
+
+class VectorDBDeleteFailedException(BaseCustomException):
+    """
+    Raised when vector DB deletion fails.
+    """
+
+    def __init__(self,
+                 message="Vector DB deletion failed",
+                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                 ) -> None:
+        super().__init__(message, status_code)

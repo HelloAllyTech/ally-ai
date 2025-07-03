@@ -1,14 +1,18 @@
 # dependencies.py
 
 from fastapi import Depends
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from weaviate.client import WeaviateAsyncClient
 
 from app.core.constants import EmbeddingConstants, TextGenerationConstants
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
+from app.core.reference_documents.reference_document_service import ReferenceDocumentService
 from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
+from app.core.text_generations.openai_text_generation_client import OpenAITextGenerationClient
 from app.core.vector_db.base import VectorDB
 from app.core.vector_db.weaviate import WeaviateDB
 from app.core.vector_db.weaviate_client import WeaviateClient
@@ -24,20 +28,43 @@ async def get_weaviate_client() -> WeaviateAsyncClient:
     return WeaviateClient.get_client()
 
 
+# Dependency for the OpenAI embedding client
+def get_openai_embedding_client() -> OpenAIEmbeddings:
+    """
+    Returns the singleton instance of the OpenAI embedding client.
+    """
+    return OpenAIEmbeddingClient.get_client()
+
+
+# Dependency for the OpenAI text generation client
+def get_openai_text_generation_client() -> ChatOpenAI:
+    """
+    Returns the singleton instance of the OpenAI text generation client.
+    """
+    return OpenAITextGenerationClient.get_client()
+
+
 # Dependency for the OpenAI embedding service
-def get_embedding_service() -> BaseEmbeddingService:
+def get_embedding_service(
+        client=Depends(get_openai_embedding_client)
+) -> BaseEmbeddingService:
     """
     Returns an instance of the BaseEmbeddingService.
+    Uses the singleton OpenAI embedding client.
     """
-    return OpenAIEmbeddingService(model=EmbeddingConstants.MODEL)
+    return OpenAIEmbeddingService(client)
 
 
 # Dependency for the OpenAI text generation service
-def get_text_generation_service() -> BaseTextGenerationService:
+def get_text_generation_service(
+        client=Depends(get_openai_text_generation_client),
+        embedding_service=Depends(get_embedding_service)
+) -> BaseTextGenerationService:
     """
     Returns an instance of the BaseTextGenerationService.
+    Uses the singleton OpenAI text generation client.
     """
-    return OpenAITextGenerationService(model_name=TextGenerationConstants.DEFAULT_MODEL)
+    return OpenAITextGenerationService(client=client, embedding_service=embedding_service)
 
 
 # Dependency for the vector database, which combines the Weaviate client and embedding service
@@ -70,3 +97,14 @@ async def get_summary_service(
     Returns an instance of SummaryService.
     """
     return SummaryService(text_generation_service)
+
+
+# Dependency for the reference document service
+async def get_reference_document_service(
+        vector_db=Depends(get_vector_db),
+        embedding_service=Depends(get_embedding_service)
+) -> ReferenceDocumentService:
+    """
+    Returns an instance of ReferenceDocumentService.
+    """
+    return ReferenceDocumentService(vector_db, embedding_service)
