@@ -58,7 +58,7 @@ jobs:
         shell: bash
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
-          ENV=${{ github.event.inputs.environment }}
+          ENV=${{ github.event.inputs.Environment }}
           echo $BRANCH
           if [ -z "$ENV" ]
           then
