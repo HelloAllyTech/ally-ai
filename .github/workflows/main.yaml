@@ -77,7 +77,7 @@ jobs:
                 ;;
             esac
           fi
-          if [[ $ENV == 'prd' && $BRANCH == 'master' ]]
+          if [ $ENV == 'prd' ]
           then
             echo "AWS_ROLE=PRD_AWS_ROLE" >> $GITHUB_OUTPUT
             echo "AWS_REGION=PRD_AWS_REGION" >> $GITHUB_OUTPUT
