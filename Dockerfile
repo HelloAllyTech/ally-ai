@@ -27,12 +27,10 @@ COPY pyproject.toml poetry.lock* /app/
 RUN poetry install --no-root --only main
 
 # Copy the entire application code to the container
-COPY . /app
+COPY . .
 
 # Expose the port on which the app will run
 EXPOSE 8000
 
-# Set the default command to run your FastAPI app.
-# This command will execute the "if __name__ == '__main__'" block in app/main.py,
-# which calls uvicorn.run() with the specified settings.
-CMD ["poetry", "run", "python", "app/main.py"]
+# Run the application using Python
+CMD ["poetry", "run", "python", "-m", "app.main"]

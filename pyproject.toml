@@ -1,9 +1,13 @@
 [tool.poetry]
 name = "lifeline-ai"
 version = "0.1.0"
-description = ""
+description = "AI-powered lifeline application"
 authors = ["risal-kv <risal@keyvalue.systems>"]
 readme = "README.md"
+
+packages = [
+    { include = "app" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -11,7 +15,15 @@ fastapi = "^0.115.8"
 pydantic-settings = "^2.7.1"
 contextvars = "^2.4"
 uvicorn = "^0.34.0"
+weaviate-client = "^4.11.0"
+langchain-openai = "^0.3.6"
+slack-sdk = "^3.35.0"
+numpy = "^2.3.0"
+scikit-learn = "^1.7.0"
+vadersentiment = "^3.3.2"
 
+[tool.poetry.group.dev.dependencies]
+aiohttp = "^3.11.15"
 
 [build-system]
 requires = ["poetry-core"]

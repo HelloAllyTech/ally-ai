@@ -4,22 +4,33 @@ from contextlib import asynccontextmanager
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.vector_db.weaviate_client import WeaviateClient
 from app.middleware import get_middlewares
 from app.utils.logger import logger, logging_config
+from app.utils.startup import initialize_openai_clients
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     """Application startup and shutdown lifecycle"""
     logger.info("Starting application...")
+    # Initialize Weaviate client
+    WeaviateClient.create_client()
+    await WeaviateClient.connect(WeaviateClient.get_client())
+    
+    # Initialize OpenAI clients
+    initialize_openai_clients()
+    logger.info("OpenAI clients initialized")
+
     yield
+    await WeaviateClient.close(WeaviateClient.get_client())
     logger.info("Shutting down application...")
 
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="My FastAPI Project",
-    description="A well-structured FastAPI boilerplate",
+    title="Lifeline AI",
+    description="AI Service for Lifeline Project",
     version="1.0.0",
     lifespan=lifespan,
     middleware=get_middlewares(),

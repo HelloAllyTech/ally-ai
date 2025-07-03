@@ -11,7 +11,7 @@
 # DEV_AWS_ROLE
 # DEV_AWS_REGION
 
-name: Deploy lifeline-ai
+name: Deploy ally-core-ai
 
 permissions:
   id-token: write
@@ -58,7 +58,7 @@ jobs:
         shell: bash
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
-          ENV=${{ github.event.inputs.environment }}
+          ENV=${{ github.event.inputs.Environment }}
           echo $BRANCH
           if [ -z "$ENV" ]
           then
@@ -77,12 +77,12 @@ jobs:
                 ;;
             esac
           fi
-          if [[ $ENV == 'prd' && $BRANCH == 'master' ]]
+          if [ $ENV == 'prd' ]
           then
             echo "AWS_ROLE=PRD_AWS_ROLE" >> $GITHUB_OUTPUT
             echo "AWS_REGION=PRD_AWS_REGION" >> $GITHUB_OUTPUT
             echo "ECR_REPOSITORY=PRD_ECR_REPOSITORY" >> $GITHUB_OUTPUT
-            echo "PROJECT_PREFIX=life-prd" >> $GITHUB_OUTPUT
+            echo "PROJECT_PREFIX=ally-prd" >> $GITHUB_OUTPUT
             echo "PROJECT_REGION=mb" >> $GITHUB_OUTPUT
             echo "SUBNETS=[\"subnet-0cce75b196f0b0f91\", \"subnet-0ecfab7ad6e9c808f\"]" >> $GITHUB_OUTPUT
             echo "SECURITY_GROUPS=[\"sg-0a59d6cefa4776cd4\"]" >> $GITHUB_OUTPUT
@@ -100,7 +100,7 @@ jobs:
             echo "AWS_ROLE=DEV_AWS_ROLE" >> $GITHUB_OUTPUT
             echo "AWS_REGION=DEV_AWS_REGION" >> $GITHUB_OUTPUT
             echo "ECR_REPOSITORY=DEV_ECR_REPOSITORY" >> $GITHUB_OUTPUT
-            echo "PROJECT_PREFIX=life-dev" >> $GITHUB_OUTPUT
+            echo "PROJECT_PREFIX=ally-dev" >> $GITHUB_OUTPUT
             echo "PROJECT_REGION=sg" >> $GITHUB_OUTPUT
             echo "SUBNETS=[\"subnet-072921dfa30408828\", \"subnet-0f1841479bce3a1e0\"]" >> $GITHUB_OUTPUT
             echo "SECURITY_GROUPS=[\"sg-058afe1ec009268c0\"]" >> $GITHUB_OUTPUT
@@ -116,9 +116,9 @@ jobs:
           PROJECT_PREFIX=${{ steps.vars.outputs.PROJECT_PREFIX }}
           PROJECT_REGION=${{  steps.vars.outputs.PROJECT_REGION  }}
           echo "ECS_CLUSTER=$PROJECT_PREFIX-$PROJECT_REGION-ecs-cluster"  >> $GITHUB_OUTPUT
-          echo "ECS_SERVICE=$PROJECT_PREFIX-svc-ai" >> $GITHUB_OUTPUT
-          echo "ECR_IMAGE=$PROJECT_PREFIX-ecr-ai" >> $GITHUB_OUTPUT
-          echo "TASK_DEFINITION=$PROJECT_PREFIX-td-ai" >> $GITHUB_OUTPUT
+          echo "ECS_SERVICE=$PROJECT_PREFIX-svc-core-ai" >> $GITHUB_OUTPUT
+          echo "ECR_IMAGE=$PROJECT_PREFIX-ecr-core-ai" >> $GITHUB_OUTPUT
+          echo "TASK_DEFINITION=$PROJECT_PREFIX-td-core-ai" >> $GITHUB_OUTPUT
           echo "ENVIRONMENT_BUCKET=$PROJECT_PREFIX-s3-environment"  >> $GITHUB_OUTPUT
           echo ":seedling: Branch:${GITHUB_REF#refs/heads/}" >> $GITHUB_STEP_SUMMARY
   build:

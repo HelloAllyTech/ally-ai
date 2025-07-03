@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  weaviate:
+    image: semitechnologies/weaviate:1.28.3
+    container_name: weaviate-lifeline
+    ports:
+      - "8080:8080"  # REST API (mapped to a different host port to avoid conflict)
+      - "50051:50051"  # gRPC (mapped to a different host port to avoid conflict)
+    environment:
+      - QUERY_DEFAULTS_LIMIT=20  # Default limit for queries
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true  # Allow anonymous access
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate-lifeline  # Path for persistent data
+      - ENABLE_CONSOLE=true  # Enable the web interface (Weaviate Console)
+      - CLUSTER_HOSTNAME=weaviate  # Required even in single-node mode
+      - CLUSTER_SINGLE_NODE_MODE=true  # Enable single-node mode
+    volumes:
+      - weaviate_data:/var/lib/weaviate-lifeline  # Persist data
+    networks:
+      - lifeline-network
+
+volumes:
+  weaviate_data:
+    driver: local
+
+networks:
+  lifeline-network:
+    driver: bridge
