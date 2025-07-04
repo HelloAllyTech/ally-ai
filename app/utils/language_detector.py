@@ -5,16 +5,16 @@ from app.core.constants import Language
 
 # Step 1: Unicode block mapping
 UNICODE_SCRIPT_RANGES = {
-    "Hindi": (0x0900, 0x097F), # Devanagari is the script used for Hindi. This will actually detect Marathi and Hindi.
-    "Bengali": (0x0980, 0x09FF),
-    "Gurmukhi": (0x0A00, 0x0A7F),
-    "Gujarati": (0x0A80, 0x0AFF),
-    "Oriya": (0x0B00, 0x0B7F),
-    "Tamil": (0x0B80, 0x0BFF),
-    "Telugu": (0x0C00, 0x0C7F),
-    "Kannada": (0x0C80, 0x0CFF),
-    "Malayalam": (0x0D00, 0x0D7F),
-    "English": (0x0041, 0x007A),  # Basic English/Latin block 
+    "hi": [0x0900, 0x097F],  # Hindi (Devanagari script range, also includes Marathi)
+    "bn": [0x0980, 0x09FF],  # Bengali script range
+    "pa-Guru": [0x0A00, 0x0A7F], # Punjabi (Gurmukhi script range)
+    "gu": [0x0A80, 0x0AFF],  # Gujarati script range
+    "or": [0x0B00, 0x0B7F],  # Oriya (Odia) script range
+    "ta": [0x0B80, 0x0BFF],  # Tamil script range
+    "te": [0x0C00, 0x0C7F],  # Telugu script range
+    "kn": [0x0C80, 0x0CFF],  # Kannada script range
+    "ml": [0x0D00, 0x0D7F],  # Malayalam script range
+    "en": [0x0041, 0x007A]   # English (Basic Latin script range)
 }
 
 def get_script_for_char(char: str) -> str:
