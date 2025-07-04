@@ -7,7 +7,7 @@ from app.core.constants import Language
 UNICODE_SCRIPT_RANGES = {
     "hi": [0x0900, 0x097F],  # Hindi (Devanagari script range, also includes Marathi)
     "bn": [0x0980, 0x09FF],  # Bengali script range
-    "pa-Guru": [0x0A00, 0x0A7F], # Punjabi (Gurmukhi script range)
+    "pa": [0x0A00, 0x0A7F],  # Punjabi
     "gu": [0x0A80, 0x0AFF],  # Gujarati script range
     "or": [0x0B00, 0x0B7F],  # Oriya (Odia) script range
     "ta": [0x0B80, 0x0BFF],  # Tamil script range
