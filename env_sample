@@ -22,3 +22,6 @@ LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=<langsmith-key>
 LANGSMITH_PROJECT=<langsmith-project-name>
+
+CORE_SERVICE_ENDPOINT=""
+CORE_API_KEY=""

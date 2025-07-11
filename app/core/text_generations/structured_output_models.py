@@ -1,7 +1,7 @@
 from typing import Optional, List, Literal
 from pydantic import BaseModel, Field
 
-from app.core.constants import AgeRange
+from app.core.constants import AgeRange, UserRole
 
 DominantFeelingLiteral = Literal[
     "Betrayed:Let Down",
@@ -312,3 +312,43 @@ class StructuredIdentifyUsers(BaseModel):
             }
         }
     }
+
+
+class StructuredDiarizedMessage(BaseModel):
+    """
+    A Pydantic model for individual diarized messages.
+    """
+    role: UserRole = Field(..., description="Speaker role (e.g., {}, {})".format(UserRole.CLIENT, UserRole.COUNSELOR))
+    content: str = Field(..., description="The transcribed content for this speaker")
+    start_time: float = Field(..., description="Start time of the message in seconds")
+    end_time: float = Field(..., description="End time of the message in seconds")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "role": UserRole.COUNSELOR,
+                "content": "Hello, how are you doing today?",
+                "start_time": 0.0,
+                "end_time": 0.0
+            }
+        }
+
+
+class StructuredDiarization(BaseModel):
+    """
+    A Pydantic model for structured output of diarization.
+    """
+    messages: List[StructuredDiarizedMessage] = Field(
+        ..., 
+        description="Array of diarized messages with speaker roles, content (translated to English), start_time and end_time"
+    )
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "messages": [
+                    {"role": UserRole.COUNSELOR, "content": "Hello, how are you doing today?", "start_time": 0.0, "end_time": 0.0},
+                    {"role": UserRole.CLIENT, "content": "I'm doing well, thank you for asking.", "start_time": 0.0, "end_time": 0.0}
+                ]
+            }
+        }

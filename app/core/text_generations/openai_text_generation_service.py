@@ -10,6 +10,7 @@ from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.structured_output_models import (
     StructuredSummaryNote,
     StructuredIdentifyUsers,
+    StructuredDiarization,
 )
 from app.core.embeddings.base import BaseEmbeddingService
 from app.exceptions.custom_exceptions import (
@@ -40,6 +41,7 @@ from app.core.text_generations.prompts import (
     IDENTIFY_USER_PROMPT,
     TAG_POSITIVITY_RATING_PROMPT
 )
+from app.core.transcriptions.openai.prompts import DIARIZATION_PROMPT
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -502,3 +504,39 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         except Exception as e:
             logger.exception(f"Unexpected error getting positivity ratings: {str(e)}")
             raise Exception("An unexpected error occurred while getting positivity ratings.") from e
+
+    async def diarize_from_transcription(self, transcription: str, **kwargs) -> StructuredDiarization:
+        """
+        Diarize a raw transcription string into structured messages with speaker roles.
+        
+        This method takes a raw transcription text with timestamps and uses OpenAI's structured output
+        to parse it into an array of messages with role, content, start_time and end_time fields.
+        
+        Parameters:
+            transcription (str): Raw transcription text with timestamps from audio
+            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+            
+        Returns:
+            StructuredDiarization: Object containing array of messages with role, content, start_time and end_time
+            
+        Raises:
+            LLMInvocationFailedException: If the OpenAI API call fails
+        """
+        logger.info("Diarizing transcription using OpenAI structured output")
+        
+        try:
+            response = cast(
+                StructuredDiarization,
+                await self._invoke_llm(
+                    DIARIZATION_PROMPT.format(transcription=transcription),
+                    StructuredDiarization,
+                    **kwargs
+                )
+            )
+            
+            logger.info("Diarization completed successfully")
+            return response
+            
+        except LLMInvocationFailedException as e:
+            logger.error(f"Diarization failed: {str(e)}")
+            raise LLMInvocationFailedException("Failed to diarize transcription.") from e

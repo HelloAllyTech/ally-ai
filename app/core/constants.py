@@ -34,3 +34,11 @@ class Language(BaseModel):
     """Model for language and its percentage in the conversation."""
     language: str = Field(..., description="Name of the language")
     percentage: float = Field(..., description="Percentage of the language used in conversation")
+
+class UserRole(str, Enum):
+    CLIENT = "Client"
+    COUNSELOR = "Counselor"
+
+class TranscriptionConstants:
+    """Model for transcription."""
+    MODEL = "whisper-1"
