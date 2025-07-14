@@ -2,47 +2,16 @@ import asyncio
 from app.utils.logger import get_logger
 import httpx
 import subprocess
-import os
 from datetime import datetime
 import uuid
 
 logger = get_logger(__name__)
 
-async def save_wav_to_file(wav_data: bytes) -> str:
-    """
-    Save WAV data to a file with guaranteed unique filename.
-    
-    Args:
-        wav_data (bytes): WAV audio data
-                                   
-    Returns:
-        str: Path to the saved file
-        
-    Raises:
-        IOError: If file writing fails
-    """
-    try:
-        # Create guaranteed unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        unique_id = str(uuid.uuid4())[:8]  # First 8 characters of UUID
-        
-        output_path = f"/tmp/audio_{timestamp}_{unique_id}.wav"
-        
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        # Write WAV data to file
-        with open(output_path, 'wb') as f:
-            f.write(wav_data)
-        
-        logger.info(f"WAV file saved to: {output_path} ({len(wav_data)} bytes)")
-        return output_path
-        
-    except Exception as e:
-        logger.error(f"Error saving WAV file: {e}")
-        raise IOError(f"Failed to save WAV file: {e}")
+def write_file(path: str, data: bytes):
+    """Synchronous file write helper"""
+    with open(path, 'wb') as f:
+        f.write(data)
 
-# Direct streaming to FFmpeg 
 async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
     """
     Stream audio directly from URL to FFmpeg for optimal memory usage.
@@ -66,14 +35,22 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
     """
     
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 minute timeout
+        async with httpx.AsyncClient(timeout=300.0) as client:
             async with client.stream("GET", presigned_url) as response:
-                response.raise_for_status()  # Raise exception for HTTP errors
+                response.raise_for_status()
                 
-                # Stream directly to FFmpeg process
+                # Stream directly to FFmpeg process with EXPLICIT format specification
                 process = await asyncio.create_subprocess_exec(
-                    'ffmpeg', '-i', 'pipe:0', '-acodec', 'pcm_s16le',
-                    '-ar', '8000', '-ac', '1', '-f', 'wav', 'pipe:1',
+                    'ffmpeg', 
+                    '-f', 's16le',        # Explicit format: 16-bit signed PCM
+                    '-ar', '8000',        # Explicit sample rate: 8kHz
+                    '-ac', '1',           # Explicit channels: mono
+                    '-i', 'pipe:0',       # Input from pipe
+                    '-acodec', 'pcm_s16le',
+                    '-ar', '16000',       # Output sample rate: 16kHz
+                    '-ac', '1',           # Output channels: mono
+                    '-f', 'wav', 
+                    'pipe:1',
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
@@ -85,9 +62,9 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                 async def feed_ffmpeg():
                     """Feed audio data to FFmpeg stdin"""
                     try:
-                        async for chunk in response.aiter_bytes():
-                            process.stdin.write(chunk)  
-                            await process.stdin.drain() 
+                        async for chunk in response.aiter_bytes(chunk_size=8192):
+                            process.stdin.write(chunk)
+                            await process.stdin.drain()
                         process.stdin.close()
                         await process.stdin.wait_closed()
                     except Exception as e:
@@ -98,7 +75,7 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                     """Read WAV output from FFmpeg stdout"""
                     try:
                         while True:
-                            chunk = await process.stdout.read(8192)  # 8KB chunks
+                            chunk = await process.stdout.read(8192)
                             if not chunk:
                                 break
                             wav_chunks.append(chunk)
@@ -107,7 +84,7 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                         raise
                 
                 # Run both tasks concurrently
-                logger.info("Starting streaming conversion to FFmpeg")
+                logger.info("Starting streaming conversion to FFmpeg with explicit format")
                 await asyncio.gather(
                     feed_ffmpeg(),
                     read_ffmpeg()
@@ -120,6 +97,7 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                 if process.returncode != 0:
                     stderr = await process.stderr.read()
                     error_msg = stderr.decode('utf-8', errors='ignore')
+                    logger.error(f"FFmpeg stderr: {error_msg}")
                     raise subprocess.CalledProcessError(
                         process.returncode, 'ffmpeg', 
                         f"FFmpeg conversion failed: {error_msg}"
@@ -134,12 +112,15 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                 
                 logger.info(f"Streaming conversion completed: {len(wav_data)} bytes WAV")
                 
-                # Save WAV data to file and get the path
-                saved_file_path = await save_wav_to_file(wav_data)
-                logger.info(f"WAV file saved for transcription: {saved_file_path}")
+                # Save WAV data to file
+                timestamp = await asyncio.to_thread(datetime.now().strftime, "%Y%m%d_%H%M%S_%f")
+                unique_id = str(uuid.uuid4())[:8]
+                output_path = f"/tmp/audio_{timestamp}_{unique_id}.wav"
                 
-                # Return file path for further processing
-                return saved_file_path
+                await asyncio.to_thread(write_file, output_path, wav_data)
+                logger.info(f"WAV file saved for transcription: {output_path}")
+                
+                return output_path
                 
     except httpx.HTTPError as e:
         logger.error(f"HTTP error downloading audio from {presigned_url}: {e}")
