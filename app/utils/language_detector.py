@@ -31,7 +31,7 @@ def get_script_for_char(char: str) -> str:
     for script, (start, end) in UNICODE_SCRIPT_RANGES.items():
         if start <= code_point <= end:
             return script
-    return "English"  # Default to English/Latin instead of Unknown
+    return "en"  # Default to 'en''
 
 def preprocess_text(text: str) -> List[str]:
     """
