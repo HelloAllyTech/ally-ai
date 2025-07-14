@@ -55,7 +55,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             diarization_result = await self.text_generation_service.diarize_from_transcription(transcription=segments_text)
             messages = [
                 ChatMessage(
-                    role=msg.role,  # Convert to lowercase for consistency
+                    role=msg.role.upper(),  # Convert to uppercase for consistency
                     content=msg.content,
                     start_time=msg.start_time,
                     end_time=msg.end_time
