@@ -26,7 +26,8 @@ async def transcribe_and_summarize_audio(
     try:
         success = await transcription_service.transcribe_audio_from_url(
             presigned_url=request.presigned_url,
-            chat_id=request.chat_id
+            chat_id=request.chat_id,
+            sample_rate=request.sample_rate
         )
         
         return TranscribeAndSummarizeResponse(success=success)

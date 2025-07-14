@@ -36,8 +36,8 @@ class Language(BaseModel):
     percentage: float = Field(..., description="Percentage of the language used in conversation")
 
 class UserRole(str, Enum):
-    CLIENT = "Client"
-    COUNSELOR = "Counselor"
+    CLIENT = "CLIENT"
+    COUNSELOR = "COUNSELOR"
 
 class TranscriptionConstants:
     """Model for transcription."""

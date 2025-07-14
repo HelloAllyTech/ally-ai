@@ -31,7 +31,8 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
     async def transcribe_audio_from_url(
         self, 
         presigned_url: str,
-        chat_id: int
+        chat_id: int,
+        sample_rate: int = 8000
     ) -> bool:
         """
         Transcribe audio from URL and generate a summary.
@@ -39,6 +40,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         Args:
             presigned_url (str): URL containing the audio file
             chat_id (int): Chat ID for the transcription session
+            sample_rate (int): Expected sample rate of the audio (default: 8000)
             
         Returns:
             bool: True if transcription and summarization was successful
@@ -48,18 +50,18 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         """
         try:
             # Transcribe and preprocess audio
-            segments_text = await self._transcribe_and_preprocess_audio(presigned_url)
+            segments_text = await self._transcribe_and_preprocess_audio(presigned_url, sample_rate)
             # Use OpenAI structured output to diarize the transcription
             diarization_result = await self.text_generation_service.diarize_from_transcription(transcription=segments_text)
             messages = [
                 ChatMessage(
-                    role=msg.role.lower(),  # Convert to lowercase for consistency
+                    role=msg.role,  # Convert to lowercase for consistency
                     content=msg.content,
                     start_time=msg.start_time,
                     end_time=msg.end_time
                 )
                 for msg in diarization_result.messages
-            ] 
+            ]
             # Send transcript to core
             await self._send_transcript_to_core(chat_id, messages)
 
@@ -73,7 +75,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             logger.error(f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}")
             raise Exception(f"Transcription failed: {str(e)}")
         
-    async def _transcribe_and_preprocess_audio(self, presigned_url: str) -> str:
+    async def _transcribe_and_preprocess_audio(self, presigned_url: str, sample_rate: int = 8000) -> str:
         """
         Transcribe audio and preprocess segments into a formatted string for diarization.
         
@@ -82,6 +84,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         
         Args:
             presigned_url (str): URL containing the audio file
+            sample_rate (int): Expected sample rate of the audio (default: 8000)
             
         Returns:
             str: Formatted segments text with timing information
@@ -97,7 +100,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             try:
                 
                 # Convert raw audio buffer to WAV format using FFmpeg (async)
-                wav_file_path = await convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url)
+                wav_file_path = await convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url, sample_rate)
                 logger.debug(f"WAV file created at: {wav_file_path}")
                 
                 # Create transcription asynchronously using asyncio.to_thread

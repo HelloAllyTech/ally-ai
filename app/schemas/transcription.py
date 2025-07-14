@@ -12,12 +12,17 @@ class TranscribeAndSummarizeRequest(BaseModel):
         ..., 
         description="Chat ID for the transcription session"
     )
+    sample_rate: int = Field(
+        default=8000,
+        description="Expected sample rate of the audio in Hz (default: 8000)"
+    )
 
     class ConfigDict:
         json_schema_extra = {
             "example": {
                 "presigned_url": "https://example-bucket.s3.amazonaws.com/audio-file.wav?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...",
-                "chat_id": 12345
+                "chat_id": 12345,
+                "sample_rate": 8000
             }
         }
 

@@ -12,45 +12,70 @@ def write_file(path: str, data: bytes):
     with open(path, 'wb') as f:
         f.write(data)
 
-async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
+async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str, sample_rate: int = 8000):
     """
-    Stream audio directly from URL to FFmpeg for optimal memory usage.
-    
-    This method downloads audio from a presigned URL and streams it directly
-    to FFmpeg for conversion to WAV format, minimizing memory usage by
-    avoiding storing the entire audio file in memory.
+    Convert audio from presigned URL to WAV format using FFmpeg with pipe streaming.
+    Uses pipe streaming for both 8kHz and higher sample rates for memory optimization.
     
     Args:
         presigned_url (str): URL for the audio file
+        sample_rate (int): Expected sample rate of the audio (default: 8000)
         
     Returns:
         str: Path to the saved WAV file for transcription
-        
-    Raises:
-        httpx.HTTPError: If the HTTP request to download audio fails
-        asyncio.TimeoutError: If the download or FFmpeg conversion times out
-        subprocess.CalledProcessError: If FFmpeg conversion fails
-        ValueError: If the audio data is invalid or corrupted
-        Exception: For any other unexpected errors during processing
     """
     
+    try:
+        if sample_rate == 8000:
+            # 8kHz microphone audio - use explicit format specification
+            logger.info("Using 8kHz pipe streaming with explicit format")
+            return await _convert_with_pipe_streaming(presigned_url, is_8khz=True)
+        else:
+            # Higher sample rate audio - use auto-detection
+            logger.info(f"Using pipe streaming with auto-detection for {sample_rate} Hz audio")
+            return await _convert_with_pipe_streaming(presigned_url, is_8khz=False)
+            
+    except Exception as e:
+        logger.error(f"Error in convert_and_store_raw_to_wav_with_ffmpeg_async: {e}")
+        raise
+
+async def _convert_with_pipe_streaming(presigned_url: str, is_8khz: bool = True) -> str:
+    """Convert audio using pipe streaming with format detection inside"""
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             async with client.stream("GET", presigned_url) as response:
                 response.raise_for_status()
                 
-                # Stream directly to FFmpeg process with EXPLICIT format specification
+                # Choose FFmpeg command based on sample rate
+                if is_8khz:
+                    # 8kHz microphone audio - explicit format specification
+                    ffmpeg_cmd = [
+                        'ffmpeg', 
+                        '-f', 's16le',        # Explicit format: 16-bit signed PCM
+                        '-ar', '8000',        # Explicit sample rate: 8kHz
+                        '-ac', '1',           # Explicit channels: mono
+                        '-i', 'pipe:0',       # Input from pipe
+                        '-acodec', 'pcm_s16le',
+                        '-ar', '16000',       # Output sample rate: 16kHz
+                        '-ac', '1',           # Output channels: mono
+                        '-f', 'wav', 
+                        'pipe:1'
+                    ]
+                else:
+                    # Higher sample rate audio - auto-detection
+                    ffmpeg_cmd = [
+                        'ffmpeg',
+                        '-i', 'pipe:0',       # Auto-detect input format
+                        '-acodec', 'pcm_s16le',
+                        '-ar', '16000',       # Output sample rate: 16kHz
+                        '-ac', '1',           # Output channels: mono
+                        '-f', 'wav',
+                        'pipe:1'
+                    ]
+                
+                # Stream directly to FFmpeg process
                 process = await asyncio.create_subprocess_exec(
-                    'ffmpeg', 
-                    '-f', 's16le',        # Explicit format: 16-bit signed PCM
-                    '-ar', '8000',        # Explicit sample rate: 8kHz
-                    '-ac', '1',           # Explicit channels: mono
-                    '-i', 'pipe:0',       # Input from pipe
-                    '-acodec', 'pcm_s16le',
-                    '-ar', '16000',       # Output sample rate: 16kHz
-                    '-ac', '1',           # Output channels: mono
-                    '-f', 'wav', 
-                    'pipe:1',
+                    *ffmpeg_cmd,
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
@@ -84,7 +109,7 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                         raise
                 
                 # Run both tasks concurrently
-                logger.info("Starting streaming conversion to FFmpeg with explicit format")
+                logger.info(f"Starting pipe streaming conversion: {' '.join(ffmpeg_cmd)}")
                 await asyncio.gather(
                     feed_ffmpeg(),
                     read_ffmpeg()
@@ -110,7 +135,7 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                 if not wav_data or len(wav_data) < 44:  # WAV header is 44 bytes
                     raise ValueError("Invalid WAV data generated by FFmpeg")
                 
-                logger.info(f"Streaming conversion completed: {len(wav_data)} bytes WAV")
+                logger.info(f"Pipe streaming conversion completed: {len(wav_data)} bytes WAV")
                 
                 # Save WAV data to file
                 timestamp = await asyncio.to_thread(datetime.now().strftime, "%Y%m%d_%H%M%S_%f")
@@ -122,18 +147,6 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str):
                 
                 return output_path
                 
-    except httpx.HTTPError as e:
-        logger.error(f"HTTP error downloading audio from {presigned_url}: {e}")
-        raise
-    except asyncio.TimeoutError as e:
-        logger.error(f"Timeout error during audio download/conversion: {e}")
-        raise
-    except subprocess.CalledProcessError as e:
-        logger.error(f"FFmpeg conversion failed: {e}")
-        raise
-    except ValueError as e:
-        logger.error(f"Invalid audio data: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error in convert_and_store_raw_to_wav_with_ffmpeg_async: {e}")
+        logger.error(f"Error in _convert_with_pipe_streaming: {e}")
         raise
