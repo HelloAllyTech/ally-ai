@@ -32,9 +32,10 @@ NUDGE_PROMPT = PromptTemplate(
 
 SUMMARY_PROMPT = PromptTemplate(
     template=textwrap.dedent("""
-        You're an assistant that creates notes for mental health organisations.
-        You'll be provided with the chat history of a conversation between a counselor and client. 
-        If chat is empty, return empty values according to the output format.
+        You're an assistant that creates session notes for mental health organizations.
+        Analyze the chat history and extract All available information for each field in the output schema.
+        Avoid leaving fields as null/empty when information is present in the conversation.
+        
         Chat history:
         ```
         {chat_history}
