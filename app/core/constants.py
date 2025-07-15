@@ -42,3 +42,9 @@ class UserRole(str, Enum):
 class TranscriptionConstants:
     """Model for transcription."""
     MODEL = "whisper-1"
+
+class ENV(str, Enum):
+    DEV = "DEV"
+    DEVELOPMENT = "DEVELOPMENT"
+    PROD = "PROD"
+    STG = "STG"

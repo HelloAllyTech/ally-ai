@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,9 @@ class Settings(BaseSettings):
     server configuration, API version, Weaviate database settings, and OpenAI credentials.
     """
     model_config = SettingsConfigDict(env_file=[".env", "./.env", "../.env"])
+
+    # ENV
+    ENV: str = Field(...)
 
     # Log settings
     LOG_LEVEL: str = "INFO"
@@ -49,6 +53,16 @@ class Settings(BaseSettings):
     # Backend Service URL
     CORE_SERVICE_ENDPOINT: str = Field(...)
     CORE_API_KEY: str = Field(...)
+
+    # SQS Configs
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(default="test", description="Only for development")
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(default="test", description="Only for development")
+    AWS_REGION: Optional[str] = Field(default="ap-south-1", description="Only for development")
+    AWS_ENDPOINT_URL: Optional[str] = Field(default="http://localhost:4566", description="Only for development")
+
+    # Queue URLs
+    TRANSCRIPTION_REQUEST_QUEUE_URL: str = Field(...)
+    TRANSCRIPTION_RESPONSE_QUEUE_URL: str = Field(...)
 
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
