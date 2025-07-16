@@ -1,5 +1,6 @@
 from typing import Type, Optional, List, cast, Dict, Union, TypeVar
 import json
+import asyncio
 
 import openai
 from langchain_core.tools import tool
@@ -46,6 +47,9 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Constants for chunking
+MAX_TOKENS_PER_CHUNK = 12000  # Conservative limit to avoid token issues
+CHUNK_OVERLAP = 500  # Overlap between chunks to maintain context
 
 @tool
 def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Union[str, int]]:
@@ -72,6 +76,58 @@ def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Un
     except Exception as e:
         logger.error(f"Validation failed: {str(e)}")
         return {}
+
+def split_text_by_length(text: str, max_tokens: int = MAX_TOKENS_PER_CHUNK) -> List[str]:
+    """
+    Split transcription text into chunks while preserving timing information.
+    
+    This function intelligently splits transcription text to avoid token limits
+    while maintaining context and preserving timestamp information.
+    """
+    lines = text.splitlines()
+    chunks = []
+    current_chunk = []
+    current_len = 0
+    
+    # Approximate token count (roughly 4 characters per token)
+    def estimate_tokens(text: str) -> int:
+        return len(text) // 4
+    
+    for line in lines:
+        line_tokens = estimate_tokens(line)
+        
+        # If adding this line would exceed the limit and we have content, start a new chunk
+        if current_len + line_tokens > max_tokens and current_chunk:
+            chunks.append('\n'.join(current_chunk))
+            current_chunk = []
+            current_len = 0
+        
+        current_chunk.append(line)
+        current_len += line_tokens
+    
+    # Add the last chunk if it has content
+    if current_chunk:
+        chunks.append('\n'.join(current_chunk))
+    
+    # If we have multiple chunks, add some overlap to maintain context
+    if len(chunks) > 1:
+        for i in range(len(chunks) - 1):
+            # Add some lines from the end of current chunk to the beginning of next chunk
+            current_lines = chunks[i].splitlines()
+            next_lines = chunks[i + 1].splitlines()
+            
+            # Take last few lines from current chunk (if they contain timestamps)
+            overlap_lines = []
+            for line in reversed(current_lines[-3:]):  # Last 3 lines
+                if any(char.isdigit() for char in line):  # Likely contains timestamp
+                    overlap_lines.insert(0, line)
+                if estimate_tokens('\n'.join(overlap_lines)) > CHUNK_OVERLAP:
+                    break
+            
+            if overlap_lines:
+                chunks[i + 1] = '\n'.join(overlap_lines + next_lines)
+    
+    return chunks
 
 
 class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
@@ -354,11 +410,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 response = cast(
                     StructuredSummaryNote,
                     await self._invoke_llm(
-                        prompt,
+                            prompt,
                         StructuredSummaryNote,
-                        **kwargs
+                            **kwargs
+                        )
                     )
-                )
+                
                 logger.info("Note generated successfully")
 
                 response.affirmations = affirmation_count
@@ -427,7 +484,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         logger.info("Content enhanced successfully")
         return response.enhanced_content
-
+    
     async def identify_user(self, chat_history: List[ChatMessage], **kwargs) -> IdentifyResponse:
         """
         Identify whether speaker0 and speaker1 are client or counselor based on chat history.
@@ -511,6 +568,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         
         This method takes a raw transcription text with timestamps and uses OpenAI's structured output
         to parse it into an array of messages with role, content, start_time and end_time fields.
+        For large transcriptions, it splits the text into chunks and processes them in parallel.
         
         Parameters:
             transcription (str): Raw transcription text with timestamps from audio
@@ -524,19 +582,74 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Diarizing transcription using OpenAI structured output")
         
-        try:
-            response = cast(
-                StructuredDiarization,
-                await self._invoke_llm(
-                    DIARIZATION_PROMPT.format(transcription=transcription),
+        # Split transcription into manageable chunks
+        chunks = split_text_by_length(transcription, MAX_TOKENS_PER_CHUNK)
+        logger.info(f"Split transcription into {len(chunks)} chunks for processing")
+        
+        if len(chunks) == 1:
+            # Single chunk - process directly
+            logger.info("Processing single chunk")
+            try:
+                result = await self._invoke_llm(
+                    DIARIZATION_PROMPT.format(transcription=chunks[0]),
                     StructuredDiarization,
                     **kwargs
                 )
+                logger.info("Diarization completed successfully")
+                return result
+            except Exception as e:
+                logger.error(f"Failed to diarize single chunk: {str(e)}")
+                raise LLMInvocationFailedException("Failed to diarize transcription.") from e
+        
+        # Multiple chunks - process in parallel
+        logger.info(f"Processing {len(chunks)} chunks in parallel")
+        
+        async def process_chunk(chunk_text: str, index: int):
+            """Process a single chunk of transcription."""
+            try:
+                logger.debug(f"Processing chunk {index + 1}/{len(chunks)} (length: {len(chunk_text)} chars)")
+                result = await self._invoke_llm(
+                    DIARIZATION_PROMPT.format(transcription=chunk_text),
+                    StructuredDiarization,
+                    **kwargs
+                )
+                logger.debug(f"Chunk {index + 1} completed with {len(result.messages)} messages")
+                return result
+            except Exception as e:
+                logger.error(f"Chunk {index + 1} failed to diarize: {str(e)}")
+                raise LLMInvocationFailedException(f"Chunk {index + 1} failed") from e
+
+        try:
+            # Process all chunks in parallel
+            results: List[StructuredDiarization] = await asyncio.gather(
+                *[process_chunk(chunk, i) for i, chunk in enumerate(chunks)],
+                return_exceptions=True
             )
             
-            logger.info("Diarization completed successfully")
-            return response
+            # Check for any exceptions
+            failed_chunks = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    failed_chunks.append(i + 1)
+                    logger.error(f"Chunk {i + 1} failed: {str(result)}")
             
-        except LLMInvocationFailedException as e:
-            logger.error(f"Diarization failed: {str(e)}")
+            if failed_chunks:
+                raise LLMInvocationFailedException(f"Failed to process chunks: {failed_chunks}")
+
+            # Combine messages from all chunks in original order
+            combined_messages = []
+            total_messages = 0
+            
+            for i, result in enumerate(results):
+                if isinstance(result, StructuredDiarization):
+                    chunk_messages = result.messages
+                    combined_messages.extend(chunk_messages)
+                    total_messages += len(chunk_messages)
+                    logger.debug(f"Added {len(chunk_messages)} messages from chunk {i + 1}")
+
+            logger.info(f"All chunks diarized and merged successfully. Total messages: {total_messages}")
+            return StructuredDiarization(messages=combined_messages)
+
+        except Exception as e:
+            logger.error(f"Failed during parallel diarization: {str(e)}")
             raise LLMInvocationFailedException("Failed to diarize transcription.") from e

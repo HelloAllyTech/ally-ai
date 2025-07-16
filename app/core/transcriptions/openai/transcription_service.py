@@ -6,14 +6,101 @@ from app.schemas.common import ChatMessage
 from app.core.transcriptions.base import BaseTranscriptionService
 from app.core.constants import TranscriptionConstants
 from app.exceptions.custom_exceptions import TranscriptionFailedException
-from app.utils.audio_converter import convert_and_store_raw_to_wav_with_ffmpeg_async
+from app.utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
 import os
+# import aiofiles
+# from datetime import datetime
 
 logger = get_logger(__name__)
 
 # Semaphore to limit concurrent transcription requests
-TRANSCRIPTION_SEMAPHORE = asyncio.Semaphore(2)
+TRANSCRIPTION_SEMAPHORE = asyncio.Semaphore(3)  # Increased for parallel processing
 
+# async def save_transcript_to_file(segments_text: str, chat_id: int) -> str:
+#     """
+#     Save the complete transcript segments text to a file for debugging.
+    
+#     Args:
+#         segments_text (str): The complete transcript text
+#         chat_id (int): Chat ID for the file naming
+        
+#     Returns:
+#         str: Path to the saved transcript file
+#     """
+#     try:
+#         # Create filename with timestamp and chat_id
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+#         filename = f"transcript_chat_{chat_id}_{timestamp}.txt"
+#         filepath = f"/tmp/{filename}"
+        
+#         # Save to file
+#         async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+#             await f.write(f"Complete Transcript for Chat ID: {chat_id}\n")
+#             await f.write(f"Generated at: {datetime.now().isoformat()}\n")
+#             await f.write("=" * 80 + "\n\n")
+#             await f.write(segments_text)
+#             await f.write("\n\n" + "=" * 80 + "\n")
+#             await f.write(f"End of transcript. Total length: {len(segments_text)} characters\n")
+        
+#         logger.info(f"Complete transcript saved to: {filepath}")
+#         return filepath
+        
+#     except Exception as e:
+#         logger.error(f"Failed to save transcript to file: {e}")
+#         return ""
+
+# async def save_diarization_to_file(messages: list, chat_id: int) -> str:
+#     """
+#     Save the diarization result to a file for debugging.
+    
+#     Args:
+#         messages (list): List of ChatMessage objects with role, content, timing
+#         chat_id (int): Chat ID for the file naming
+        
+#     Returns:
+#         str: Path to the saved diarization file
+#     """
+#     try:
+#         # Create filename with timestamp and chat_id
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+#         filename = f"diarization_chat_{chat_id}_{timestamp}.txt"
+#         filepath = f"/tmp/{filename}"
+        
+#         # Save to file
+#         async with aiofiles.open(filepath, 'w', encoding='utf-8') as f:
+#             await f.write(f"Diarization Result for Chat ID: {chat_id}\n")
+#             await f.write(f"Generated at: {datetime.now().isoformat()}\n")
+#             await f.write("=" * 80 + "\n\n")
+            
+#             # Write each message with timing and role
+#             for i, msg in enumerate(messages, 1):
+#                 await f.write(f"Message {i}:\n")
+#                 await f.write(f"  Role: {msg.role}\n")
+#                 await f.write(f"  Start Time: {msg.start_time:.2f}s\n")
+#                 await f.write(f"  End Time: {msg.end_time:.2f}s\n")
+#                 await f.write(f"  Duration: {msg.end_time - msg.start_time:.2f}s\n")
+#                 await f.write(f"  Content: {msg.content}\n")
+#                 await f.write("-" * 60 + "\n\n")
+            
+#             await f.write("=" * 80 + "\n")
+#             await f.write(f"Total messages: {len(messages)}\n")
+#             await f.write(f"Total duration: {max([msg.end_time for msg in messages]) if messages else 0:.2f}s\n")
+            
+#             # Summary by role
+#             role_counts = {}
+#             for msg in messages:
+#                 role_counts[msg.role] = role_counts.get(msg.role, 0) + 1
+            
+#             await f.write("\nSummary by Role:\n")
+#             for role, count in role_counts.items():
+#                 await f.write(f"  {role}: {count} messages\n")
+        
+#         logger.info(f"Diarization result saved to: {filepath}")
+#         return filepath
+        
+#     except Exception as e:
+#         logger.error(f"Failed to save diarization to file: {e}")
+#         return ""
 
 class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
     """OpenAI transcription service for transcribing audio files using OpenAI's audio API."""
@@ -51,6 +138,11 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         try:
             # Transcribe and preprocess audio
             segments_text = await self._transcribe_and_preprocess_audio(presigned_url, sample_rate)
+            
+            # Save complete transcript to file for debugging
+            # transcript_file = await save_transcript_to_file(segments_text, chat_id)
+            # logger.info(f"Complete transcript saved to: {transcript_file}")
+            
             # Use OpenAI structured output to diarize the transcription
             diarization_result = await self.text_generation_service.diarize_from_transcription(transcription=segments_text)
             messages = [
@@ -62,6 +154,11 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
                 )
                 for msg in diarization_result.messages
             ]
+            
+            # Save diarization result to file for debugging
+            # diarization_file = await save_diarization_to_file(messages, chat_id)
+            # logger.info(f"Diarization result saved to: {diarization_file}")
+            
             # Send transcript to core
             await self._send_transcript_to_core(chat_id, messages)
 
@@ -79,8 +176,8 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         """
         Transcribe audio and preprocess segments into a formatted string for diarization.
         
-        This method uses a semaphore to limit concurrent audio processing to 2 at a time
-        to prevent resource exhaustion during download and FFmpeg conversion.
+        This method supports audio segmentation for large files and processes
+        segments in parallel for better performance.
         
         Args:
             presigned_url (str): URL containing the audio file
@@ -94,39 +191,19 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         """
         async with TRANSCRIPTION_SEMAPHORE:
             logger.info(f"Starting audio processing (semaphore acquired)")
-            wav_file_path = None
-            transcription_verbose = None
+            segment_paths = []
             
             try:
+                # Convert and segment audio if needed
+                segment_paths = await convert_and_segment_audio_async(presigned_url, sample_rate)
+                logger.info(f"Audio converted to {len(segment_paths)} segment(s)")
                 
-                # Convert raw audio buffer to WAV format using FFmpeg (async)
-                wav_file_path = await convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url, sample_rate)
-                logger.debug(f"WAV file created at: {wav_file_path}")
-                
-                # Create transcription asynchronously using asyncio.to_thread
-                with open(wav_file_path, 'rb') as audio_file:
-                    transcription_verbose = await asyncio.to_thread(
-                        self.client.audio.transcriptions.create,
-                        model=TranscriptionConstants.MODEL,
-                        file=audio_file,
-                        response_format="verbose_json",
-                    )
-                logger.info("Audio transcription completed successfully")
-                
-                # Preprocess segments for diarization efficiently
-                total_segments = len(transcription_verbose.segments)
-                
-                # Use list comprehension for better performance
-                segments_text = "\n".join([
-                    f"{segment.start:.2f}-{segment.end:.2f}: {segment.text.strip()}"
-                    for segment in transcription_verbose.segments
-                ])
-                
-                logger.info(f"Preprocessed {total_segments} segments for diarization")
-                
-                # Clean up transcription object
-                del transcription_verbose
-                transcription_verbose = None
+                if len(segment_paths) == 1:
+                    # Single file - process normally
+                    segments_text = await self._transcribe_single_file(segment_paths[0])
+                else:
+                    # Multiple segments - process in parallel
+                    segments_text = await self._transcribe_multiple_segments(segment_paths)
                 
                 return segments_text
                         
@@ -138,20 +215,119 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
                     error_details=str(e)
                 )
             finally:
-                # Clean up WAV file after transcription is complete
-                if wav_file_path and os.path.exists(wav_file_path):
-                    try:
-                        os.remove(wav_file_path)
-                        logger.info(f"Cleaned up WAV file: {wav_file_path}")
-                    except OSError as e:
-                        logger.warning(f"Failed to cleanup WAV file {wav_file_path}: {e}")
-                
-                # Clean up transcription object if it exists
-                if transcription_verbose is not None:
-                    del transcription_verbose
+                # Clean up all segment files
+                for segment_path in segment_paths:
+                    if await asyncio.to_thread(os.path.exists, segment_path):
+                        try:
+                            await asyncio.to_thread(os.remove, segment_path)
+                            logger.info(f"Cleaned up segment file: {segment_path}")
+                        except OSError as e:
+                            logger.warning(f"Failed to cleanup segment file {segment_path}: {e}")
                 
                 logger.info(f"Released semaphore (audio processing complete)")
 
+    async def _transcribe_single_file(self, wav_file_path: str) -> str:
+        """Transcribe a single WAV file"""
+        try:
+            with open(wav_file_path, 'rb') as audio_file:
+                transcription_verbose = await asyncio.to_thread(
+                    self.client.audio.transcriptions.create,
+                    model=TranscriptionConstants.MODEL,
+                    file=audio_file,
+                    response_format="verbose_json",
+                )
+            
+            logger.info("Single file transcription completed successfully")
+            
+            # Preprocess segments for diarization
+            total_segments = len(transcription_verbose.segments)
+            segments_text = "\n".join([
+                f"{segment.start:.2f}-{segment.end:.2f}: {segment.text.strip()}"
+                for segment in transcription_verbose.segments
+            ])
+            
+            logger.info(f"Preprocessed {total_segments} segments for diarization")
+            
+            # Clean up
+            del transcription_verbose
+            
+            return segments_text
+            
+        except Exception as e:
+            logger.error(f"Error transcribing single file: {e}")
+            raise
+
+    async def _transcribe_multiple_segments(self, segment_paths: list) -> str:
+        """Transcribe multiple audio segments in parallel and combine results"""
+        try:
+            logger.info(f"Starting parallel transcription of {len(segment_paths)} segments")
+            
+            # Create tasks for parallel transcription
+            transcription_tasks = []
+            for i, segment_path in enumerate(segment_paths):
+                task = self._transcribe_segment_with_offset(segment_path, i)
+                transcription_tasks.append(task)
+            
+            # Execute all transcriptions in parallel
+            segment_results = await asyncio.gather(*transcription_tasks, return_exceptions=True)
+            
+            # Process results and handle any errors
+            all_segments = []
+            for i, result in enumerate(segment_results):
+                if isinstance(result, Exception):
+                    logger.error(f"Segment {i} transcription failed: {result}")
+                    raise result
+                all_segments.extend(result)
+            
+            # Sort segments by start time to maintain order
+            all_segments.sort(key=lambda x: x[0])
+            
+            # Combine into final text
+            segments_text = "\n".join([
+                f"{start:.2f}-{end:.2f}: {text.strip()}"
+                for start, end, text in all_segments
+            ])
+            
+            logger.info(f"Combined {len(all_segments)} segments from {len(segment_paths)} files")
+            
+            return segments_text
+            
+        except Exception as e:
+            logger.error(f"Error transcribing multiple segments: {e}")
+            raise
+
+    async def _transcribe_segment_with_offset(self, segment_path: str, segment_index: int) -> list:
+        """Transcribe a single segment and adjust timing based on segment index"""
+        try:
+            # Get segment duration to calculate offset
+            duration = await get_audio_duration(segment_path)
+            offset = segment_index * duration  # This is approximate, we'll refine it
+            
+            with open(segment_path, 'rb') as audio_file:
+                transcription_verbose = await asyncio.to_thread(
+                    self.client.audio.transcriptions.create,
+                    model=TranscriptionConstants.MODEL,
+                    file=audio_file,
+                    response_format="verbose_json",
+                )
+            
+            # Adjust timing for this segment
+            adjusted_segments = []
+            for segment in transcription_verbose.segments:
+                adjusted_start = segment.start + offset
+                adjusted_end = segment.end + offset
+                adjusted_segments.append((adjusted_start, adjusted_end, segment.text))
+            
+            logger.info(f"Segment {segment_index}: transcribed {len(adjusted_segments)} segments")
+            
+            # Clean up
+            del transcription_verbose
+            
+            return adjusted_segments
+            
+        except Exception as e:
+            logger.error(f"Error transcribing segment {segment_index}: {e}")
+            raise
 
     # The following methods are inherited from BaseTranscriptionService:
     # - _send_transcript_to_core
