@@ -32,11 +32,15 @@ async def convert_and_store_raw_to_wav_with_ffmpeg_async(presigned_url: str, sam
         if sample_rate == 8000:
             # 8kHz microphone audio - use explicit format specification
             logger.info("Using 8kHz pipe streaming with explicit format")
-            return await _convert_with_pipe_streaming(presigned_url, is_8khz=True)
+            return await _convert_with_pipe_streaming(presigned_url, frequency=8000)
+        elif sample_rate == 16000:
+            # 16kHz microphone audio - use explicit format specification
+            logger.info("Using 16kHz pipe streaming with explicit format")
+            return await _convert_with_pipe_streaming(presigned_url, frequency=16000)
         else:
             # Higher sample rate audio - use auto-detection
             logger.info(f"Using pipe streaming with auto-detection for {sample_rate} Hz audio")
-            return await _convert_with_pipe_streaming(presigned_url, is_8khz=False)
+            return await _convert_with_pipe_streaming(presigned_url, frequency=48000)
             
     except Exception as e:
         logger.error(f"Error in convert_and_store_raw_to_wav_with_ffmpeg_async: {e}")
@@ -195,7 +199,7 @@ async def get_audio_duration(file_path: str) -> float:
         logger.warning(f"Error getting audio duration: {e}")
         return 0.0
 
-async def _convert_with_pipe_streaming(presigned_url: str, is_8khz: bool = True) -> str:
+async def _convert_with_pipe_streaming(presigned_url: str, frequency: int = 8000) -> str:
     """Convert audio using pipe streaming with format detection inside"""
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
@@ -203,12 +207,26 @@ async def _convert_with_pipe_streaming(presigned_url: str, is_8khz: bool = True)
                 response.raise_for_status()
                 
                 # Choose FFmpeg command based on sample rate
-                if is_8khz:
+                if frequency == 8000:
                     # 8kHz microphone audio - explicit format specification
                     ffmpeg_cmd = [
                         'ffmpeg', 
                         '-f', 's16le',        # Explicit format: 16-bit signed PCM
                         '-ar', '8000',        # Explicit sample rate: 8kHz
+                        '-ac', '1',           # Explicit channels: mono
+                        '-i', 'pipe:0',       # Input from pipe
+                        '-acodec', 'pcm_s16le',
+                        '-ar', '16000',       # Output sample rate: 16kHz
+                        '-ac', '1',           # Output channels: mono
+                        '-f', 'wav', 
+                        'pipe:1'
+                    ]
+                elif frequency == 16000:
+                    # 16kHz microphone audio - explicit format specification
+                    ffmpeg_cmd = [
+                        'ffmpeg', 
+                        '-f', 's16le',        # Explicit format: 16-bit signed PCM
+                        '-ar', '16000',        # Explicit sample rate: 16kHz
                         '-ac', '1',           # Explicit channels: mono
                         '-i', 'pipe:0',       # Input from pipe
                         '-acodec', 'pcm_s16le',

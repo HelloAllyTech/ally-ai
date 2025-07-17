@@ -16,11 +16,11 @@ DIARIZATION_PROMPT = PromptTemplate(
         6. Translate the text into English language
         7. If the transcription already contains speaker labels (like "Client:", "Counselor:"), use those.                   
         8. If no speaker labels are present, infer speakers based on context and conversation flow.
-        9. Group consecutive segments by the same speaker into single messages
-        10. Ensure you capture ALL messages from the beginning to the end of the conversation
-        11. If the transcription is long, process it systematically from start to finish
-        12. Do not stop processing until you have covered the entire transcription
-        
+        9. Ensure you capture ALL messages from the beginning to the end of the conversation
+        10. If the transcription is long, process it systematically from start to finish
+        11. Do not stop processing until you have covered the entire transcription
+        12. Preserve accurate speaker assignments and timing information to enable proper silence calculation 
+               
         VERIFICATION: Before providing your response, verify that you have processed the entire transcription by checking:
         - You have included messages from the earliest timestamp to the latest timestamp
         - You have not skipped any significant portions of the conversation
