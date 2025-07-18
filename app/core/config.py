@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     LANGSMITH_API_KEY: str = Field(...)
     LANGSMITH_PROJECT: str = Field(...)
 
+    # Backend Service URL
+    CORE_SERVICE_ENDPOINT: str = Field(...)
+    CORE_API_KEY: str = Field(...)
+
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
     def parse_str_to_int(cls, v):
