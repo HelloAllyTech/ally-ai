@@ -8,6 +8,7 @@ from app.utils.logger import get_logger
 
 # Total range of VADER sentiment scores (from -1 to 1), used for normalizing percentage changes
 VADER_RANGE = 2.0
+SEGMENTS_COUNT = 10
 
 logger = get_logger(__name__)
 
@@ -48,15 +49,26 @@ def calculate_client_positivity_lift(chat_messages: List[ChatMessage]) -> Option
     # Initialize VADER sentiment analyzer
     analyzer = SentimentIntensityAnalyzer()
 
-    # Divide client messages into 10 equal segments
-    segment_size = len(client_messages) // 10
+    # Split the client messages into SEGMENTS_COUNT nearly equal parts
+    total_messages = len(client_messages)
+    base_segment_size = total_messages // SEGMENTS_COUNT
+    extra_messages = total_messages % SEGMENTS_COUNT  # Used to distribute leftover messages
+
     segments = []
 
-    for i in range(10):
-        start_idx = i * segment_size
-        end_idx = start_idx + segment_size if i < 9 else len(client_messages)
-        segment = client_messages[start_idx:end_idx]
+    start_idx=0
+    for i in range(SEGMENTS_COUNT):
+
+        # Distribute the remainder: first 'extra_messages' segments get one extra item to fit total messages
+        extra = 1 if i < extra_messages else 0
+        end_index = start_idx + base_segment_size + extra
+
+        # Slice the current segment from client_messages
+        segment = client_messages[start_idx:end_index]
         segments.append(segment)
+
+        # Move the start index forward for the next segment
+        start_idx = end_index
 
     # Calculate sentiment score for each segment
     segment_scores = []
