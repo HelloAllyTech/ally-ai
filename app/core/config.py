@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     CORE_SERVICE_ENDPOINT: str = Field(...)
     CORE_API_KEY: str = Field(...)
 
+    # Reference document settings
+    REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = Field(default=0.65)
+
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
     def parse_str_to_int(cls, v):
