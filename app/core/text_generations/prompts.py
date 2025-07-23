@@ -35,6 +35,7 @@ SUMMARY_PROMPT = PromptTemplate(
         You're an assistant that creates session notes for mental health organizations.
         Analyze the chat history and extract All available information for each field in the output schema.
         Avoid leaving fields as null/empty when information is present in the conversation.
+        For the session summary, please provide a summary of the session, which has 250 to 500 words.
         
         Chat history:
         ```
