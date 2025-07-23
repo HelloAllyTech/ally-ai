@@ -87,7 +87,8 @@ class BaseTranscriptionService[ModelT](ABC):
     async def transcribe_audio_from_url(
         self, 
         presigned_url: str,
-        chat_id: int
+        chat_id: int,
+        sample_rate: int = 8000
     ) -> bool:
         """
         Transcribe audio from URL and generate a summary.

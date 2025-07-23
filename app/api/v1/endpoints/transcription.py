@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from fastapi.params import Depends
 
+from app.core.transcriptions import BaseTranscriptionService
 from app.core.transcriptions.openai.transcription_service import OpenAITranscriptionService
 from app.core.dependencies import get_transcription_service
 from app.schemas.transcription import TranscribeAndSummarizeRequest, TranscribeAndSummarizeResponse
@@ -14,7 +15,7 @@ router = APIRouter()
 @router.post("/transcribe-and-summarize", tags=["transcription"], response_model=TranscribeAndSummarizeResponse)
 async def transcribe_and_summarize_audio(
     request: TranscribeAndSummarizeRequest,
-    transcription_service: OpenAITranscriptionService = Depends(get_transcription_service)
+    transcription_service: BaseTranscriptionService = Depends(get_transcription_service)
 ) -> TranscribeAndSummarizeResponse:
     """
     Transcribe audio from URL and generate a summary using OpenAI.

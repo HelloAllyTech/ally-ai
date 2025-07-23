@@ -13,6 +13,7 @@ from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
 from app.core.text_generations.openai_text_generation_client import OpenAITextGenerationClient
+from app.core.transcriptions.deepgram import DeepgramTranscriptionService
 from app.core.vector_db.base import VectorDB
 from app.core.vector_db.weaviate import WeaviateDB
 from app.core.vector_db.weaviate_client import WeaviateClient
@@ -114,8 +115,8 @@ async def get_reference_document_service(
 # Dependency for the transcription service
 async def get_transcription_service(
         text_generation_service=Depends(get_text_generation_service)
-) -> OpenAITranscriptionService:
+) -> DeepgramTranscriptionService:
     """
     Returns an instance of OpenAITranscriptionService.
     """
-    return OpenAITranscriptionService(text_generation_service)
+    return DeepgramTranscriptionService(text_generation_service)
