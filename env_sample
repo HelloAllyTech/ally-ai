@@ -18,6 +18,8 @@ WEAVIATE_CONCURRENT_REQUESTS=1000
 OPENAI_API_KEY=<openai-key>
 OPENAI_ORGANIZATION_ID=<openai-org-id>
 
+DEEPGRAM_API_KEY=<deepgram-key>
+
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=<langsmith-key>
