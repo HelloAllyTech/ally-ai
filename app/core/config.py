@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(...)
     OPENAI_ORGANIZATION_ID: str = Field(...)
 
+    # Deepgram Creds
+    DEEPGRAM_API_KEY: str = Field(...)
+
     # LangSmith Creds
     LANGSMITH_TRACING: str = Field(...)
     LANGSMITH_ENDPOINT: str = Field(...)
