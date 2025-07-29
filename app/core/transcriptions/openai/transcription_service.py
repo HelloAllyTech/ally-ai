@@ -1,4 +1,6 @@
 import asyncio
+import json
+import time
 from openai import OpenAI
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -7,7 +9,12 @@ from app.core.transcriptions.base import BaseTranscriptionService
 from app.core.constants import TranscriptionConstants
 from app.exceptions.custom_exceptions import TranscriptionFailedException
 from app.utils.audio_converter import convert_and_store_raw_to_wav_with_ffmpeg_async
+from app.core.s3.s3_service import S3Service
+from app.core.queue.message_models import TranscribeAndSummarizeResultMessage, MessageType
+from app.core.queue.sqs_queue_client import SQSQueueClient
+from app.core.queue.sqs_queue_service import SQSQueueService
 import os
+from typing import List
 
 logger = get_logger(__name__)
 
@@ -27,6 +34,15 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             organization=settings.OPENAI_ORGANIZATION_ID
         )
         super().__init__(self.client, text_generation_service)
+        
+        # Initialize S3 service
+        self.s3_service = S3Service()
+        self.s3_bucket_name = settings.S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET
+        
+        # Initialize SQS queue service using existing singleton client
+        sqs_client = SQSQueueClient.get_client()
+        self.queue_service = SQSQueueService(client=sqs_client)
+        self.result_queue_url = settings.TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL
 
     async def transcribe_audio_from_url(
         self, 
@@ -62,13 +78,12 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
                 )
                 for msg in diarization_result.messages
             ]
-            # Send transcript to core
-            await self._send_transcript_to_core(chat_id, messages)
-
             # Generate summary
             summary = await self._generate_summary(messages, chat_id)
-            # Send summary to core
-            await self._send_summary_to_core(chat_id, summary)
+            # Send combined result to queue
+            transcription_data = [msg.model_dump() if hasattr(msg, 'model_dump') else msg for msg in messages]
+            summary_data = summary.model_dump() if hasattr(summary, 'model_dump') else summary
+            await self._send_result_to_queue(chat_id, transcription_data, summary_data)
             return True
             
         except Exception as e:
@@ -152,8 +167,45 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
                 
                 logger.info(f"Released semaphore (audio processing complete)")
 
-
-    # The following methods are inherited from BaseTranscriptionService:
-    # - _send_transcript_to_core
-    # - _send_summary_to_core
+    async def _send_result_to_queue(self, chat_id: int, transcription: dict, summary: dict):
+        """
+        Send transcription and summary results to S3 and send S3 path to result queue.
+        """
+        try:
+            # Create the result payload
+            result_payload = {
+                "chat_id": chat_id,
+                "transcription": transcription,
+                "summary": summary
+            }
+            
+            # Create the S3 object key
+            s3_object_key = f"transcription-results/{chat_id}/result_{chat_id}.json"
+            
+            # Upload results to S3
+            s3_path = await self.s3_service.upload_to_s3(
+                bucket_name=self.s3_bucket_name,
+                object_key=s3_object_key,
+                payload=result_payload
+            )
+            
+            # Create result message
+            result_message = TranscribeAndSummarizeResultMessage(
+                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESULT,
+                timestamp=int(time.time() * 1000),
+                chat_id=chat_id,
+                s3_result_path=s3_path
+            )
+            
+            # Send to result queue using existing SQSQueueService
+            await self.queue_service.send_message(
+                queue_url=self.result_queue_url,
+                message_body=json.dumps(result_message.model_dump())
+            )
+            
+            logger.info(f"Sent result to queue for chat_id: {chat_id} - {s3_path}")
+            
+        except Exception as e:
+            logger.error(f"Error sending result to queue for chat_id {chat_id}: {e}")
+            raise
 

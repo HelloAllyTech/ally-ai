@@ -25,13 +25,14 @@ LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=<langsmith-key>
 LANGSMITH_PROJECT=<langsmith-project-name>
 
-CORE_SERVICE_ENDPOINT=""
-CORE_API_KEY=""
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
+AWS_REGION="ap-south-1"
+AWS_ENDPOINT_URL="http://localhost:4566"
 
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-AWS_REGION=ap-southeast-1
-AWS_ENDPOINT_URL=http://localhost:4566
+# S3 Configuration
+S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET=lifeline-ai-results
 
-TRANSCRIPTION_REQUEST_QUEUE_URL=queue_url
-TRANSCRIPTION_RESPONSE_QUEUE_URL=queue_url
+# SQS Queue URLs
+TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/123456789012/transcribe-and-summarize-request-queue
+TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/123456789012/transcribe-and-summarize-result-queue

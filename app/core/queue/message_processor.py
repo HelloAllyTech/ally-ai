@@ -67,7 +67,8 @@ class MessageProcessor:
                 )
 
         except Exception as e:
-            logger.exception(f"Error processing message {message.get('message_id', 'unknown')}: {str(e)}")
+            chat_id = message.get('body', {}).get('chat_id', 'unknown')
+            logger.exception(f"Error processing message for chat_id {chat_id}: {str(e)}")
 
     async def poll_queue(self) -> None:
         """

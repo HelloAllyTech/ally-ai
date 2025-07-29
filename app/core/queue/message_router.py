@@ -11,28 +11,28 @@ logger = get_logger(__name__)
 class MessageRouter:
     """
     Simplified router for processing transcription messages.
-    Handles a single transcription request handler and routes messages to it.
+    Handles a single transcription request processor and routes messages to it.
     """
 
     def __init__(self):
         """
-        Initialize the message router with no handler.
+        Initialize the message router with no processor.
         """
-        self._transcription_handler = None
+        self._transcription_processor = None
 
-    def register_transcription_handler(self, handler: Callable[[Dict[str, Any]], Awaitable[None]]) -> None:
+    def register_transcription_processor(self, processor: Callable[[Dict[str, Any]], Awaitable[None]]) -> None:
         """
-        Register a handler for transcription requests.
+        Register a processor function for transcription requests.
 
         Parameters:
-            handler (Callable[[Dict[str, Any]], Awaitable[None]]): The handler function that processes transcription requests.
+            processor (Callable[[Dict[str, Any]], Awaitable[None]]): The processor function that processes transcription requests.
         """
-        self._transcription_handler = handler
-        logger.info("Registered transcription handler")
+        self._transcription_processor = processor
+        logger.info("Registered transcription processor")
 
     async def route_message(self, message: Dict[str, Any]) -> None:
         """
-        Route a message to the transcription handler.
+        Route a message to the transcription processor.
 
         Parameters:
             message (Dict[str, Any]): The message to route.
@@ -48,39 +48,14 @@ class MessageRouter:
                     logger.error(f"Failed to parse message body as JSON: {body}")
                     return
             
-            # Check if we have a handler
-            if not self._transcription_handler:
-                logger.warning("No transcription handler registered")
+            # Check if we have a processor
+            if not self._transcription_processor:
+                logger.warning("No transcription processor registered")
                 return
             
             # Process the message
-            logger.info(f"Routing transcription message to handler")
-            await self._transcription_handler(body)
+            logger.info(f"Routing transcription message to processor")
+            await self._transcription_processor(body)
                 
         except Exception as e:
             logger.exception(f"Error routing message: {str(e)}")
-
-    async def create_response(self, request_data: Dict[str, Any], response_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create a response message based on a request message.
-
-        Parameters:
-            request_data (Dict[str, Any]): The original request data.
-            response_data (Dict[str, Any]): The response data to include.
-
-        Returns:
-            Dict[str, Any]: The formatted response message.
-        """
-        # Generate a message ID and timestamp
-        message_id = str(uuid.uuid4())
-        timestamp = int(time.time() * 1000)  # Current time in milliseconds
-        
-        # Create the response with correlation to the request
-        response = {
-            "message_id": message_id,
-            "timestamp": timestamp,
-            "correlation_id": request_data.get("message_id"),
-            **response_data
-        }
-        
-        return response

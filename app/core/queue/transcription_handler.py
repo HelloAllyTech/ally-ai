@@ -1,10 +1,18 @@
 import json
 import asyncio
+import os
 from typing import Dict, Any, Optional
 
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
-from app.core.queue.message_router import MessageRouter
+from app.core.queue.message_models import (
+    TranscribeAndSummarizeRequestMessage, 
+    TranscribeAndSummarizeResultMessage,
+    MessageType
+)
+from app.core.transcriptions.openai.transcription_service import OpenAITranscriptionService
+from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
+from app.core.s3.s3_service import S3Service
 from app.core.config import settings
 from app.utils.logger import get_logger
 
@@ -12,10 +20,18 @@ logger = get_logger(__name__)
 
 class TranscriptionHandler:
     """
-    Handler for processing transcription requests and sending responses.
+    Handler for processing transcription requests and sending responses via queues.
     """
     
-    def __init__(self, queue_service: Optional[SQSQueueService] = None):
+    def __init__(
+        self, 
+        queue_service: Optional[SQSQueueService] = None, 
+        request_queue_url: str = None, 
+        result_queue_url: str = None, 
+        transcription_service: Optional[OpenAITranscriptionService] = None, 
+        s3_service: Optional[S3Service] = None, 
+        s3_bucket_name: str = None
+        ):
         """
         Initialize the transcription handler.
         
@@ -23,14 +39,13 @@ class TranscriptionHandler:
             queue_service (Optional[SQSQueueService]): The queue service to use for sending responses.
                 If not provided, a new one will be created.
         """
-        if queue_service:
-            self.queue_service = queue_service
-        else:
-            sqs_client = SQSQueueClient.get_client()
-            self.queue_service = SQSQueueService(client=sqs_client)
+        self.queue_service = queue_service
+        self.request_queue_url = request_queue_url
+        self.result_queue_url = result_queue_url
+        self.transcription_service = transcription_service
+        self.s3_service = s3_service
+        self.s3_bucket_name = s3_bucket_name
         
-        self.response_queue_url = settings.TRANSCRIPTION_RESPONSE_QUEUE_URL
-        self.router = MessageRouter()
     
     async def process_request(self, message_data: Dict[str, Any]) -> None:
         """
@@ -40,111 +55,87 @@ class TranscriptionHandler:
             message_data (Dict[str, Any]): The message data from the queue.
         """
         try:
-            message_id = message_data.get('message_id', 'unknown')
-            logger.info(f"Processing transcription request: {message_id}")
+            chat_id = message_data.get('chat_id', 'unknown')
+            logger.info(f"Processing transcription request for chat_id: {chat_id}")
             
-            # Extract relevant data from the request
-            audio_url = message_data.get('audio_url')
-            if not audio_url:
-                logger.error(f"Missing audio_url in transcription request: {message_id}")
-                await self._send_error_response(message_data, "Missing audio_url in request")
-                return
+            # Parse the request message
+            request = TranscribeAndSummarizeRequestMessage(**message_data)
             
-            # Additional parameters that might be in the request
-            language = message_data.get('language', 'en')
-            options = message_data.get('options', {})
-            
-            # Here you would implement the actual transcription logic
-            # For example:
-            # 1. Download the audio from the URL
-            # 2. Process it with a transcription service
-            # 3. Format the results
-            
-            # For now, we'll just create a mock response
-            transcription_result = await self._perform_transcription(audio_url, language, options)
-            
-            # Send the response
-            await self._send_success_response(message_data, transcription_result)
+            # Process the transcription (results will be sent via the transcription service)
+            await self._process_transcription(request)
             
         except Exception as e:
-            logger.exception(f"Error processing transcription request {message_data.get('message_id', 'unknown')}: {str(e)}")
-            await self._send_error_response(message_data, f"Error processing request: {str(e)}")
-    
-    async def _perform_transcription(self, audio_url: str, language: str, options: Dict[str, Any]) -> Dict[str, Any]:
+            chat_id = message_data.get('chat_id', 'unknown')
+            logger.exception(f"Error processing transcription request for chat_id {chat_id}: {str(e)}")
+
+    async def _process_transcription(self, request: TranscribeAndSummarizeRequestMessage) -> bool:
         """
-        Perform the actual transcription. This is a placeholder that would be replaced
-        with actual transcription service integration.
+        Process the transcription request using the existing transcription service.
         
         Parameters:
-            audio_url (str): URL to the audio file to transcribe.
-            language (str): Language code for transcription.
-            options (Dict[str, Any]): Additional options for the transcription.
+            request (TranscribeAndSummarizeRequestMessage): The transcription request.
             
         Returns:
-            Dict[str, Any]: The transcription results.
+            bool: True if transcription was successful.
         """
-        # This is where you would integrate with your actual transcription service
-        # For demonstration, we'll just return mock data
-        
-        # Simulate processing time
-        await asyncio.sleep(1)
-        
-        return {
-            "status": "completed",
-            "transcription": "This is a sample transcription result.",
-            "confidence": 0.95,
-            "language": language,
-            "duration_seconds": 120,
-            "word_count": 42,
-            "segments": [
-                {
-                    "start": 0.0,
-                    "end": 5.2,
-                    "text": "This is a sample transcription result."
-                }
-            ]
-        }
+        try:
+            # Use the existing transcription service
+            success = await self.transcription_service.transcribe_audio_from_url(
+                presigned_url=request.presigned_url,
+                chat_id=request.chat_id,
+                sample_rate=request.sample_rate
+            )
+            
+            logger.info(f"Transcription completed for chat_id {request.chat_id}: {success}")
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error in transcription for chat_id {request.chat_id}: {str(e)}")
+            return False
     
-    async def _send_success_response(self, request_data: Dict[str, Any], transcription_result: Dict[str, Any]) -> None:
+    async def send_combined_result_to_queue(self, chat_id: int, transcription: dict, summary: dict) -> None:
         """
-        Send a success response to the response queue.
+        Upload transcription and summary results to S3 and send the S3 path to the result queue.
         
         Parameters:
-            request_data (Dict[str, Any]): The original request data.
-            transcription_result (Dict[str, Any]): The transcription results.
+            chat_id (int): The chat ID.
+            transcription (dict): The transcription data.
+            summary (dict): The summary data.
         """
-        # Create the response message using the router
-        response = await self.router.create_response(request_data, {
-            "status": "success",
-            "result": transcription_result
-        })
-        
-        # Send to the response queue
-        await self.queue_service.send_message(
-            queue_url=self.response_queue_url,
-            message_body=json.dumps(response)
-        )
-        
-        logger.info(f"Sent success response for request: {request_data.get('message_id', 'unknown')}")
+        try:
+            # Create the result payload
+            result_payload = {
+                "chat_id": chat_id,
+                "transcription": transcription,
+                "summary": summary
+            }
+            
+            # Create the S3 object key
+            s3_object_key = f"transcription-results/{chat_id}/result_{chat_id}.json"
+            
+            # Upload results to S3
+            s3_path = await self.s3_service.upload_to_s3(
+                bucket_name=self.s3_bucket_name,
+                object_key=s3_object_key,
+                payload=result_payload
+            )
+            
+            # Create message with S3 path
+            message = TranscribeAndSummarizeResultMessage(
+                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESULT,
+                timestamp=int(asyncio.get_event_loop().time() * 1000),
+                chat_id=chat_id,
+                s3_result_path=s3_path
+            )
+            
+            await self.queue_service.send_message(
+                queue_url=self.result_queue_url,
+                message_body=json.dumps(message.model_dump())
+            )
+            
+            logger.info(f"Sent S3 result path to queue for chat_id: {chat_id} - {s3_path}")
+            
+        except Exception as e:
+            logger.error(f"Error sending combined result to queue for chat_id {chat_id}: {str(e)}")
+
     
-    async def _send_error_response(self, request_data: Dict[str, Any], error_message: str) -> None:
-        """
-        Send an error response to the response queue.
-        
-        Parameters:
-            request_data (Dict[str, Any]): The original request data.
-            error_message (str): The error message.
-        """
-        # Create the error response using the router
-        response = await self.router.create_response(request_data, {
-            "status": "error",
-            "error": error_message
-        })
-        
-        # Send to the response queue
-        await self.queue_service.send_message(
-            queue_url=self.response_queue_url,
-            message_body=json.dumps(response)
-        )
-        
-        logger.info(f"Sent error response for request: {request_data.get('message_id', 'unknown')}")

@@ -111,22 +111,4 @@ class BaseQueueService[ClientT](ABC):
         """
         pass
 
-    @abstractmethod
-    async def process_messages(self, queue_url: str, handler: Callable[[Dict[str, Any]], Any], 
-                              max_messages: int = 10, wait_time_seconds: int = 20,
-                              visibility_timeout: int = 30, auto_delete: bool = True) -> None:
-        """
-        Process messages from the queue using the provided handler function.
 
-        Parameters:
-            queue_url (str): The URL of the queue to process messages from.
-            handler (Callable[[Dict[str, Any]], Any]): The function to process each message.
-            max_messages (int): The maximum number of messages to receive in each batch.
-            wait_time_seconds (int): The duration (in seconds) for which the call waits for a message to arrive.
-            visibility_timeout (int): The duration (in seconds) that the received messages are hidden from subsequent retrieve requests.
-            auto_delete (bool): Whether to automatically delete messages after successful processing.
-
-        Raises:
-            QueueOperationException: If the message processing fails.
-        """
-        pass

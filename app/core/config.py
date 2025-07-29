@@ -50,20 +50,19 @@ class Settings(BaseSettings):
     LANGSMITH_API_KEY: str = Field(...)
     LANGSMITH_PROJECT: str = Field(...)
 
-    # Backend Service URL
-    CORE_SERVICE_ENDPOINT: str = Field(...)
-    CORE_API_KEY: str = Field(...)
-
     # SQS Configs
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(default="test", description="Only for development")
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(default="test", description="Only for development")
-    AWS_REGION: Optional[str] = Field(default="ap-south-1", description="Only for development")
-    AWS_ENDPOINT_URL: Optional[str] = Field(default="http://localhost:4566", description="Only for development")
+    AWS_ACCESS_KEY_ID: str = Field(...)
+    AWS_SECRET_ACCESS_KEY: str = Field(...)
+    AWS_REGION: str = Field(...)
+    AWS_ENDPOINT_URL: str = Field(...)
 
-    # Queue URLs
-    TRANSCRIPTION_REQUEST_QUEUE_URL: str = Field(...)
-    TRANSCRIPTION_RESPONSE_QUEUE_URL: str = Field(...)
+    # S3 Configuration
+    S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET: str = Field(...)
 
+    # SQS Queue URLs
+    TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL: str = Field(...)
+    TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL: str = Field(...)
+    
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
     def parse_str_to_int(cls, v):
