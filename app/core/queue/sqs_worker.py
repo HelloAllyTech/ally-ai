@@ -12,7 +12,7 @@ from app.core.queue.transcription_handler import TranscriptionHandler
 from app.core.config import settings
 from app.utils.logger import get_logger
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
-from app.core.transcriptions.openai.transcription_service import OpenAITranscriptionService
+from app.core.transcriptions.deepgram import DeepgramTranscriptionService
 from app.core.s3.s3_service import S3Service
 from app.core.constants import SQSWorkerConstants
 from app.utils.startup import initialize_openai_clients
@@ -43,7 +43,7 @@ async def main():
             client=text_generation_client,
             embedding_service=embedding_service
         )
-        transcription_service = OpenAITranscriptionService(text_generation_service)
+        transcription_service = DeepgramTranscriptionService(text_generation_service)
         s3_service = S3Service()
         transcription_handler = TranscriptionHandler(
             queue_service=queue_service,

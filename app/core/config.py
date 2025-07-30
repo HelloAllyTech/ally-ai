@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(...)
     OPENAI_ORGANIZATION_ID: str = Field(...)
 
+    # Deepgram Creds
+    DEEPGRAM_API_KEY: str = Field(...)
+
     # LangSmith Creds
     LANGSMITH_TRACING: str = Field(...)
     LANGSMITH_ENDPOINT: str = Field(...)
@@ -62,6 +65,9 @@ class Settings(BaseSettings):
     # SQS Queue URLs
     TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL: str = Field(...)
     TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL: str = Field(...)
+
+     # Reference document settings
+    REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = Field(default=0.65)
     
     @field_validator('SERVER_PORT', mode='before')
     @classmethod

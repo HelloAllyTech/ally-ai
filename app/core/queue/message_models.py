@@ -25,7 +25,7 @@ class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
     """
     message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST
     chat_id: int
-    presigned_url: str
+    audio_url: str
     sample_rate: int = Field(default=8000)
 
 

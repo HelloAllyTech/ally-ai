@@ -1,7 +1,7 @@
 import json
 import asyncio
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
@@ -10,7 +10,7 @@ from app.core.queue.message_models import (
     TranscribeAndSummarizeResultMessage,
     MessageType
 )
-from app.core.transcriptions.openai.transcription_service import OpenAITranscriptionService
+from app.core.transcriptions.base import BaseTranscriptionService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
 from app.core.s3.s3_service import S3Service
 from app.core.config import settings
@@ -28,7 +28,7 @@ class TranscriptionHandler:
         queue_service: Optional[SQSQueueService] = None, 
         request_queue_url: str = None, 
         result_queue_url: str = None, 
-        transcription_service: Optional[OpenAITranscriptionService] = None, 
+        transcription_service: Optional[BaseTranscriptionService] = None, 
         s3_service: Optional[S3Service] = None, 
         s3_bucket_name: str = None
         ):
@@ -61,8 +61,13 @@ class TranscriptionHandler:
             # Parse the request message
             request = TranscribeAndSummarizeRequestMessage(**message_data)
             
-            # Process the transcription (results will be sent via the transcription service)
-            await self._process_transcription(request)
+            # Process the transcription and get results
+            success = await self._process_transcription(request)
+            
+            if success:
+                logger.info(f"Transcription processing completed successfully for chat_id: {chat_id}")
+            else:
+                logger.error(f"Transcription processing failed for chat_id: {chat_id}")
             
         except Exception as e:
             chat_id = message_data.get('chat_id', 'unknown')
@@ -79,28 +84,31 @@ class TranscriptionHandler:
             bool: True if transcription was successful.
         """
         try:
-            # Use the existing transcription service
-            success = await self.transcription_service.transcribe_audio_from_url(
-                presigned_url=request.presigned_url,
+            # Use the existing transcription service to get results
+            chat_id, transcription_data, summary_data = await self.transcription_service.transcribe_audio_from_url(
+                audio_url=request.audio_url,
                 chat_id=request.chat_id,
                 sample_rate=request.sample_rate
             )
             
-            logger.info(f"Transcription completed for chat_id {request.chat_id}: {success}")
-            return success
+            # Send the results to S3 and queue
+            await self.send_combined_result_to_queue(chat_id, transcription_data, summary_data)
+            
+            logger.info(f"Transcription completed for chat_id {request.chat_id}")
+            return True
             
         except Exception as e:
             logger.error(f"Error in transcription for chat_id {request.chat_id}: {str(e)}")
             return False
     
-    async def send_combined_result_to_queue(self, chat_id: int, transcription: dict, summary: dict) -> None:
+    async def send_combined_result_to_queue(self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
         """
         Upload transcription and summary results to S3 and send the S3 path to the result queue.
         
         Parameters:
             chat_id (int): The chat ID.
-            transcription (dict): The transcription data.
-            summary (dict): The summary data.
+            transcription (List[Dict[str, Any]]): The transcription data.
+            summary (Dict[str, Any]): The summary data.
         """
         try:
             # Create the result payload

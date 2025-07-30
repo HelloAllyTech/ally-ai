@@ -20,6 +20,8 @@ WEAVIATE_CONCURRENT_REQUESTS=1000
 OPENAI_API_KEY=<openai-key>
 OPENAI_ORGANIZATION_ID=<openai-org-id>
 
+DEEPGRAM_API_KEY=<deepgram-key>
+
 LANGSMITH_TRACING=true
 LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=<langsmith-key>
@@ -36,3 +38,5 @@ S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET=lifeline-ai-results
 # SQS Queue URLs
 TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/123456789012/transcribe-and-summarize-request-queue
 TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/123456789012/transcribe-and-summarize-result-queue
+
+REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD=0.35
