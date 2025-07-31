@@ -103,7 +103,7 @@ class TranscriptionHandler:
     
     async def send_combined_result_to_queue(self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
         """
-        Upload transcription and summary results to S3 and send the S3 path to the result queue.
+        Upload transcription and summary results to S3 and send presigned URLs to the result queue.
         
         Parameters:
             chat_id (int): The chat ID.
@@ -128,12 +128,30 @@ class TranscriptionHandler:
                 payload=result_payload
             )
             
-            # Create message with S3 path
+            # Generate presigned URLs for download and delete
+            download_presigned_url = self.s3_service.generate_presigned_download_url(
+                bucket_name=self.s3_bucket_name,
+                object_key=s3_object_key,
+                expiration=3600  # 1 hour
+            )
+            
+            delete_presigned_url = self.s3_service.generate_presigned_delete_url(
+                bucket_name=self.s3_bucket_name,
+                object_key=s3_object_key,
+                expiration=3600  # 1 hour
+            )
+            
+            if not download_presigned_url or not delete_presigned_url:
+                logger.error(f"Failed to generate presigned URLs for chat_id: {chat_id}")
+                raise Exception("Failed to generate presigned URLs")
+            
+            # Create message with presigned URLs
             message = TranscribeAndSummarizeResultMessage(
                 message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESULT,
                 timestamp=int(asyncio.get_event_loop().time() * 1000),
                 chat_id=chat_id,
-                s3_result_path=s3_path
+                download_presigned_url=download_presigned_url,
+                delete_presigned_url=delete_presigned_url
             )
             
             await self.queue_service.send_message(
@@ -141,7 +159,9 @@ class TranscriptionHandler:
                 message_body=json.dumps(message.model_dump())
             )
             
-            logger.info(f"Sent S3 result path to queue for chat_id: {chat_id} - {s3_path}")
+            logger.info(f"Sent presigned URLs to queue for chat_id: {chat_id}")
+            logger.info(f"  - Download URL: {download_presigned_url[:50]}...")
+            logger.info(f"  - Delete URL: {delete_presigned_url[:50]}...")
             
         except Exception as e:
             logger.error(f"Error sending combined result to queue for chat_id {chat_id}: {str(e)}")

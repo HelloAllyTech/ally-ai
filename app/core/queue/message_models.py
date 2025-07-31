@@ -31,9 +31,10 @@ class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
 
 class TranscribeAndSummarizeResultMessage(BaseQueueMessage):
     """
-    Message containing the S3 path to the transcription and summary results.
+    Message containing presigned URLs for downloading and deleting transcription results.
     """
     message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_RESULT
     chat_id: int
-    s3_result_path: str
+    download_presigned_url: str
+    delete_presigned_url: str
 

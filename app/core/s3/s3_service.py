@@ -1,27 +1,27 @@
 import boto3
 import json
-import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from botocore.exceptions import ClientError
 from app.utils.logger import get_logger
+from app.core.config import settings
 
 logger = get_logger(__name__)
 
 class S3Service:
     """
-    Simple S3 service for uploading data to S3.
+    S3 service for uploading data and generating presigned URLs.
     """
     
     def __init__(self):
         """
-        Initialize the S3 service with AWS credentials from environment.
+        Initialize the S3 service with AWS credentials from settings.
         """
-        self.aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-        self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        self.aws_region = os.getenv('AWS_REGION', 'ap-southeast-1')
+        self.aws_access_key_id = settings.AWS_ACCESS_KEY_ID
+        self.aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
+        self.aws_region = settings.AWS_REGION
         
         if not self.aws_access_key_id or not self.aws_secret_access_key:
-            logger.error("AWS credentials not found in environment variables")
+            logger.error("AWS credentials not found in settings")
             raise ValueError("AWS credentials not configured")
         
         self.s3_client = boto3.client(
@@ -69,4 +69,54 @@ class S3Service:
             raise Exception(f"S3 upload failed: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error uploading to S3: {str(e)}")
-            raise Exception(f"S3 upload failed: {str(e)}") 
+            raise Exception(f"S3 upload failed: {str(e)}")
+    
+    def generate_presigned_download_url(self, bucket_name: str, object_key: str, expiration: int = 3600) -> Optional[str]:
+        """
+        Generate a presigned URL for downloading an S3 object.
+        
+        Args:
+            bucket_name (str): Name of the S3 bucket
+            object_key (str): Key of the S3 object
+            expiration (int): Time in seconds for the presigned URL to remain valid
+            
+        Returns:
+            str: Presigned URL as string. None if error.
+        """
+        try:
+            response = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': object_key},
+                ExpiresIn=expiration
+            )
+            logger.info(f"Generated presigned download URL for s3://{bucket_name}/{object_key}")
+            return response
+        except ClientError as e:
+            logger.error(f"Failed to generate presigned download URL: {e}")
+            return None
+    
+    def generate_presigned_delete_url(self, bucket_name: str, object_key: str, expiration: int = 3600) -> Optional[str]:
+        """
+        Generate a presigned URL for deleting an S3 object.
+        
+        Args:
+            bucket_name (str): Name of the S3 bucket
+            object_key (str): Key of the S3 object
+            expiration (int): Time in seconds for the presigned URL to remain valid
+            
+        Returns:
+            str: Presigned URL as string. None if error.
+        """
+        try:
+            response = self.s3_client.generate_presigned_url(
+                'delete_object',
+                Params={'Bucket': bucket_name, 'Key': object_key},
+                ExpiresIn=expiration
+            )
+            logger.info(f"Generated presigned delete URL for s3://{bucket_name}/{object_key}")
+            return response
+        except ClientError as e:
+            logger.error(f"Failed to generate presigned delete URL: {e}")
+            return None
+    
+ 
