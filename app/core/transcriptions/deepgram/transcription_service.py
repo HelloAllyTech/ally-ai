@@ -1,6 +1,8 @@
 import asyncio
 import os
 from typing import List, Dict, Any, Optional
+
+import httpx
 from deepgram import DeepgramClient, PrerecordedOptions, FileSource
 from deepgram.clients.listen.v1.rest import Results
 
@@ -9,12 +11,12 @@ from app.utils.logger import get_logger
 from app.schemas.common import ChatMessage
 from app.core.transcriptions.base import BaseTranscriptionService
 from app.exceptions.custom_exceptions import TranscriptionFailedException
-from app.utils.audio_converter import convert_and_store_raw_to_wav_with_ffmpeg_async, get_audio_duration
+from app.utils.audio_converter import convert_and_store_raw_to_wav_with_ffmpeg_async, get_audio_duration, convert_and_segment_audio_async
 
 logger = get_logger(__name__)
 
 # Semaphore to limit concurrent transcription requests
-TRANSCRIPTION_SEMAPHORE = asyncio.Semaphore(3)
+TRANSCRIPTION_SEMAPHORE = asyncio.Semaphore(1)
 
 # Sentence pause threshold in seconds
 SENTENCE_PAUSE_THRESHOLD = 0.1
@@ -22,6 +24,8 @@ SENTENCE_PAUSE_THRESHOLD = 0.1
 # Message merging threshold in seconds - merge messages from same speaker if gap is less than this
 MESSAGE_MERGE_THRESHOLD = 3.0
 
+# Constants for audio segmentation
+MAX_SEGMENT_SIZE_MB = 24  # Maximum size per segment for Deepgram API compatibility
 
 class DeepgramTranscriptionService(BaseTranscriptionService):
     """
@@ -56,16 +60,22 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
             Exception: If transcription fails
         """
         try:
-            # Download and convert audio to WAV format
-            wav_file_path = await convert_and_store_raw_to_wav_with_ffmpeg_async(
+            # Convert and segment audio if needed
+            segment_paths = await convert_and_segment_audio_async(
                 presigned_url, 
-                sample_rate=sample_rate
+                sample_rate=sample_rate,
+                max_segment_size_mb=MAX_SEGMENT_SIZE_MB
             )
             
-            logger.info(f"Audio converted and saved to: {wav_file_path}")
+            logger.info(f"Audio converted into {len(segment_paths)} segments")
             
-            # Transcribe using Deepgram SDK and get formatted segments
-            segments_text = await self._transcribe_with_deepgram_sdk(wav_file_path)
+            # Transcribe using appropriate method based on number of segments
+            if len(segment_paths) == 1:
+                # Single segment - process directly
+                segments_text = await self._transcribe_with_deepgram_sdk(segment_paths[0])
+            else:
+                # Multiple segments - process in parallel
+                segments_text = await self._transcribe_multiple_segments(segment_paths)
             
             # Use OpenAI structured output to diarize the transcription
             diarization_result = await self.text_generation_service.diarize_from_transcription(transcription=segments_text)
@@ -82,13 +92,8 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
             # Merge consecutive messages from the same speaker if they're close together in time
             messages = self._merge_consecutive_messages(messages)
 
-            # Clean up temporary WAV file
-            try:
-                if os.path.exists(wav_file_path):
-                    os.remove(wav_file_path)
-                    logger.info(f"Cleaned up temporary file: {wav_file_path}")
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to clean up temporary file {wav_file_path}: {cleanup_error}")
+            # Clean up temporary segment files
+            await self._cleanup_segment_files(segment_paths)
             
             # Send transcript to core
             await self._send_transcript_to_core(chat_id, messages)
@@ -140,10 +145,10 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
                 )
 
                 logger.info("Sending request to Deepgram SDK")
-                
+                timeout = httpx.Timeout(timeout=300.0)
                 # Make the transcription request
                 response = await self.deepgram.listen.asyncrest.v("1").transcribe_file(
-                    payload, options
+                    payload, options, timeout=timeout
                 )
 
                 if not response or not hasattr(response, 'results'):
@@ -160,6 +165,94 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
             except Exception as e:
                 logger.exception(f"Error during Deepgram SDK transcription: {e}")
                 raise TranscriptionFailedException(f"Deepgram SDK transcription error: {str(e)}")
+
+    async def _transcribe_multiple_segments(self, segment_paths: list) -> str:
+        """Transcribe multiple audio segments in parallel and combine results"""
+        try:
+            logger.info(f"Starting parallel transcription of {len(segment_paths)} segments")
+            
+            # Create tasks for parallel transcription
+            transcription_tasks = []
+            for i, segment_path in enumerate(segment_paths):
+                task = self._transcribe_segment_with_offset(segment_path, i)
+                transcription_tasks.append(task)
+            
+            # Execute all transcriptions in parallel
+            segment_results = await asyncio.gather(*transcription_tasks, return_exceptions=True)
+            
+            # Process results and handle any errors
+            all_segments = []
+            for i, result in enumerate(segment_results):
+                if isinstance(result, Exception):
+                    logger.error(f"Segment {i} transcription failed: {result}")
+                    raise result
+                all_segments.extend(result)
+            
+            # Sort segments by start time to maintain order
+            all_segments.sort(key=lambda x: x[0])
+            
+            # Combine into final text
+            segments_text = "\n".join([
+                f"{start:.2f}-{end:.2f}: {text.strip()}"
+                for start, end, text in all_segments
+            ])
+            
+            logger.info(f"Combined {len(all_segments)} segments from {len(segment_paths)} files")
+            
+            return segments_text
+            
+        except Exception as e:
+            logger.error(f"Error transcribing multiple segments: {e}")
+            raise
+
+    async def _transcribe_segment_with_offset(self, segment_path: str, segment_index: int) -> list:
+        """Transcribe a single segment and adjust timing based on segment index"""
+        try:
+            # Get segment duration to calculate offset
+            duration = await get_audio_duration(segment_path)
+            offset = segment_index * duration  # This is approximate, we'll refine it
+            
+            # Transcribe the segment using Deepgram SDK
+            segments_text = await self._transcribe_with_deepgram_sdk(segment_path)
+            
+            # Parse the segments text to extract timing and content
+            adjusted_segments = []
+            for line in segments_text.split('\n'):
+                if line.strip() and '-' in line and ':' in line:
+                    try:
+                        # Parse format: "start-end: text"
+                        time_part, text_part = line.split(':', 1)
+                        start_str, end_str = time_part.split('-')
+                        start_time = float(start_str.strip())
+                        end_time = float(end_str.strip())
+                        text = text_part.strip()
+                        
+                        # Adjust timing for this segment
+                        adjusted_start = start_time + offset
+                        adjusted_end = end_time + offset
+                        adjusted_segments.append((adjusted_start, adjusted_end, text))
+                        
+                    except (ValueError, IndexError) as parse_error:
+                        logger.warning(f"Failed to parse segment line: {line} - {parse_error}")
+                        continue
+            
+            logger.info(f"Segment {segment_index}: transcribed {len(adjusted_segments)} segments with offset {offset:.2f}s")
+            
+            return adjusted_segments
+            
+        except Exception as e:
+            logger.error(f"Error transcribing segment {segment_index}: {e}")
+            raise
+
+    async def _cleanup_segment_files(self, segment_paths: list):
+        """Clean up temporary segment files"""
+        for segment_path in segment_paths:
+            try:
+                if os.path.exists(segment_path):
+                    os.remove(segment_path)
+                    logger.info(f"Cleaned up segment file: {segment_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up segment file {segment_path}: {cleanup_error}")
 
     def _format_deepgram_response_for_diarization(self, results: Results) -> str:
         """
