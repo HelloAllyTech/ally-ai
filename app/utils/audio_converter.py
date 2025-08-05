@@ -90,7 +90,7 @@ async def convert_and_segment_audio_async(presigned_url: str, sample_rate: int =
         
         # Clean up original file
         try:
-            # await asyncio.to_thread(os.remove, wav_file_path)
+            await asyncio.to_thread(os.remove, wav_file_path)
             logger.info(f"Cleaned up original WAV file: {wav_file_path}")
         except OSError as e:
             logger.warning(f"Failed to cleanup original WAV file {wav_file_path}: {e}")

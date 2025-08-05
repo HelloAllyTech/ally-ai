@@ -3,7 +3,6 @@ import json
 import asyncio
 
 import openai
-import tiktoken
 from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
@@ -50,8 +49,8 @@ from app.core.constants import TextGenerationConstants
 logger = get_logger(__name__)
 
 # Constants for chunking
-MAX_TOKENS_PER_CHUNK = 3000  # Conservative limit to avoid token issues
-CHUNK_OVERLAP = 500  # Overlap between chunks to maintain context
+MAX_WORDS_PER_CHUNK = 2000  # Conservative limit based on word count (roughly equivalent to 3000 tokens)
+CHUNK_OVERLAP_WORDS = 300  # Overlap between chunks to maintain context (roughly equivalent to 500 tokens)
 
 @tool
 def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Union[str, int]]:
@@ -79,76 +78,72 @@ def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Un
         logger.error(f"Validation failed: {str(e)}")
         return {}
 
-def split_text_by_length(text: str, max_tokens: int = MAX_TOKENS_PER_CHUNK) -> List[str]:
+def split_text_by_length(text: str, max_words: int = MAX_WORDS_PER_CHUNK) -> List[str]:
     """
     Split transcription text into chunks while preserving timing information.
     
-    This function intelligently splits transcription text to avoid OpenAI's token limits
-    while maintaining context and preserving timestamp information. It uses tiktoken
-    for accurate token counting to ensure chunks are properly sized.
+    This function intelligently splits transcription text to avoid exceeding word limits
+    while maintaining context and preserving timestamp information. It uses word counting
+    for simpler and more predictable chunk sizing.
     
-    Token Counting Strategy:
-    - Uses OpenAI's tiktoken library for accurate token estimation
+    Word Counting Strategy:
+    - Uses simple word splitting for fast and predictable chunk sizing
     - Processes text line-by-line to maintain natural boundaries
     - Preserves timestamp information and speaker identification
     - Adds overlap between chunks to maintain conversation context
     
     Chunking Strategy:
     1. Split text into lines (preserving timestamps and speaker info)
-    2. Group lines until approaching max_tokens limit
+    2. Group lines until approaching max_words limit
     3. Create overlap between chunks using timestamp-containing lines
-    4. Ensure no chunk exceeds the token limit
+    4. Ensure no chunk exceeds the word limit
     
     Args:
         text (str): Raw transcription text with timestamps and speaker information
-        max_tokens (int): Maximum tokens per chunk (default: MAX_TOKENS_PER_CHUNK)
+        max_words (int): Maximum words per chunk (default: MAX_WORDS_PER_CHUNK)
     
     Returns:
-        List[str]: List of text chunks, each within the token limit
+        List[str]: List of text chunks, each within the word limit
         
     Example:
         Input: "[00:00:01] Speaker 0: Hello\n[00:00:03] Speaker 1: Hi there"
         Output: ["[00:00:01] Speaker 0: Hello\n[00:00:03] Speaker 1: Hi there"]
         
-    Token Estimation Examples:
-        - "[00:00:01] Speaker 0: Hello" → ~15 tokens (accurate with tiktoken)
-        - "[00:00:05] Speaker 1: How are you today?" → ~12 tokens
+    Word Count Examples:
+        - "[00:00:01] Speaker 0: Hello" → 4 words
+        - "[00:00:05] Speaker 1: How are you today?" → 7 words
     """
     lines = text.splitlines()
     chunks = []
     current_chunk = []
-    current_len = 0
+    current_word_count = 0
     
-    # Use tiktoken for accurate token counting
-    encoding = tiktoken.encoding_for_model(TextGenerationConstants.DEFAULT_MODEL)
-    
-    def estimate_tokens(text: str) -> int:
+    def count_words(text: str) -> int:
         """
-        Estimate token count using OpenAI's tiktoken library.
+        Count words in text using simple whitespace splitting.
         
-        This provides accurate token counts that match OpenAI's actual tokenization,
-        ensuring we never exceed token limits and create optimally sized chunks.
+        This provides fast and predictable word counts for chunk sizing.
         
         Args:
-            text (str): Text to count tokens for
+            text (str): Text to count words for
             
         Returns:
-            int: Accurate token count
+            int: Word count
         """
-        return len(encoding.encode(text))
+        return len(text.split())
     
     # Process each line individually to maintain natural boundaries
     for line in lines:
-        line_tokens = estimate_tokens(line)
+        line_word_count = count_words(line)
         
         # If adding this line would exceed the limit and we have content, start a new chunk
-        if current_len + line_tokens > max_tokens and current_chunk:
+        if current_word_count + line_word_count > max_words and current_chunk:
             chunks.append('\n'.join(current_chunk))
             current_chunk = []
-            current_len = 0
+            current_word_count = 0
         
         current_chunk.append(line)
-        current_len += line_tokens
+        current_word_count += line_word_count
     
     # Add the last chunk if it has content
     if current_chunk:
@@ -167,7 +162,7 @@ def split_text_by_length(text: str, max_tokens: int = MAX_TOKENS_PER_CHUNK) -> L
             for line in reversed(current_lines[-3:]):  # Last 3 lines
                 if any(char.isdigit() for char in line):  # Likely contains timestamp
                     overlap_lines.insert(0, line)
-                if estimate_tokens('\n'.join(overlap_lines)) > CHUNK_OVERLAP:
+                if count_words('\n'.join(overlap_lines)) > CHUNK_OVERLAP_WORDS:
                     break
             
             if overlap_lines:
@@ -618,20 +613,20 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         
         Chunking Strategy:
         - Uses split_text_by_length() to intelligently split large transcriptions
-        - Each chunk is limited to MAX_TOKENS_PER_CHUNK (3000 tokens) to avoid OpenAI limits
+        - Each chunk is limited to MAX_WORDS_PER_CHUNK (2000 words) to avoid OpenAI limits
         - Chunks are processed in parallel using asyncio.gather() for efficiency
         - Results are combined in original order to maintain conversation flow
         - Overlap between chunks preserves context and timing information
         
         Processing Flow:
-        1. Split transcription into manageable chunks using accurate token counting
+        1. Split transcription into manageable chunks using accurate word counting
         2. If single chunk: process directly
         3. If multiple chunks: process all chunks in parallel
         4. Combine results maintaining original order
         5. Return structured diarization with all messages
         
         Token Management:
-        - Conservative chunk size (3000 tokens) to avoid hitting OpenAI's 16,384 limit
+        - Conservative chunk size (2000 words) to avoid hitting OpenAI's 16,384 limit
         - Overlap mechanism ensures context preservation between chunks
         
         Parameters:
@@ -652,8 +647,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Diarizing transcription using OpenAI structured output")
         
-        # Split transcription into manageable chunks using accurate token counting
-        chunks = split_text_by_length(transcription, MAX_TOKENS_PER_CHUNK)
+        # Split transcription into manageable chunks using accurate word counting
+        chunks = split_text_by_length(transcription, MAX_WORDS_PER_CHUNK)
         logger.info(f"Split transcription into {len(chunks)} chunks for processing")
         
         if len(chunks) == 1:
