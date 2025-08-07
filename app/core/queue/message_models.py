@@ -7,8 +7,8 @@ class MessageType(str, Enum):
     """
     Enum for message types.
     """
-    TRANSCRIBE_AND_SUMMARIZE_REQUEST = "transcribe_and_summarize_request"
-    TRANSCRIBE_AND_SUMMARIZE_RESULT = "transcribe_and_summarize_result"
+    TRANSCRIPTION_RESULT = "transcription_result"
+    TRANSCRIBE_AND_SUMMARIZE_RESPONSE = "transcribe_and_summarize_response"
 
 
 class BaseQueueMessage(BaseModel):
@@ -19,21 +19,20 @@ class BaseQueueMessage(BaseModel):
     timestamp: int  # Unix timestamp in milliseconds
 
 
-class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
+class TranscriptionResultMessage(BaseQueueMessage):
     """
-    Message for requesting audio transcription and summarization.
+    Message containing the transcription result.
     """
-    message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST
+    message_type: MessageType = MessageType.TRANSCRIPTION_RESULT
     chat_id: int
-    audio_url: str
-    sample_rate: int = Field(default=8000)
+    segments_text: str
 
 
-class TranscribeAndSummarizeResultMessage(BaseQueueMessage):
+class TranscribeAndSummarizeResponseMessage(BaseQueueMessage):
     """
     Message containing presigned URLs for downloading and deleting transcription results.
     """
-    message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_RESULT
+    message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_RESPONSE
     chat_id: int
     download_presigned_url: str
     delete_presigned_url: str

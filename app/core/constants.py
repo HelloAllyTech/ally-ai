@@ -39,9 +39,6 @@ class UserRole(str, Enum):
     CLIENT = "CLIENT"
     COUNSELOR = "COUNSELOR"
 
-class TranscriptionConstants:
-    """Model for transcription."""
-    MODEL = "whisper-1"
 
 class ENV(str, Enum):
     DEV = "DEV"

@@ -6,15 +6,15 @@ from typing import Dict, Any, Optional, Tuple, List
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
 from app.core.queue.message_models import (
-    TranscribeAndSummarizeRequestMessage, 
-    TranscribeAndSummarizeResultMessage,
+    TranscriptionResultMessage, 
+    TranscribeAndSummarizeResponseMessage,
     MessageType
 )
-from app.core.transcriptions.base import BaseTranscriptionService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
 from app.core.s3.s3_service import S3Service
 from app.core.config import settings
 from app.utils.logger import get_logger
+from app.schemas.common import ChatMessage
 
 logger = get_logger(__name__)
 
@@ -28,7 +28,7 @@ class TranscriptionHandler:
         queue_service: Optional[SQSQueueService] = None, 
         request_queue_url: str = None, 
         result_queue_url: str = None, 
-        transcription_service: Optional[BaseTranscriptionService] = None, 
+        text_generation_service: Optional[OpenAITextGenerationService] = None,
         s3_service: Optional[S3Service] = None, 
         s3_bucket_name: str = None
         ):
@@ -37,12 +37,12 @@ class TranscriptionHandler:
         
         Parameters:
             queue_service (Optional[SQSQueueService]): The queue service to use for sending responses.
-                If not provided, a new one will be created.
+            text_generation_service (Optional[OpenAITextGenerationService]): The text generation service for diarization and summary.
         """
         self.queue_service = queue_service
         self.request_queue_url = request_queue_url
         self.result_queue_url = result_queue_url
-        self.transcription_service = transcription_service
+        self.text_generation_service = text_generation_service  # Use passed service
         self.s3_service = s3_service
         self.s3_bucket_name = s3_bucket_name
         
@@ -59,7 +59,7 @@ class TranscriptionHandler:
             logger.info(f"Processing transcription request for chat_id: {chat_id}")
             
             # Parse the request message
-            request = TranscribeAndSummarizeRequestMessage(**message_data)
+            request = TranscriptionResultMessage(**message_data)
             
             # Process the transcription and get results
             success = await self._process_transcription(request)
@@ -73,33 +73,78 @@ class TranscriptionHandler:
             chat_id = message_data.get('chat_id', 'unknown')
             logger.exception(f"Error processing transcription request for chat_id {chat_id}: {str(e)}")
 
-    async def _process_transcription(self, request: TranscribeAndSummarizeRequestMessage) -> bool:
+    async def _process_transcription(self, request: TranscriptionResultMessage) -> bool:
         """
-        Process the transcription request using the existing transcription service.
+        Process the transcription result from Lambda and do diarization + summary.
         
         Parameters:
-            request (TranscribeAndSummarizeRequestMessage): The transcription request.
+            request (TranscriptionResultMessage): The transcription result message with segments_text.
             
         Returns:
-            bool: True if transcription was successful.
+            bool: True if processing was successful.
         """
         try:
-            # Use the existing transcription service to get results
-            chat_id, transcription_data, summary_data = await self.transcription_service.transcribe_audio_from_url(
-                audio_url=request.audio_url,
-                chat_id=request.chat_id,
-                sample_rate=request.sample_rate
+            chat_id = request.chat_id
+            segments_text = request.segments_text
+            
+            logger.info(f"Processing diarization and summary for chat_id: {chat_id}")
+            
+            # Do diarization
+            diarization_result = await self.text_generation_service.diarize_from_transcription(
+                transcription=segments_text
             )
+            
+            # Convert to ChatMessage objects
+            messages = [
+                ChatMessage(
+                    role=msg.role.upper(),  # Convert to uppercase for consistency
+                    content=msg.content,
+                    start_time=msg.start_time,
+                    end_time=msg.end_time
+                )
+                for msg in diarization_result.messages
+            ]
+            
+            # Generate summary
+            summary = await self._generate_summary(messages, chat_id)
+            
+            # Convert to data format
+            transcription_data = [msg.model_dump() if hasattr(msg, 'model_dump') else msg for msg in messages]
+            summary_data = summary.model_dump() if hasattr(summary, 'model_dump') else summary
             
             # Send the results to S3 and queue
             await self.send_combined_result_to_queue(chat_id, transcription_data, summary_data)
             
-            logger.info(f"Transcription completed for chat_id {request.chat_id}")
+            logger.info(f"Diarization and summary completed for chat_id {chat_id}")
             return True
             
         except Exception as e:
-            logger.error(f"Error in transcription for chat_id {request.chat_id}: {str(e)}")
+            logger.error(f"Error in diarization/summary for chat_id {request.chat_id}: {str(e)}")
             return False
+    
+    async def _generate_summary(self, messages: List[ChatMessage], chat_id: int) -> Dict[str, Any]:
+        """
+        Generate summary from diarized messages.
+        
+        Parameters:
+            messages (List[ChatMessage]): The diarized messages.
+            chat_id (int): The chat ID.
+            
+        Returns:
+            Dict[str, Any]: The summary data.
+        """
+        try:
+            # Generate summary using text generation service
+            summary = await self.text_generation_service.generate_summary_notes(
+                chat_history=messages,
+                keys=None
+            )
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Error generating summary for chat_id {chat_id}: {str(e)}")
+            raise Exception(f"Summary generation failed: {str(e)}")
     
     async def send_combined_result_to_queue(self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
         """
@@ -129,13 +174,13 @@ class TranscriptionHandler:
             )
             
             # Generate presigned URLs for download and delete
-            download_presigned_url = self.s3_service.generate_presigned_download_url(
+            download_presigned_url = await self.s3_service.generate_presigned_download_url(
                 bucket_name=self.s3_bucket_name,
                 object_key=s3_object_key,
                 expiration=3600  # 1 hour
             )
             
-            delete_presigned_url = self.s3_service.generate_presigned_delete_url(
+            delete_presigned_url = await self.s3_service.generate_presigned_delete_url(
                 bucket_name=self.s3_bucket_name,
                 object_key=s3_object_key,
                 expiration=3600  # 1 hour
@@ -146,8 +191,8 @@ class TranscriptionHandler:
                 raise Exception("Failed to generate presigned URLs")
             
             # Create message with presigned URLs
-            message = TranscribeAndSummarizeResultMessage(
-                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESULT,
+            message = TranscribeAndSummarizeResponseMessage(
+                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESPONSE,
                 timestamp=int(asyncio.get_event_loop().time() * 1000),
                 chat_id=chat_id,
                 download_presigned_url=download_presigned_url,
@@ -165,5 +210,3 @@ class TranscriptionHandler:
             
         except Exception as e:
             logger.error(f"Error sending combined result to queue for chat_id {chat_id}: {str(e)}")
-
-    

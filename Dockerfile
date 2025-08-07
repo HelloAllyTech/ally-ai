@@ -9,7 +9,6 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
-    ffmpeg \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry using its official installer

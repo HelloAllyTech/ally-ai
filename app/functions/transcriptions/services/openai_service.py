@@ -1,24 +1,26 @@
+"""
+OpenAI transcription service for Lambda function.
+Uses OpenAI Whisper for transcription and GPT for summarization.
+"""
+
 import asyncio
-from openai import OpenAI
-from app.core.config import settings
-from app.utils.logger import get_logger
-from app.schemas.common import ChatMessage
-from app.core.transcriptions.base import BaseTranscriptionService
-from app.core.constants import TranscriptionConstants
-from app.exceptions.custom_exceptions import TranscriptionFailedException
-from app.utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
 import os
 from typing import List, Dict, Any, Tuple
+from openai import OpenAI
+
+from utils.logger import get_logger
+from core.config import settings
+from utils.exceptions import TranscriptionFailedException
+from utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
 
 logger = get_logger(__name__)
 
-# Semaphore to limit concurrent transcription requests
-TRANSCRIPTION_SEMAPHORE = asyncio.Semaphore(3)  # Increased for parallel processing
-
-class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
-    """OpenAI transcription service for transcribing audio files using OpenAI's audio API."""
+class OpenAITranscriptionService:
+    """
+    OpenAI transcription service for processing audio files.
+    """
     
-    def __init__(self, text_generation_service):
+    def __init__(self):
         """
         Initialize the OpenAI transcription service.
         """
@@ -26,14 +28,13 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             api_key=settings.OPENAI_API_KEY,
             organization=settings.OPENAI_ORGANIZATION_ID
         )
-        super().__init__(self.client, text_generation_service)
-        
+
     async def transcribe_audio_from_url(
         self, 
         audio_url: str,
         chat_id: int,
         sample_rate: int = 8000
-    ) -> Tuple[int, List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[int, str]:
         """
         Transcribe audio from URL and generate a summary.
         
@@ -43,7 +44,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             sample_rate (int): Expected sample rate of the audio (default: 8000)
             
         Returns:
-            Tuple[int, List[Dict[str, Any]], Dict[str, Any]]: (chat_id, transcription_data, summary_data)
+            Tuple[int, str]: (chat_id, segments_text)
             
         Raises:
             Exception: If transcription fails
@@ -52,28 +53,12 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             # Transcribe and preprocess audio
             segments_text = await self._transcribe_and_preprocess_audio(audio_url, sample_rate)
             
-            # Use OpenAI structured output to diarize the transcription
-            diarization_result = await self.text_generation_service.diarize_from_transcription(transcription=segments_text)
-            messages = [
-                ChatMessage(
-                    role=msg.role.upper(),  # Convert to uppercase for consistency
-                    content=msg.content,
-                    start_time=msg.start_time,
-                    end_time=msg.end_time
-                )
-                for msg in diarization_result.messages
-            ]
-            # Generate summary
-            summary = await self._generate_summary(messages, chat_id)
-            # Return the data instead of sending to queue
-            transcription_data = [msg.model_dump() if hasattr(msg, 'model_dump') else msg for msg in messages]
-            summary_data = summary.model_dump() if hasattr(summary, 'model_dump') else summary
-            return chat_id, transcription_data, summary_data
+            return chat_id, segments_text
             
         except Exception as e:
             logger.error(f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}")
-            raise Exception(f"Transcription failed: {str(e)}")
-        
+            raise TranscriptionFailedException(f"Transcription failed: {str(e)}")
+    
     async def _transcribe_and_preprocess_audio(self, audio_url: str, sample_rate: int = 8000) -> str:
         """
         Transcribe audio and preprocess segments into a formatted string for diarization.
@@ -91,42 +76,37 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
         Raises:
             Exception: If transcription fails
         """
-        async with TRANSCRIPTION_SEMAPHORE:
-            logger.info(f"Starting audio processing (semaphore acquired)")
-            segment_paths = []
+        logger.info(f"Starting audio processing")
+        segment_paths = []
+        
+        try:
+            # Convert and segment audio if needed
+            segment_paths = await convert_and_segment_audio_async(audio_url, sample_rate)
+            logger.info(f"Audio converted to {len(segment_paths)} segment(s)")
             
-            try:
-                # Convert and segment audio if needed
-                segment_paths = await convert_and_segment_audio_async(audio_url, sample_rate)
-                logger.info(f"Audio converted to {len(segment_paths)} segment(s)")
-                
-                if len(segment_paths) == 1:
-                    # Single file - process normally
-                    segments_text = await self._transcribe_single_file(segment_paths[0])
-                else:
-                    # Multiple segments - process in parallel
-                    segments_text = await self._transcribe_multiple_segments(segment_paths)
-                
-                return segments_text
-                        
-            except Exception as e:
-                logger.error(f"Error transcribing and preprocessing audio: {str(e)}")
-                raise TranscriptionFailedException(
-                    message="Audio transcription and preprocessing failed",
-                    audio_source=audio_url,
-                    error_details=str(e)
-                )
-            finally:
-                # Clean up all segment files
-                for segment_path in segment_paths:
-                    if await asyncio.to_thread(os.path.exists, segment_path):
-                        try:
-                            await asyncio.to_thread(os.remove, segment_path)
-                            logger.info(f"Cleaned up segment file: {segment_path}")
-                        except OSError as e:
-                            logger.warning(f"Failed to cleanup segment file {segment_path}: {e}")
-                
-                logger.info(f"Released semaphore (audio processing complete)")
+            if len(segment_paths) == 1:
+                # Single file - process normally
+                segments_text = await self._transcribe_single_file(segment_paths[0])
+            else:
+                # Multiple segments - process in parallel
+                segments_text = await self._transcribe_multiple_segments(segment_paths)
+            
+            return segments_text
+                    
+        except Exception as e:
+            logger.error(f"Error transcribing and preprocessing audio: {str(e)}")
+            raise TranscriptionFailedException(f"Audio transcription and preprocessing failed: {str(e)}")
+        finally:
+            # Clean up all segment files
+            for segment_path in segment_paths:
+                if await asyncio.to_thread(os.path.exists, segment_path):
+                    try:
+                        await asyncio.to_thread(os.remove, segment_path)
+                        logger.info(f"Cleaned up segment file: {segment_path}")
+                    except OSError as e:
+                        logger.warning(f"Failed to cleanup segment file {segment_path}: {e}")
+            
+            logger.info(f"Audio processing complete")
 
     async def _transcribe_single_file(self, wav_file_path: str) -> str:
         """Transcribe a single WAV file"""
@@ -134,7 +114,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             with open(wav_file_path, 'rb') as audio_file:
                 transcription_verbose = await asyncio.to_thread(
                     self.client.audio.transcriptions.create,
-                    model=TranscriptionConstants.MODEL,
+                    model="whisper-1",
                     file=audio_file,
                     response_format="verbose_json",
                 )
@@ -157,7 +137,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             
         except Exception as e:
             logger.error(f"Error transcribing single file: {e}")
-            raise
+            raise TranscriptionFailedException(f"Error transcribing single file: {e}")
 
     async def _transcribe_multiple_segments(self, segment_paths: list) -> str:
         """Transcribe multiple audio segments in parallel and combine results"""
@@ -178,7 +158,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             for i, result in enumerate(segment_results):
                 if isinstance(result, Exception):
                     logger.error(f"Segment {i} transcription failed: {result}")
-                    raise result
+                    raise TranscriptionFailedException(f"Segment {i} transcription failed: {result}")
                 all_segments.extend(result)
             
             # Sort segments by start time to maintain order
@@ -196,7 +176,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             
         except Exception as e:
             logger.error(f"Error transcribing multiple segments: {e}")
-            raise
+            raise TranscriptionFailedException(f"Error transcribing multiple segments: {e}")
 
     async def _transcribe_segment_with_offset(self, segment_path: str, segment_index: int) -> list:
         """Transcribe a single segment and adjust timing based on segment index"""
@@ -208,7 +188,7 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             with open(segment_path, 'rb') as audio_file:
                 transcription_verbose = await asyncio.to_thread(
                     self.client.audio.transcriptions.create,
-                    model=TranscriptionConstants.MODEL,
+                    model="whisper-1",
                     file=audio_file,
                     response_format="verbose_json",
                 )
@@ -229,5 +209,4 @@ class OpenAITranscriptionService(BaseTranscriptionService[OpenAI]):
             
         except Exception as e:
             logger.error(f"Error transcribing segment {segment_index}: {e}")
-            raise
-
+            raise TranscriptionFailedException(f"Error transcribing segment {segment_index}: {e}")

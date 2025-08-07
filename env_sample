@@ -36,7 +36,7 @@ AWS_ENDPOINT_URL="http://localhost:4566"
 S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET=lifeline-ai-results
 
 # SQS Queue URLs
-TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/123456789012/transcribe-and-summarize-request-queue
+TRANSCRIPTION_RESULTS_QUEUE_URL=""
 TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/123456789012/transcribe-and-summarize-result-queue
 
 REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD=0.35

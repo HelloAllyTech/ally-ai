@@ -6,13 +6,11 @@ import asyncio
 import sys
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
-from app.core.queue.message_router import MessageRouter
 from app.core.queue.message_processor import MessageProcessor
 from app.core.queue.transcription_handler import TranscriptionHandler
 from app.core.config import settings
 from app.utils.logger import get_logger
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
-from app.core.transcriptions.deepgram import DeepgramTranscriptionService
 from app.core.s3.s3_service import S3Service
 from app.core.constants import SQSWorkerConstants
 from app.utils.startup import initialize_openai_clients
@@ -33,6 +31,7 @@ async def main():
         SQSQueueClient.create_client()
         sqs_client = SQSQueueClient.get_client()
         queue_service = SQSQueueService(client=sqs_client)
+        
         # Initialize OpenAI clients
         initialize_openai_clients()        
         
@@ -43,23 +42,24 @@ async def main():
             client=text_generation_client,
             embedding_service=embedding_service
         )
-        transcription_service = DeepgramTranscriptionService(text_generation_service)
+        
         s3_service = S3Service()
+        
+        # Pass text_generation_service to the handler
         transcription_handler = TranscriptionHandler(
             queue_service=queue_service,
-            request_queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
-            result_queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL,
-            transcription_service=transcription_service,
+            request_queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+            result_queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL,
+            text_generation_service=text_generation_service,  # Pass the service
             s3_service=s3_service,
             s3_bucket_name=settings.S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
         )
-        router = MessageRouter()
-        router.register_transcription_processor(processor=transcription_handler.process_request)
 
+        # Use direct handler instead of router
         transcription_processor = MessageProcessor(
             queue_service=queue_service,
-            router=router,
-            queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
+            handler=transcription_handler.process_request,  # Direct handler
+            queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
             max_messages=SQSWorkerConstants.MAX_MESSAGES,
             wait_time_seconds=SQSWorkerConstants.WAIT_TIME_SECONDS,
             visibility_timeout=SQSWorkerConstants.VISIBILITY_TIMEOUT,
@@ -67,7 +67,7 @@ async def main():
             auto_delete=True,
         )
 
-        logger.info(f"Starting processor for: {settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL}")
+        logger.info(f"Starting processor for: {settings.TRANSCRIPTION_RESULTS_QUEUE_URL}")
 
         # Start processor and wait for it to complete
         await transcription_processor.start()

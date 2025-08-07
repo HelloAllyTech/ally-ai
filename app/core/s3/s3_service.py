@@ -1,5 +1,6 @@
 import boto3
 import json
+import asyncio
 from typing import Dict, Any, Optional
 from botocore.exceptions import ClientError
 from app.utils.logger import get_logger
@@ -50,8 +51,9 @@ class S3Service:
             # Convert payload to JSON
             json_data = json.dumps(payload, indent=2)
             
-            # Upload to S3
-            self.s3_client.put_object(
+            # Upload to S3 using asyncio.to_thread to avoid blocking
+            await asyncio.to_thread(
+                self.s3_client.put_object,
                 Bucket=bucket_name,
                 Key=object_key,
                 Body=json_data,
@@ -71,7 +73,7 @@ class S3Service:
             logger.error(f"Unexpected error uploading to S3: {str(e)}")
             raise Exception(f"S3 upload failed: {str(e)}")
     
-    def generate_presigned_download_url(self, bucket_name: str, object_key: str, expiration: int = 3600) -> Optional[str]:
+    async def generate_presigned_download_url(self, bucket_name: str, object_key: str, expiration: int = 3600) -> Optional[str]:
         """
         Generate a presigned URL for downloading an S3 object.
         
@@ -84,7 +86,9 @@ class S3Service:
             str: Presigned URL as string. None if error.
         """
         try:
-            response = self.s3_client.generate_presigned_url(
+            # Generate presigned URLs (these are fast operations, but let's make them async for consistency)
+            response = await asyncio.to_thread(
+                self.s3_client.generate_presigned_url,
                 'get_object',
                 Params={'Bucket': bucket_name, 'Key': object_key},
                 ExpiresIn=expiration
@@ -95,7 +99,7 @@ class S3Service:
             logger.error(f"Failed to generate presigned download URL: {e}")
             return None
     
-    def generate_presigned_delete_url(self, bucket_name: str, object_key: str, expiration: int = 3600) -> Optional[str]:
+    async def generate_presigned_delete_url(self, bucket_name: str, object_key: str, expiration: int = 3600) -> Optional[str]:
         """
         Generate a presigned URL for deleting an S3 object.
         
@@ -108,7 +112,9 @@ class S3Service:
             str: Presigned URL as string. None if error.
         """
         try:
-            response = self.s3_client.generate_presigned_url(
+             # Generate presigned URLs (these are fast operations, but let's make them async for consistency)
+            response = await asyncio.to_thread(
+                self.s3_client.generate_presigned_url,
                 'delete_object',
                 Params={'Bucket': bucket_name, 'Key': object_key},
                 ExpiresIn=expiration

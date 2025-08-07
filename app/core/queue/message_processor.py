@@ -1,8 +1,8 @@
 import asyncio
-from typing import Dict, Any
+import json
+from typing import Dict, Any, Callable, Awaitable
 
-from app.core.queue.base import BaseQueueService
-from app.core.queue.message_router import MessageRouter
+from app.core.queue.sqs_queue_service import SQSQueueService
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -10,13 +10,13 @@ logger = get_logger(__name__)
 
 class MessageProcessor:
     """
-    Simple message processor for continuously polling a queue for messages and processing them.
+    Simplified message processor for continuously polling a queue for messages and processing them.
     """
 
     def __init__(
             self,
-            queue_service: BaseQueueService,
-            router: MessageRouter,
+            queue_service: SQSQueueService,
+            handler: Callable[[Dict[str, Any]], Awaitable[None]],
             queue_url: str,
             max_messages: int = 10,
             wait_time_seconds: int = 20,
@@ -28,8 +28,8 @@ class MessageProcessor:
         Initialize the message processor.
 
         Parameters:
-            queue_service (BaseQueueService): The queue service to use.
-            router (MessageRouter): The message router to use for routing messages.
+            queue_service (SQSQueueService): The queue service to use.
+            handler (Callable): The handler function to process messages.
             queue_url (str): The URL of the queue to poll.
             max_messages (int): The maximum number of messages to receive in each batch.
             wait_time_seconds (int): The duration (in seconds) for which the call waits for a message to arrive.
@@ -38,7 +38,7 @@ class MessageProcessor:
             auto_delete (bool): Whether to automatically delete messages after successful processing.
         """
         self.queue_service = queue_service
-        self.router = router
+        self.handler = handler
         self.queue_url = queue_url
         self.max_messages = max_messages
         self.wait_time_seconds = wait_time_seconds
@@ -56,15 +56,29 @@ class MessageProcessor:
             message (Dict[str, Any]): The message to process.
         """
         try:
-            # Route the message to the appropriate handlers
-            await self.router.route_message(message)
+            # Extract the message body
+            body = message.get('body', {})
+            
+            if not isinstance(body, dict):
+                try:
+                    body = json.loads(body)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse message body as JSON: {body}")
+                    return
+            
+            # Process the message using the handler
+            await self.handler(body)
 
             # Delete the message if auto_delete is True
             if self.auto_delete:
-                await self.queue_service.delete_message(
+                delete_response = await self.queue_service.delete_message(
                     queue_url=self.queue_url,
                     receipt_handle=message['receipt_handle']
                 )
+                if delete_response.get('ResponseMetadata', {}).get('HTTPStatusCode') == 200:
+                    logger.info(f"Successfully deleted message from queue {self.queue_url}")
+                else:
+                    logger.warning(f"Failed to delete message from queue {self.queue_url}. Response: {delete_response}")
 
         except Exception as e:
             chat_id = message.get('body', {}).get('chat_id', 'unknown')
@@ -99,51 +113,43 @@ class MessageProcessor:
         Run the message processor continuously.
         """
         self._running = True
-        logger.info(f"Starting message processor for queue {self.queue_url}")
+        logger.info(f"Starting message processor for queue: {self.queue_url}")
 
-        try:
-            while self._running:
+        while self._running:
+            try:
                 await self.poll_queue()
 
-                # Sleep if a polling interval is specified
+                # Add polling interval if specified
                 if self.polling_interval > 0:
                     await asyncio.sleep(self.polling_interval)
 
-        except KeyboardInterrupt:
-            logger.info("Message processor interrupted by user")
-        except asyncio.CancelledError:
-            logger.info("Message processor task cancelled")
-        finally:
-            self._running = False
-            logger.info(f"Message processor for queue {self.queue_url} stopped")
+            except asyncio.CancelledError:
+                logger.info("Message processor cancelled")
+                break
+            except Exception as e:
+                logger.exception(f"Error in message processor: {str(e)}")
+                # Continue running even if there's an error
+                await asyncio.sleep(1)
+
+        logger.info(f"Message processor stopped for queue: {self.queue_url}")
 
     async def start(self) -> None:
         """
-        Start the message processor in a background task.
+        Start the message processor in the background.
         """
-        if self._task is not None and not self._task.done():
-            logger.warning("Message processor is already running")
-            return
-
-        self._task = asyncio.create_task(self.run())
-        logger.info(f"Message processor for queue {self.queue_url} started in background task")
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self.run())
+            logger.info("Message processor started")
 
     async def stop(self) -> None:
         """
         Stop the message processor.
         """
-        if not self._running:
-            logger.info("Message processor is not running")
-            return
-
-        logger.info(f"Stopping message processor for queue {self.queue_url}")
         self._running = False
-
-        if self._task is not None and not self._task.done():
+        if self._task and not self._task.done():
             self._task.cancel()
             try:
                 await self._task
             except asyncio.CancelledError:
                 pass
-
-        logger.info(f"Message processor for queue {self.queue_url} stopped")
+        logger.info("Message processor stopped")

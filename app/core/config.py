@@ -44,9 +44,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(...)
     OPENAI_ORGANIZATION_ID: str = Field(...)
 
-    # Deepgram Creds
-    DEEPGRAM_API_KEY: str = Field(...)
-
     # LangSmith Creds
     LANGSMITH_TRACING: str = Field(...)
     LANGSMITH_ENDPOINT: str = Field(...)
@@ -63,8 +60,8 @@ class Settings(BaseSettings):
     S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET: str = Field(...)
 
     # SQS Queue URLs
-    TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL: str = Field(...)
-    TRANSCRIBE_AND_SUMMARIZE_RESULTS_QUEUE_URL: str = Field(...)
+    TRANSCRIPTION_RESULTS_QUEUE_URL: str = Field(...)
+    TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL: str = Field(...)
 
      # Reference document settings
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = Field(default=0.65)

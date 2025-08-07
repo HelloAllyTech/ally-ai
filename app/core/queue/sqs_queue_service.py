@@ -1,22 +1,20 @@
 import json
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, TypeVar, Generic, Callable, Awaitable
+from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.client import BaseClient
-from botocore.exceptions import ClientError
 
-from app.core.queue.base import BaseQueueService
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class SQSQueueService(BaseQueueService[BaseClient]):
+class SQSQueueService:
     """
-    Implementation of the BaseQueueService using AWS SQS.
-    Uses boto3 with asyncio for asynchronous operations.
+    Simplified SQS queue service for sending and receiving messages.
+    Queues are expected to be created manually by DevOps.
     """
 
     def __init__(
@@ -31,7 +29,6 @@ class SQSQueueService(BaseQueueService[BaseClient]):
             client (BaseClient): The SQS client.
             max_workers (int): Maximum number of worker threads for async operations.
         """
-        super().__init__(client)
         self.client = client
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
@@ -135,66 +132,42 @@ class SQSQueueService(BaseQueueService[BaseClient]):
             max_messages (int): The maximum number of messages to receive.
             wait_time_seconds (int): The duration (in seconds) for which the call waits for a message to arrive.
             visibility_timeout (int): The duration (in seconds) that the received messages are hidden from subsequent retrieve requests.
-            message_attribute_names (Optional[List[str]]): A list of message attribute names to receive.
+            message_attribute_names (Optional[List[str]]): The names of the message attributes to retrieve.
 
         Returns:
-            List[Dict[str, Any]]: A list of messages.
+            List[Dict[str, Any]]: A list of received messages.
 
         Raises:
             Exception: If there is an error receiving messages.
         """
         try:
-            # Prepare the request parameters
             kwargs = {
                 'QueueUrl': queue_url,
                 'MaxNumberOfMessages': max_messages,
                 'WaitTimeSeconds': wait_time_seconds,
-                'VisibilityTimeout': visibility_timeout,
-                'AttributeNames': ['All']
+                'VisibilityTimeout': visibility_timeout
             }
             
             if message_attribute_names:
                 kwargs['MessageAttributeNames'] = message_attribute_names
-            else:
-                kwargs['MessageAttributeNames'] = ['All']
 
-            # Receive messages
             response = await self._run_in_executor(
                 self.client.receive_message,
                 **kwargs
             )
             
             messages = response.get('Messages', [])
-            
-            # Process the messages
             processed_messages = []
+            
             for message in messages:
-                try:
-                    # Parse the message body as JSON
-                    body = json.loads(message.get('Body', '{}'))
-                    
-                    # Add the message metadata
-                    processed_message = {
-                        'message_id': message.get('MessageId'),
-                        'receipt_handle': message.get('ReceiptHandle'),
-                        'body': body,
-                        'attributes': message.get('Attributes', {}),
-                        'message_attributes': message.get('MessageAttributes', {})
-                    }
-                    
-                    processed_messages.append(processed_message)
-                    
-                except json.JSONDecodeError:
-                    # If the message body is not valid JSON, include it as a string
-                    processed_message = {
-                        'message_id': message.get('MessageId'),
-                        'receipt_handle': message.get('ReceiptHandle'),
-                        'body': message.get('Body', ''),
-                        'attributes': message.get('Attributes', {}),
-                        'message_attributes': message.get('MessageAttributes', {})
-                    }
-                    
-                    processed_messages.append(processed_message)
+                processed_message = {
+                    'message_id': message.get('MessageId'),
+                    'receipt_handle': message.get('ReceiptHandle'),
+                    'body': message.get('Body'),
+                    'attributes': message.get('Attributes', {}),
+                    'message_attributes': message.get('MessageAttributes', {})
+                }
+                processed_messages.append(processed_message)
             
             if messages:
                 logger.info(f"Received {len(messages)} messages from queue {queue_url}")
@@ -227,69 +200,6 @@ class SQSQueueService(BaseQueueService[BaseClient]):
             
         except Exception as e:
             logger.exception(f"Error deleting message from queue {queue_url}: {str(e)}")
-            raise
-
-    async def create_queue(self, queue_name: str, attributes: Optional[Dict[str, str]] = None) -> str:
-        """
-        Check if an SQS queue exists. The queue is expected to be created by DevOps.
-
-        Parameters:
-            queue_name (str): The name of the queue to check.
-            attributes (Optional[Dict[str, str]]): Not used, kept for backward compatibility.
-
-        Returns:
-            str: The URL of the existing queue.
-
-        Raises:
-            ValueError: If the queue does not exist.
-        """
-        try:
-            # Get the queue URL to check if it exists
-            queue_url = await self.get_queue_url(queue_name)
-            logger.info(f"Queue {queue_name} exists with URL {queue_url}")
-            return queue_url
-            
-        except ValueError as e:
-            # Queue doesn't exist
-            logger.error(f"Queue {queue_name} does not exist.")
-            raise ValueError(f"Queue {queue_name} does not exist.") from e
-        
-        except Exception as e:
-            logger.exception(f"Error checking queue {queue_name}: {str(e)}")
-            raise
-
-    async def get_queue_url(self, queue_name: str) -> str:
-        """
-        Get the URL of an SQS queue.
-
-        Parameters:
-            queue_name (str): The name of the queue.
-
-        Returns:
-            str: The URL of the queue.
-
-        Raises:
-            Exception: If there is an error getting the queue URL.
-        """
-        try:
-            response = await self._run_in_executor(
-                self.client.get_queue_url,
-                QueueName=queue_name
-            )
-            
-            queue_url = response.get('QueueUrl')
-            logger.info(f"Got URL for queue {queue_name}: {queue_url}")
-            return queue_url
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'AWS.SimpleQueueService.NonExistentQueue':
-                logger.warning(f"Queue {queue_name} does not exist")
-                raise ValueError(f"Queue {queue_name} does not exist")
-            else:
-                logger.exception(f"Error getting URL for queue {queue_name}: {str(e)}")
-                raise
-        except Exception as e:
-            logger.exception(f"Error getting URL for queue {queue_name}: {str(e)}")
             raise
 
 
