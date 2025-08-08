@@ -49,6 +49,6 @@ class ENV(str, Enum):
 class SQSWorkerConstants:
     """Constants for SQS worker configuration."""
     MAX_MESSAGES: Final[int] = 10
-    WAIT_TIME_SECONDS: Final[int] = 20
-    VISIBILITY_TIMEOUT: Final[int] = 30
+    WAIT_TIME_SECONDS: Final[int] = 10
+    VISIBILITY_TIMEOUT: Final[int] = 120
     POLLING_INTERVAL: Final[int] = 0
