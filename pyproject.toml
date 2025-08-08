@@ -23,6 +23,7 @@ scikit-learn = "^1.7.0"
 vadersentiment = "^3.3.2"
 boto3 = "^1.39.4"
 deepgram-sdk = "^4.7.0"
+rapidfuzz = "^3.13.0"
 
 [tool.poetry.group.dev.dependencies]
 aiohttp = "^3.11.15"

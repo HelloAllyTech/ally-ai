@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Set
 import re
+from rapidfuzz import fuzz, process, utils
 from app.schemas.common import ChatMessage
 
 # List of common affirmation phrases
@@ -36,8 +37,17 @@ AFFIRMATION_PHRASES = [
 ]
 
 # Build regex pattern once at import time for better performance
-_phrase_list = [re.escape(p) for p in AFFIRMATION_PHRASES]
-_pattern = re.compile('|'.join(_phrase_list), re.IGNORECASE)
+FUZZY_THRESHOLD = 80
+MIN_SENTENCE_LENGTH = 5
+
+SENTENCE_SPLITTER = re.compile(r"[.!?]")
+
+PROCESSED_PHRASES = [utils.default_process(phrase) for phrase in AFFIRMATION_PHRASES]
+
+
+def extract_sentences(content : str) -> List[str]:
+    sentences = SENTENCE_SPLITTER.split(content)
+    return [s.strip() for s in sentences if len(s.strip()) > MIN_SENTENCE_LENGTH]
 
 
 def count_affirmations(chat_messages: List[ChatMessage]) -> int:
@@ -54,9 +64,24 @@ def count_affirmations(chat_messages: List[ChatMessage]) -> int:
         return 0
 
     count = 0
+
+
     for msg in chat_messages:
         if msg.role.lower() != "counselor":
             continue
-        count += len(_pattern.findall(msg.content))
+
+        sentences = extract_sentences(msg.content)
+
+        for sentence in sentences:
+            best_match = process.extractOne(
+                sentence,
+                PROCESSED_PHRASES,
+                scorer=fuzz.token_set_ratio,
+                processor=utils.default_process,
+                score_cutoff=FUZZY_THRESHOLD,
+            )
+
+            if best_match:
+                count+=1
 
     return count
