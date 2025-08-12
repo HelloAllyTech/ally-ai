@@ -164,7 +164,7 @@ class TranscriptionHandler:
             }
             
             # Create the bucket object key
-            bucket_object_key = f"transcription-results/{chat_id}/result_{chat_id}.json"
+            bucket_object_key = f"transcription-results/result_{chat_id}.json"
             
             # Upload results to bucket
             bucket_path = await self.storage_service.upload_to_s3(
