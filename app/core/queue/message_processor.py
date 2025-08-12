@@ -22,7 +22,7 @@ class MessageProcessor:
             wait_time_seconds: int = 20,
             visibility_timeout: int = 30,
             polling_interval: int = 0,
-            auto_delete: bool = True
+            delete_after_processing: bool = True
     ):
         """
         Initialize the message processor.
@@ -35,7 +35,7 @@ class MessageProcessor:
             wait_time_seconds (int): The duration (in seconds) for which the call waits for a message to arrive.
             visibility_timeout (int): The duration (in seconds) that the received messages are hidden from subsequent retrieve requests.
             polling_interval (int): The interval (in seconds) between polling attempts. 0 means continuous polling.
-            auto_delete (bool): Whether to automatically delete messages after successful processing.
+            delete_after_processing (bool): Whether to automatically delete messages after successful processing.
         """
         self.queue_service = queue_service
         self.handler = handler
@@ -44,7 +44,7 @@ class MessageProcessor:
         self.wait_time_seconds = wait_time_seconds
         self.visibility_timeout = visibility_timeout
         self.polling_interval = polling_interval
-        self.auto_delete = auto_delete
+        self.delete_after_processing = delete_after_processing
         self._running = False
         self._task = None
 
@@ -69,8 +69,8 @@ class MessageProcessor:
             # Process the message using the handler
             await self.handler(body)
 
-            # Delete the message if auto_delete is True
-            if self.auto_delete:
+            # Delete the message if delete_after_processing is True
+            if self.delete_after_processing:
                 delete_response = await self.queue_service.delete_message(
                     queue_url=self.queue_url,
                     receipt_handle=message['receipt_handle']

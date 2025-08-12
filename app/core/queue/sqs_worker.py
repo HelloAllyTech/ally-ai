@@ -1,5 +1,5 @@
 """
-Production SQS Worker with proper cleanup and single Ctrl+C shutdown.
+Production SQS Worker with proper cleanup and shutdown.
 """
 
 import asyncio
@@ -11,7 +11,7 @@ from app.core.queue.transcription_handler import TranscriptionHandler
 from app.core.config import settings
 from app.utils.logger import get_logger
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
-from app.core.s3.s3_service import S3Service
+from app.core.storage.s3_service import S3Service
 from app.core.constants import SQSWorkerConstants
 from app.utils.startup import initialize_openai_clients
 from app.core.text_generations.openai_text_generation_client import OpenAITextGenerationClient
@@ -43,7 +43,7 @@ async def main():
             embedding_service=embedding_service
         )
         
-        s3_service = S3Service()
+        storage_service = S3Service()
         
         # Pass text_generation_service to the handler
         transcription_handler = TranscriptionHandler(
@@ -51,8 +51,8 @@ async def main():
             request_queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
             result_queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL,
             text_generation_service=text_generation_service,  # Pass the service
-            s3_service=s3_service,
-            s3_bucket_name=settings.S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
+            storage_service=storage_service,
+            bucket_name=settings.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
         )
 
         # Use direct handler instead of router
@@ -64,7 +64,7 @@ async def main():
             wait_time_seconds=SQSWorkerConstants.WAIT_TIME_SECONDS,
             visibility_timeout=SQSWorkerConstants.VISIBILITY_TIMEOUT,
             polling_interval=SQSWorkerConstants.POLLING_INTERVAL,
-            auto_delete=True,
+            delete_after_processing=True,
         )
 
         logger.info(f"Starting processor for: {settings.TRANSCRIPTION_RESULTS_QUEUE_URL}")

@@ -11,7 +11,7 @@ from app.core.queue.message_models import (
     MessageType
 )
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
-from app.core.s3.s3_service import S3Service
+from app.core.storage.s3_service import S3Service
 from app.core.config import settings
 from app.utils.logger import get_logger
 from app.schemas.common import ChatMessage
@@ -29,8 +29,8 @@ class TranscriptionHandler:
         request_queue_url: str = None, 
         result_queue_url: str = None, 
         text_generation_service: Optional[OpenAITextGenerationService] = None,
-        s3_service: Optional[S3Service] = None, 
-        s3_bucket_name: str = None
+        storage_service: Optional[S3Service] = None, 
+        bucket_name: str = None
         ):
         """
         Initialize the transcription handler.
@@ -43,8 +43,8 @@ class TranscriptionHandler:
         self.request_queue_url = request_queue_url
         self.result_queue_url = result_queue_url
         self.text_generation_service = text_generation_service  # Use passed service
-        self.s3_service = s3_service
-        self.s3_bucket_name = s3_bucket_name
+        self.storage_service = storage_service
+        self.bucket_name = bucket_name
         
     
     async def process_request(self, message_data: Dict[str, Any]) -> None:
@@ -112,7 +112,7 @@ class TranscriptionHandler:
             transcription_data = [msg.model_dump() if hasattr(msg, 'model_dump') else msg for msg in messages]
             summary_data = summary.model_dump() if hasattr(summary, 'model_dump') else summary
             
-            # Send the results to S3 and queue
+            # Send the results to bucket and queue
             await self.send_combined_result_to_queue(chat_id, transcription_data, summary_data)
             
             logger.info(f"Diarization and summary completed for chat_id {chat_id}")
@@ -148,7 +148,7 @@ class TranscriptionHandler:
     
     async def send_combined_result_to_queue(self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
         """
-        Upload transcription and summary results to S3 and send presigned URLs to the result queue.
+        Upload transcription and summary results to bucket and send presigned URLs to the result queue.
         
         Parameters:
             chat_id (int): The chat ID.
@@ -163,26 +163,26 @@ class TranscriptionHandler:
                 "summary": summary
             }
             
-            # Create the S3 object key
-            s3_object_key = f"transcription-results/{chat_id}/result_{chat_id}.json"
+            # Create the bucket object key
+            bucket_object_key = f"transcription-results/{chat_id}/result_{chat_id}.json"
             
-            # Upload results to S3
-            s3_path = await self.s3_service.upload_to_s3(
-                bucket_name=self.s3_bucket_name,
-                object_key=s3_object_key,
+            # Upload results to bucket
+            bucket_path = await self.storage_service.upload_to_s3(
+                bucket_name=self.bucket_name,
+                object_key=bucket_object_key,
                 payload=result_payload
             )
             
             # Generate presigned URLs for download and delete
-            download_presigned_url = await self.s3_service.generate_presigned_download_url(
-                bucket_name=self.s3_bucket_name,
-                object_key=s3_object_key,
+            download_presigned_url = await self.storage_service.generate_presigned_download_url(
+                bucket_name=self.bucket_name,
+                object_key=bucket_object_key,
                 expiration=3600  # 1 hour
             )
             
-            delete_presigned_url = await self.s3_service.generate_presigned_delete_url(
-                bucket_name=self.s3_bucket_name,
-                object_key=s3_object_key,
+            delete_presigned_url = await self.storage_service.generate_presigned_delete_url(
+                bucket_name=self.bucket_name,
+                object_key=bucket_object_key,
                 expiration=3600  # 1 hour
             )
             

@@ -21,7 +21,7 @@ services:
 
   localstack:
     image: localstack/localstack:latest
-    container_name: localstack-lifeline
+    container_name: localstack-ally
     ports:
       - "4566:4566"  # LocalStack edge service
       - "4510-4559:4510-4559"  # external services port range

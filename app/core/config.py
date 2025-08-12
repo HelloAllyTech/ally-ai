@@ -45,19 +45,19 @@ class Settings(BaseSettings):
     OPENAI_ORGANIZATION_ID: str = Field(...)
 
     # LangSmith Creds
+    # TODO make the Langsmith tracing optional
     LANGSMITH_TRACING: str = Field(...)
     LANGSMITH_ENDPOINT: str = Field(...)
     LANGSMITH_API_KEY: str = Field(...)
     LANGSMITH_PROJECT: str = Field(...)
 
     # SQS Configs
-    AWS_ACCESS_KEY_ID: str = Field(...)
-    AWS_SECRET_ACCESS_KEY: str = Field(...)
-    AWS_REGION: str = Field(...)
-    AWS_ENDPOINT_URL: str = Field(...)
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(default=None)
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(default=None)
+    AWS_REGION: Optional[str] = Field(default=None)
+    AWS_ENDPOINT_URL: Optional[str] = Field(default=None)
 
-    # S3 Configuration
-    S3_TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET: str = Field(...)
+    TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET: str = Field(...)
 
     # SQS Queue URLs
     TRANSCRIPTION_RESULTS_QUEUE_URL: str = Field(...)

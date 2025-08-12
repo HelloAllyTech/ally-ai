@@ -1,5 +1,6 @@
 import boto3
 from botocore.config import Config
+from botocore.client import BaseClient
 
 from app.core.config import settings
 from app.core.constants import ENV
@@ -17,12 +18,12 @@ class SQSQueueClient:
     """
 
     @staticmethod
-    def get_client() -> boto3.client:
+    def get_client() -> BaseClient:
         """
         Get the singleton instance of the SQS client.
 
         Returns:
-            boto3.client: The SQS client.
+            BaseClient: The SQS client.
 
         Raises:
             Exception: If the client has not been created yet.
