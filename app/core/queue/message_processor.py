@@ -69,20 +69,27 @@ class MessageProcessor:
             # Process the message using the handler
             await self.handler(body)
 
-            # Delete the message if delete_after_processing is True
-            if self.delete_after_processing:
-                delete_response = await self.queue_service.delete_message(
-                    queue_url=self.queue_url,
-                    receipt_handle=message['receipt_handle']
-                )
-                if delete_response.get('ResponseMetadata', {}).get('HTTPStatusCode') == 200:
-                    logger.info(f"Successfully deleted message from queue {self.queue_url}")
-                else:
-                    logger.warning(f"Failed to delete message from queue {self.queue_url}. Response: {delete_response}")
-
         except Exception as e:
             chat_id = message.get('body', {}).get('chat_id', 'unknown')
             logger.exception(f"Error processing message for chat_id {chat_id}: {str(e)}")
+        
+        finally:
+            chat_id = message.get('body', {}).get('chat_id', 'unknown')
+            receipt_handle = message.get('receipt_handle')
+            # ALWAYS delete the message from the queue, regardless of success or failure
+            if self.delete_after_processing and receipt_handle:
+                try:
+                    delete_response = await self.queue_service.delete_message(
+                        queue_url=self.queue_url,
+                        receipt_handle=receipt_handle
+                    )
+                    if delete_response.get('ResponseMetadata', {}).get('HTTPStatusCode') == 200:
+                        logger.info(f"Message deleted from queue for chat_id: {chat_id}")
+                    else:
+                        logger.warning(f"Failed to delete message from queue for chat_id {chat_id}. Response: {delete_response}")
+                except Exception as delete_error:
+                    logger.error(f"Failed to delete message from queue for chat_id {chat_id}: {delete_error}")
+
 
     async def poll_queue(self) -> None:
         """

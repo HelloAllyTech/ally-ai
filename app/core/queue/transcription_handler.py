@@ -68,10 +68,15 @@ class TranscriptionHandler:
                 logger.info(f"Transcription processing completed successfully for chat_id: {chat_id}")
             else:
                 logger.error(f"Transcription processing failed for chat_id: {chat_id}")
+                 # Send error response
+                await self._send_error_response(chat_id, "Processing failed")
             
         except Exception as e:
             chat_id = message_data.get('chat_id', 'unknown')
             logger.exception(f"Error processing transcription request for chat_id {chat_id}: {str(e)}")
+            # Send error response
+            await self._send_error_response(chat_id, "Processing failed")
+
 
     async def _process_transcription(self, request: TranscriptionResultMessage) -> bool:
         """
@@ -144,6 +149,8 @@ class TranscriptionHandler:
             
         except Exception as e:
             logger.error(f"Error generating summary for chat_id {chat_id}: {str(e)}")
+            # Send error response
+            await self._send_error_response(chat_id, "Processing failed")
             raise Exception(f"Summary generation failed: {str(e)}")
     
     async def send_combined_result_to_queue(self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
@@ -210,3 +217,27 @@ class TranscriptionHandler:
             
         except Exception as e:
             logger.error(f"Error sending combined result to queue for chat_id {chat_id}: {str(e)}")
+            # Send error response
+            await self._send_error_response(chat_id, "Processing failed")
+
+    async def _send_error_response(self, chat_id: Any, error_message: str) -> None:
+        """Send error response to the results queue."""
+        try:        
+            error_response = TranscribeAndSummarizeResponseMessage(
+                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESPONSE,
+                timestamp=int(asyncio.get_event_loop().time() * 1000),
+                chat_id=chat_id,
+                transcription=None,
+                summary=None,
+                error=error_message
+            )
+            
+            await self.queue_service.send_message(
+                queue_url=self.result_queue_url,
+                message_body=json.dumps(error_response.model_dump())
+            )
+            
+            logger.info(f"Error response sent for chat_id: {chat_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send error response for chat_id {chat_id}: {e}")

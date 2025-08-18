@@ -31,9 +31,11 @@ class TranscriptionResultMessage(BaseQueueMessage):
 class TranscribeAndSummarizeResponseMessage(BaseQueueMessage):
     """
     Message containing presigned URLs for downloading and deleting transcription results.
+    Can also contain error information for failed processing.
     """
     message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_RESPONSE
     chat_id: int
-    download_presigned_url: str
-    delete_presigned_url: str
+    download_presigned_url: Optional[str] = None
+    delete_presigned_url: Optional[str] = None
+    error: Optional[str] = None
 
