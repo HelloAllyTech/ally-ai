@@ -67,6 +67,7 @@ class SQSQueueClient:
                 # Service should be granted access using IAM
                 _sqs_client = boto3.client(
                     'sqs',
+                    region_name=settings.AWS_REGION,
                     config=config
                 )
 
