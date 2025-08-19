@@ -1,22 +1,22 @@
+"""
+Deepgram transcription service for Lambda function.
+Uses Deepgram Nova-3 for transcription and OpenAI GPT for summarization.
+"""
+
 import asyncio
 import os
-from typing import List, Dict, Any, Optional
-
-import httpx
+from typing import List, Dict, Any, Tuple
 from deepgram import DeepgramClient, PrerecordedOptions, FileSource
 from deepgram.clients.listen.v1.rest import Results
+from openai import OpenAI
 
-from app.core.config import settings
-from app.utils.logger import get_logger
-from app.schemas.common import ChatMessage
-from app.core.transcriptions.base import BaseTranscriptionService
-from app.exceptions.custom_exceptions import TranscriptionFailedException
-from app.utils.audio_converter import convert_and_store_raw_to_wav_with_ffmpeg_async, get_audio_duration, convert_and_segment_audio_async
+from utils.logger import get_logger
+from core.config import settings
+from core.schemas import ChatMessage
+from utils.exceptions import TranscriptionFailedException
+from utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
 
 logger = get_logger(__name__)
-
-# Semaphore to limit concurrent transcription requests
-TRANSCRIPTION_SEMAPHORE = asyncio.Semaphore(1)
 
 # Sentence pause threshold in seconds
 SENTENCE_PAUSE_THRESHOLD = 0.1
@@ -24,45 +24,43 @@ SENTENCE_PAUSE_THRESHOLD = 0.1
 # Message merging threshold in seconds - merge messages from same speaker if gap is less than this
 MESSAGE_MERGE_THRESHOLD = 3.0
 
-# Constants for audio segmentation
 MAX_SEGMENT_SIZE_MB = 24  # Maximum size per segment for Deepgram API compatibility
 
-class DeepgramTranscriptionService(BaseTranscriptionService):
+class DeepgramTranscriptionService:
     """
-    Deepgram transcription service for transcribing audio files using Deepgram's SDK.
+    Deepgram transcription service for processing audio files.
     """
-
-    def __init__(self, text_generation_service):
+    
+    def __init__(self):
         """
         Initialize the Deepgram transcription service.
         """
         self.deepgram = DeepgramClient(settings.DEEPGRAM_API_KEY)
-        super().__init__(None, text_generation_service)
-
+    
     async def transcribe_audio_from_url(
         self, 
-        presigned_url: str,
+        audio_url: str,
         chat_id: int,
         sample_rate: int = 8000
-    ) -> bool:
+    ) -> Tuple[int, str]:
         """
         Transcribe audio from URL and generate a summary.
         
         Args:
-            presigned_url (str): URL containing the audio file
+            audio_url (str): URL containing the audio file
             chat_id (int): Chat ID for the transcription session
             sample_rate (int): Expected sample rate of the audio (default: 8000)
             
         Returns:
-            bool: True if transcription and summarization was successful
-            
+            Tuple[int, str]: (chat_id, segments_text)
+
         Raises:
             Exception: If transcription fails
         """
         try:
-            # Convert and segment audio if needed
+            # Download and convert audio to WAV format
             segment_paths = await convert_and_segment_audio_async(
-                presigned_url, 
+                audio_url=audio_url, 
                 sample_rate=sample_rate,
                 max_segment_size_mb=MAX_SEGMENT_SIZE_MB
             )
@@ -77,37 +75,20 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
                 # Multiple segments - process in parallel
                 segments_text = await self._transcribe_multiple_segments(segment_paths)
             
-            # Use OpenAI structured output to diarize the transcription
-            diarization_result = await self.text_generation_service.diarize_from_transcription(transcription=segments_text)
-            messages = [
-                ChatMessage(
-                    role=msg.role.upper(),  # Convert to uppercase for consistency
-                    content=msg.content,
-                    start_time=msg.start_time,
-                    end_time=msg.end_time
-                )
-                for msg in diarization_result.messages
-            ]
+            return chat_id, segments_text
             
-            # Merge consecutive messages from the same speaker if they're close together in time
-            messages = self._merge_consecutive_messages(messages)
-
-            # Clean up temporary segment files
-            await self._cleanup_segment_files(segment_paths)
-            
-            # Send transcript to core
-            await self._send_transcript_to_core(chat_id, messages)
-
-            # Generate summary
-            summary = await self._generate_summary(messages, chat_id)
-            # Send summary to core
-            await self._send_summary_to_core(chat_id, summary)
-            return True
+            # Clean up temporary WAV file
+            try:
+                if os.path.exists(wav_file_path):
+                    os.remove(wav_file_path)
+                    logger.info(f"Cleaned up temporary file: {wav_file_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary file {wav_file_path}: {cleanup_error}")
             
         except Exception as e:
             logger.error(f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}")
-            raise Exception(f"Transcription failed: {str(e)}")
-
+            raise TranscriptionFailedException(f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}")
+    
     async def _transcribe_with_deepgram_sdk(self, wav_file_path: str) -> str:
         """
         Transcribe audio using Deepgram SDK and format into segments text for OpenAI diarization.
@@ -118,53 +99,52 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
         Returns:
             str: Formatted segments text with timing information for diarization
         """
-        async with TRANSCRIPTION_SEMAPHORE:
-            try:
-                logger.info(f"Starting Deepgram SDK transcription for file: {wav_file_path}")
-                
-                # Read the audio file
-                with open(wav_file_path, "rb") as audio_file:
-                    buffer_data = audio_file.read()
+        try:
+            logger.info(f"Starting Deepgram SDK transcription for file: {wav_file_path}")
+            
+            # Read the audio file
+            with open(wav_file_path, "rb") as audio_file:
+                buffer_data = audio_file.read()
 
-                # Create file source
-                payload: FileSource = {
-                    "buffer": buffer_data,
-                }
+            # Create file source
+            payload: FileSource = {
+                "buffer": buffer_data,
+            }
 
-                # Configure Deepgram options - disable diarization since we'll use OpenAI for that
-                options = PrerecordedOptions(
-                    model="nova-3",
-                    language="multi",  # Support multiple languages
-                    smart_format=True,
-                    punctuate=True,
-                    diarize=False,  # Disable Deepgram diarization
-                    utterances=True,
-                    utt_split=0.8,  # Split utterances at 0.8 second pauses
-                    paragraphs=False,
-                    summarize=False
-                )
+            # Configure Deepgram options - disable diarization since we'll use OpenAI for that
+            options = PrerecordedOptions(
+                model="nova-3",
+                language="multi",  # Support multiple languages
+                smart_format=True,
+                punctuate=True,
+                diarize=False,  # Disable Deepgram diarization
+                utterances=True,
+                utt_split=0.8,  # Split utterances at 0.8 second pauses
+                paragraphs=False,
+                summarize=False
+            )
 
-                logger.info("Sending request to Deepgram SDK")
-                timeout = httpx.Timeout(timeout=300.0)
-                # Make the transcription request
-                response = await self.deepgram.listen.asyncrest.v("1").transcribe_file(
-                    payload, options, timeout=timeout
-                )
+            logger.info("Sending request to Deepgram SDK")
+            
+            # Make the transcription request
+            response = await self.deepgram.listen.asyncrest.v("1").transcribe_file(
+                payload, options
+            )
 
-                if not response or not hasattr(response, 'results'):
-                    logger.error("Invalid response from Deepgram SDK")
-                    raise TranscriptionFailedException("Invalid response from Deepgram SDK")
+            if not response or not hasattr(response, 'results'):
+                logger.error("Invalid response from Deepgram SDK")
+                raise TranscriptionFailedException("Invalid response from Deepgram SDK")
+            
+            logger.info("Received transcription response from Deepgram SDK")
+            
+            # Format the transcription into segments text similar to OpenAI format
+            segments_text = self._format_deepgram_response_for_diarization(response.results)
+            
+            return segments_text
                 
-                logger.info("Received transcription response from Deepgram SDK")
-                
-                # Format the transcription into segments text similar to OpenAI format
-                segments_text = self._format_deepgram_response_for_diarization(response.results)
-                
-                return segments_text
-                    
-            except Exception as e:
-                logger.exception(f"Error during Deepgram SDK transcription: {e}")
-                raise TranscriptionFailedException(f"Deepgram SDK transcription error: {str(e)}")
+        except Exception as e:
+            logger.exception(f"Error during Deepgram SDK transcription: {e}")
+            raise TranscriptionFailedException(f"Deepgram SDK transcription error: {str(e)}")
 
     async def _transcribe_multiple_segments(self, segment_paths: list) -> str:
         """Transcribe multiple audio segments in parallel and combine results"""
@@ -337,35 +317,3 @@ class DeepgramTranscriptionService(BaseTranscriptionService):
         except Exception as e:
             logger.exception(f"Error formatting Deepgram response for diarization: {e}")
             raise TranscriptionFailedException(f"Error formatting response: {str(e)}")
-
-    def _merge_consecutive_messages(self, messages: List[ChatMessage]) -> List[ChatMessage]:
-        """
-        Merge consecutive messages from the same speaker if they're close together in time.
-        
-        Args:
-            messages: List of ChatMessage objects
-            
-        Returns:
-            List of merged ChatMessage objects
-        """
-        merged_messages = []
-        current_message = None
-        
-        for message in messages:
-            if current_message is None:
-                current_message = message
-            elif (message.role == current_message.role and 
-                  message.start_time - current_message.end_time <= MESSAGE_MERGE_THRESHOLD):
-                # Merge messages
-                current_message.content += " " + message.content
-                current_message.end_time = message.end_time
-            else:
-                # Add current message to list and start new one
-                merged_messages.append(current_message)
-                current_message = message
-        
-        # Add the last message
-        if current_message:
-            merged_messages.append(current_message)
-        
-        return merged_messages

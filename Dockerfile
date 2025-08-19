@@ -9,7 +9,6 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
-    ffmpeg \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry using its official installer
@@ -34,4 +33,4 @@ COPY . .
 EXPOSE 8000
 
 # Run the application using Python
-CMD ["poetry", "run", "python", "-m", "app.main"]
+CMD ["bash", "-c", "poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
