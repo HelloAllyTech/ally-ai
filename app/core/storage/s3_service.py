@@ -21,16 +21,15 @@ class S3Service:
         self.aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
         self.aws_region = settings.AWS_REGION
         
-        if not self.aws_access_key_id or not self.aws_secret_access_key:
-            logger.error("AWS credentials not found in settings")
-            raise ValueError("AWS credentials not configured")
-        
-        self.s3_client = boto3.client(
-            's3',
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
-            region_name=self.aws_region
-        )
+        if settings.ENV == ENV.DEVELOPMENT:
+            self.s3_client = boto3.client(
+                's3',
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                region_name=self.aws_region
+            )
+        else:
+            self.s3_client = boto3.client('s3')
     
     async def upload_to_s3(self, bucket_name: str, object_key: str, payload: Dict[str, Any]) -> str:
         """
