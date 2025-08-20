@@ -55,6 +55,9 @@ class MessageProcessor:
         Parameters:
             message (Dict[str, Any]): The message to process.
         """
+        chat_id = None
+        receipt_handle = message.get('receipt_handle')
+
         try:
             # Extract the message body
             body = message.get('body', {})
@@ -65,20 +68,22 @@ class MessageProcessor:
                 except json.JSONDecodeError:
                     logger.error(f"Failed to parse message body as JSON: {body}")
                     return
-            
+             # Extract chat_id early
+            chat_id = body.get('chat_id', 'unknown')
+            logger.info(f"Processing message for chat_id: {chat_id}")
+
             # Process the message using the handler
             await self.handler(body)
 
         except Exception as e:
-            chat_id = message.get('body', {}).get('chat_id', 'unknown')
+            chat_id = body.get('chat_id', 'unknown') if 'body' in locals() else 'unknown'
             logger.exception(f"Error processing message for chat_id {chat_id}: {str(e)}")
         
         finally:
             logger.info(f"Entering finally block for chat_id: {chat_id}")
-            chat_id = message.get('body', {}).get('chat_id', 'unknown')
-            receipt_handle = message.get('receipt_handle')
             # ALWAYS delete the message from the queue, regardless of success or failure
             if self.delete_after_processing and receipt_handle:
+                logger.info(f"Attempting to delete message with receipt_handle: {receipt_handle[:20]}...")
                 try:
                     delete_response = await self.queue_service.delete_message(
                         queue_url=self.queue_url,
