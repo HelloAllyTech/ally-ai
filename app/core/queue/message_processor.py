@@ -74,6 +74,7 @@ class MessageProcessor:
             logger.exception(f"Error processing message for chat_id {chat_id}: {str(e)}")
         
         finally:
+            logger.info(f"Entering finally block for chat_id: {chat_id}")
             chat_id = message.get('body', {}).get('chat_id', 'unknown')
             receipt_handle = message.get('receipt_handle')
             # ALWAYS delete the message from the queue, regardless of success or failure
@@ -89,6 +90,8 @@ class MessageProcessor:
                         logger.warning(f"Failed to delete message from queue for chat_id {chat_id}. Response: {delete_response}")
                 except Exception as delete_error:
                     logger.error(f"Failed to delete message from queue for chat_id {chat_id}: {delete_error}")
+            else:
+                logger.info(f"Skipping message deletion for chat_id: {chat_id}")
 
 
     async def poll_queue(self) -> None:
