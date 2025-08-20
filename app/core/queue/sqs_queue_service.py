@@ -190,13 +190,14 @@ class SQSQueueService:
             Exception: If there is an error deleting the message.
         """
         try:
-            await self._run_in_executor(
+            response = await self._run_in_executor(
                 self.client.delete_message,
                 QueueUrl=queue_url,
                 ReceiptHandle=receipt_handle
             )
             
             logger.info(f"Message with receipt handle {receipt_handle} deleted from queue {queue_url}")
+            return response
             
         except Exception as e:
             logger.exception(f"Error deleting message from queue {queue_url}: {str(e)}")
