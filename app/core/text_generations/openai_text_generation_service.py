@@ -1,7 +1,7 @@
 from typing import Type, Optional, List, cast, Dict, Union, TypeVar
 import json
 import asyncio
-
+import  re
 import openai
 from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
@@ -301,6 +301,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             if keys:
                 languages = None
+                open_ended_questions=None
                 reflective_listening_score = None
                 avg_client_utterance_duration = None
                 silence_by_counselor = None
@@ -365,6 +366,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             # Add languages to fields if it was requested in keys
                             if languages and 'languages' in keys:
                                 fields_dict['languages'] = [lang.model_dump() for lang in languages]
+
+                            if 'open_ended_questions' in keys:
+                                fields_dict['open_ended_questions'] = open_ended_questions
 
                             # Add affirmations count if requested
                             if 'affirmations' in keys and affirmation_count > 0:
@@ -460,6 +464,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 logger.info("Note generated successfully")
 
                 response.affirmations = affirmation_count
+
+                counselor_analysis = await self.analyze_counselor_messages(chat_history)
+                response.open_ended_questions_asked = counselor_analysis["open_ended_questions_asked"]
+                response.reflective_questions_asked = counselor_analysis["reflective_questions_asked"]
+                response.back_channel_cues = counselor_analysis["back_channel_cues"]
 
                 # Convert the summary to a response using the appropriate converter
                 response = structured_output_model_to_rest(response)
@@ -735,3 +744,118 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         except Exception as e:
             logger.error(f"Failed during parallel diarization: {str(e)}")
             raise LLMInvocationFailedException("Failed to diarize transcription.") from e
+
+    async def analyze_counselor_messages(self, chat_history: List[ChatMessage]) -> Dict[str, int]:
+        """
+        Analyze counselor messages to extract counts of:
+          - Reflective questions
+          - Open-ended questions
+          - Back-channel cues
+
+        Runs per-message analysis in parallel (asyncio.gather).
+        """
+
+        # Extract counselor messages
+        counselor_messages = [
+            msg.content for msg in chat_history
+            if msg.role.lower() == 'counselor'
+        ]
+
+        if not counselor_messages:
+            logger.info("No counselor messages found in chat history")
+            return {
+                "reflective_questions_asked": 0,
+                "open_ended_questions_asked": 0,
+                "back_channel_cues": 0
+            }
+
+        async def analyze_single_message(message: str, index: int) -> Dict[str, int]:
+            """Analyze one counselor message and return counts as dict."""
+            try:
+                prompt = f"""
+                Analyze this counselor message for 3 types of communication:
+            
+                1. REFLECTIVE QUESTIONS: Mirror client's words/feelings back as questions
+                   Examples: "So you're saying you felt overwhelmed?", "It sounds like you're frustrated?"
+            
+                2. OPEN-ENDED QUESTIONS: Cannot be answered with yes/no, encourage elaboration
+                   Examples: "How did that affect you?", "What comes to mind when you think about that?"
+            
+                3. BACK-CHANNEL CUES: Brief active listening signals
+                   Examples: "uh-huh", "I see", "mm-hmm", "right", "okay", "go on"
+            
+                Message: "{message}"
+            
+                Return ONLY valid JSON with this exact format:
+                {{"reflective": <count>, "open_ended": <count>, "back_channel": <count>}}
+                """
+
+                llm = self.model
+                response = await llm.ainvoke(prompt)
+                response_text = getattr(response, "content", str(response)).strip()
+
+                # Parse JSON with fallback handling
+                try:
+                    # Try direct JSON parsing first
+                    data = json.loads(response_text)
+                except json.JSONDecodeError:
+                    # Try extracting JSON from markdown code blocks
+                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+                    if json_match:
+                        try:
+                            data = json.loads(json_match.group(1))
+                        except json.JSONDecodeError:
+                            data = {"reflective": 0, "open_ended": 0, "back_channel": 0}
+                    else:
+                        # Extract numbers using regex as last resort
+                        reflective_match = re.search(r'"reflective":\s*(\d+)', response_text)
+                        open_ended_match = re.search(r'"open_ended":\s*(\d+)', response_text)
+                        back_channel_match = re.search(r'"back_channel":\s*(\d+)', response_text)
+
+                        data = {
+                            "reflective": int(reflective_match.group(1)) if reflective_match else 0,
+                            "open_ended": int(open_ended_match.group(1)) if open_ended_match else 0,
+                            "back_channel": int(back_channel_match.group(1)) if back_channel_match else 0
+                        }
+
+                return {
+                    "reflective_questions_asked": int(data.get("reflective", 0)),
+                    "open_ended_questions_asked": int(data.get("open_ended", 0)),
+                    "back_channel_cues": int(data.get("back_channel", 0))
+                }
+
+            except Exception as e:
+                logger.warning(f"Failed to analyze message {index + 1}: {str(e)}")
+                return {
+                    "reflective_questions_asked": 0,
+                    "open_ended_questions_asked": 0,
+                    "back_channel_cues": 0
+                }
+
+        # Run all analyses in parallel
+        tasks = [
+            analyze_single_message(msg, i)
+            for i, msg in enumerate(counselor_messages)
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Aggregate results
+        totals = {
+            "reflective_questions_asked": 0,
+            "open_ended_questions_asked": 0,
+            "back_channel_cues": 0
+        }
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.warning(f"Task {i + 1} failed with exception: {result}")
+                continue
+            totals["reflective_questions_asked"] += result["reflective_questions_asked"]
+            totals["open_ended_questions_asked"] += result["open_ended_questions_asked"]
+            totals["back_channel_cues"] += result["back_channel_cues"]
+
+        logger.info(f"Total counts -> Reflective: {totals['reflective_questions_asked']}, "
+                    f"Open-ended: {totals['open_ended_questions_asked']}, "
+                    f"Back-channel cues: {totals['back_channel_cues']}")
+
+        return totals

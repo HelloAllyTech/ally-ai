@@ -186,11 +186,11 @@ class StructuredSummaryNote(BaseModel):
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
     plan_for_next_call: Optional[List[str]] = Field(None, description="Plan for the next call.")
     tags: List[StructuredTag] = Field(..., description="List of tags to summarize the chat messages.")
-    reflective_questions_asked: Optional[List[str]] = Field(None,
+    reflective_questions_asked: int= Field(None,
                                                             description="Reflective questions asked by the counselor.")
-    open_ended_questions_asked: Optional[List[str]] = Field(None,
+    open_ended_questions_asked: int = Field(None,
                                                             description="Open-ended questions asked by the counselor.")
-    back_channel_cues: Optional[List[str]] = Field(None,
+    back_channel_cues: int= Field(None,
                                                    description="Back channel cues used by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
     affirmations: int = Field(0, description="Count of affirmations used by the counselor.")
