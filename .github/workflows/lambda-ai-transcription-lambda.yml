@@ -1,0 +1,137 @@
+# templates/pipeline_lambda.yml.tpl
+
+name: Build and Deploy Lambda
+
+on:
+  workflow_dispatch:
+    inputs:
+      Environment:
+        required: true
+        type: choice
+        description: Choose env
+        options:
+          - dev
+          - prd
+  push:
+    paths:
+      - app/functions/transcriptions/**
+
+env:
+  BUILD_PLATFORM: linux/amd64
+  BUILD_PATH: app/functions/transcriptions
+  LAMBDA_FUNCTION_NAME: ai-transcription-lambda
+
+jobs:
+  prepare-env:
+    name: Prepare Env
+    runs-on: ubuntu-22.04
+    outputs:
+      AWS_ROLE: ${{ steps.vars.outputs.AWS_ROLE }}
+      AWS_REGION: ${{ steps.vars.outputs.AWS_REGION }}
+      ENV: ${{ steps.vars.outputs.ENV }}
+      PROJECT_PREFIX: ${{ steps.vars.outputs.PROJECT_PREFIX }}
+      PROJECT_REGION: ${{ steps.vars.outputs.PROJECT_REGION }}
+      ECR_REPOSITORY: ${{ steps.set_env.outputs.ECR_REPOSITORY }}
+      LAMBDA_FUNCTION: ${{ steps.set_env.outputs.LAMBDA_FUNCTION }}
+    steps:
+      - id: vars
+        name: Determine vars
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          ENV=${{ github.event.inputs.Environment }}
+
+          if [ -z "$ENV" ]; then
+            case "$BRANCH" in
+              "dev"|"develop")  ENV="dev" ;;
+              "main"|"master")  ENV="prd" ;;
+              *) echo "ENV not configured" && exit 1 ;;
+            esac
+          fi
+
+          if [[ "$ENV" == "prd" && "$BRANCH" == "main" ]]; then
+            echo "AWS_ROLE=${{ vars.PRD_AWS_ROLE }}"      >> $GITHUB_OUTPUT
+            echo "AWS_REGION=${{ vars.PRD_AWS_REGION }}"  >> $GITHUB_OUTPUT
+            echo "PROJECT_PREFIX=ally-prd"                >> $GITHUB_OUTPUT
+            echo "PROJECT_REGION=mb"                      >> $GITHUB_OUTPUT
+          elif [[ "$ENV" == "dev" ]]; then
+            echo "AWS_ROLE=${{ vars.DEV_AWS_ROLE }}"      >> $GITHUB_OUTPUT
+            echo "AWS_REGION=${{ vars.DEV_AWS_REGION }}"  >> $GITHUB_OUTPUT
+            echo "PROJECT_PREFIX=ally-dev"                >> $GITHUB_OUTPUT
+            echo "PROJECT_REGION=sg"                      >> $GITHUB_OUTPUT
+          else
+            echo "Branch not configured!" && exit 1
+          fi
+
+          echo "ENV=$ENV"            >> $GITHUB_OUTPUT
+          echo ":rocket: Env is $ENV" >> $GITHUB_STEP_SUMMARY
+
+      - name: Set derived variables
+        id: set_env
+        run: |
+          PREFIX=${{ steps.vars.outputs.PROJECT_PREFIX }}
+          FUNC=${{ env.LAMBDA_FUNCTION_NAME }}
+          echo "ECR_REPOSITORY=$PREFIX-$FUNC"                      >> $GITHUB_OUTPUT
+          echo "LAMBDA_FUNCTION=$PREFIX-$FUNC"                     >> $GITHUB_OUTPUT
+          echo ":package: ECR Repo is $PREFIX-$FUNC"               >> $GITHUB_STEP_SUMMARY
+          echo ":zap: Lambda Function is $PREFIX-$FUNC"            >> $GITHUB_STEP_SUMMARY
+
+  build-push-image:
+    name: Build and Push Image
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+      contents: read
+    needs: [prepare-env]
+    outputs:
+      IMAGE_URI_LATEST: ${{ steps.meta.outputs.IMAGE_URI_LATEST }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ needs.prepare-env.outputs.AWS_ROLE }}
+          aws-region: ${{ needs.prepare-env.outputs.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Compute image URI
+        id: meta
+        run: |
+          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          REPO="${{ needs.prepare-env.outputs.ECR_REPOSITORY }}"
+          echo "IMAGE_URI_LATEST=$REGISTRY/$REPO:latest" >> $GITHUB_OUTPUT
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BUILD_PATH }}
+          platforms: ${{ env.BUILD_PLATFORM }}
+          file: ${{ env.BUILD_PATH }}/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ needs.prepare-env.outputs.ECR_REPOSITORY }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ needs.prepare-env.outputs.ECR_REPOSITORY }}:${{ github.sha }}
+
+  deploy-lambda:
+    name: Update Lambda to new image
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      contents: read
+    needs: [prepare-env, build-push-image]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ needs.prepare-env.outputs.AWS_ROLE }}
+          aws-region: ${{ needs.prepare-env.outputs.AWS_REGION }}
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }}" \
+            --image-uri "${{ needs.build-push-image.outputs.IMAGE_URI_LATEST }}"
+          aws lambda wait function-updated --function-name "${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }}"
+          echo ":white_check_mark: Updated ${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }} to image ${{ needs.build-push-image.outputs.IMAGE_URI_LATEST }}" >> $GITHUB_STEP_SUMMARY
+
