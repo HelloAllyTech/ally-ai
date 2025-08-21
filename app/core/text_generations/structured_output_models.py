@@ -352,3 +352,17 @@ class StructuredDiarization(BaseModel):
                 ]
             }
         }
+class CounselorMessageAnalysis(BaseModel):
+    """Structured output model for counselor message analysis."""
+    reflective: int = Field(
+        description="Count of reflective questions that mirror client's words/feelings back as questions",
+        ge=0
+    )
+    open_ended: int = Field(
+        description="Count of open-ended questions that cannot be answered with yes/no and encourage elaboration",
+        ge=0
+    )
+    back_channel: int = Field(
+        description="Count of back-channel cues - brief active listening signals like 'hmm', 'I see', etc.",
+        ge=0
+    )

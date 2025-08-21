@@ -180,3 +180,28 @@ DIARIZATION_PROMPT = PromptTemplate(
     """),
     input_variables=["transcription"]
 )
+
+COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
+    template=textwrap.dedent("""
+        You are analyzing counselor communication. 
+
+        Read the counselor's message below and return ONLY a JSON object with three integer fields:
+
+        - "reflective" → Count reflective questions (mirror the client’s words/feelings back as a question).
+          Example: "So you're saying you felt overwhelmed?"
+
+        - "open_ended" → Count open-ended questions (cannot be answered with yes/no, encourage elaboration).
+          Example: "How did that affect you?"
+
+        - "back_channel" → Count back-channel cues (short listening signals like "hmm", "yes", "I see", "go on").
+          Example: "Hmm", "Right", "Tell me more"
+
+        Counselor Message:
+        ```
+        {message}
+        ```
+
+        Return only JSON. Do not include text outside the JSON.
+    """),
+    input_variables=["message"]
+)

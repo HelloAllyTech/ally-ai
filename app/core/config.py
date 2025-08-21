@@ -65,6 +65,9 @@ class Settings(BaseSettings):
 
      # Reference document settings
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = Field(default=0.65)
+
+    # Rate
+    MAX_CONCURRENT_LLM_CALLS: int = Field(...)
     
     @field_validator('SERVER_PORT', mode='before')
     @classmethod

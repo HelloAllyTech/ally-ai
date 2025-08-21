@@ -1,7 +1,6 @@
 from typing import Type, Optional, List, cast, Dict, Union, TypeVar
 import json
 import asyncio
-import  re
 import openai
 from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage
@@ -11,7 +10,7 @@ from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.structured_output_models import (
     StructuredSummaryNote,
     StructuredIdentifyUsers,
-    StructuredDiarization,
+    StructuredDiarization, CounselorMessageAnalysis,
 )
 from app.core.embeddings.base import BaseEmbeddingService
 from app.exceptions.custom_exceptions import (
@@ -41,10 +40,10 @@ from app.core.text_generations.prompts import (
     CONTENT_ENHANCE_PROMPT,
     IDENTIFY_USER_PROMPT,
     TAG_POSITIVITY_RATING_PROMPT,
-    DIARIZATION_PROMPT
+    DIARIZATION_PROMPT, COUNSELOR_ANALYSIS_PROMPT
 )
 from app.utils.logger import get_logger
-from app.core.constants import TextGenerationConstants
+from app.core.config import settings
 
 logger = get_logger(__name__)
 
@@ -184,6 +183,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         # Store the embedding service
         self.embedding_service = embedding_service
+        # Initialize semaphore for rate limiting at class level
+        self.semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_LLM_CALLS)
 
         # Initialize the base class with the client
         super().__init__(client)
@@ -212,24 +213,26 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 - If `output_class` is provided, returns an instance of `output_class` (T).
                 - Otherwise, returns the raw response content as a string.
         """
-        # Use the model from base class
-        llm = self.model
 
-        # Bind structured output class with the llm if passed by user
-        if output_class:
-            llm = llm.with_structured_output(output_class)
+        async with self.semaphore:
+            # Use the model from base class
+            llm = self.model
 
-        try:
-            response = await llm.ainvoke(messages)
-        except openai.RateLimitError as e:
-            logger.exception(str(e))
-            raise LLMInvocationFailedException("OpenAI API rate limit exceeded. Please try again later.") from e
+            # Bind structured output class with the llm if passed by user
+            if output_class:
+                llm = llm.with_structured_output(output_class)
 
-        except openai.APIConnectionError as e:
-            logger.exception(str(e))
-            raise LLMInvocationFailedException("OpenAI API error. Please try again later.") from e
+            try:
+                response = await llm.ainvoke(messages)
+            except openai.RateLimitError as e:
+                logger.exception(str(e))
+                raise LLMInvocationFailedException("OpenAI API rate limit exceeded. Please try again later.") from e
 
-        return response if output_class else response.content
+            except openai.APIConnectionError as e:
+                logger.exception(str(e))
+                raise LLMInvocationFailedException("OpenAI API error. Please try again later.") from e
+
+            return response if output_class else response.content
 
     async def generate_nudge(self, conversation: str, chat_history: str, suggestion: str, **kwargs) -> str:
         """
@@ -301,7 +304,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             if keys:
                 languages = None
-                open_ended_questions=None
                 reflective_listening_score = None
                 avg_client_utterance_duration = None
                 silence_by_counselor = None
@@ -366,9 +368,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             # Add languages to fields if it was requested in keys
                             if languages and 'languages' in keys:
                                 fields_dict['languages'] = [lang.model_dump() for lang in languages]
-
-                            if 'open_ended_questions' in keys:
-                                fields_dict['open_ended_questions'] = open_ended_questions
 
                             # Add affirmations count if requested
                             if 'affirmations' in keys and affirmation_count > 0:
@@ -689,7 +688,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 chunk_text (str): The text chunk to process
                 index (int): Index of the chunk for logging purposes
                 
-            Returns:
+            Returns:response = await self._invoke_llm(prompt, output_class=CounselorMessageAnalysis)
                 StructuredDiarization: Diarization result for this chunk
                 
             Raises:
@@ -762,7 +761,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         ]
 
         if not counselor_messages:
-            logger.info("No counselor messages found in chat history")
             return {
                 "reflective_questions_asked": 0,
                 "open_ended_questions_asked": 0,
@@ -771,57 +769,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         async def analyze_single_message(message: str, index: int) -> Dict[str, int]:
             """Analyze one counselor message and return counts as dict."""
+
             try:
-                prompt = f"""
-                Analyze this counselor message for 3 types of communication:
-            
-                1. REFLECTIVE QUESTIONS: Mirror client's words/feelings back as questions
-                   Examples: "So you're saying you felt overwhelmed?", "It sounds like you're frustrated?"
-            
-                2. OPEN-ENDED QUESTIONS: Cannot be answered with yes/no, encourage elaboration
-                   Examples: "How did that affect you?", "What comes to mind when you think about that?"
-            
-                3. BACK-CHANNEL CUES: Brief active listening signals
-                   Examples: "uh-huh", "I see", "mm-hmm", "right", "okay", "go on"
-            
-                Message: "{message}"
-            
-                Return ONLY valid JSON with this exact format:
-                {{"reflective": <count>, "open_ended": <count>, "back_channel": <count>}}
-                """
-
-                llm = self.model
-                response = await llm.ainvoke(prompt)
-                response_text = getattr(response, "content", str(response)).strip()
-
-                # Parse JSON with fallback handling
-                try:
-                    # Try direct JSON parsing first
-                    data = json.loads(response_text)
-                except json.JSONDecodeError:
-                    # Try extracting JSON from markdown code blocks
-                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-                    if json_match:
-                        try:
-                            data = json.loads(json_match.group(1))
-                        except json.JSONDecodeError:
-                            data = {"reflective": 0, "open_ended": 0, "back_channel": 0}
-                    else:
-                        # Extract numbers using regex as last resort
-                        reflective_match = re.search(r'"reflective":\s*(\d+)', response_text)
-                        open_ended_match = re.search(r'"open_ended":\s*(\d+)', response_text)
-                        back_channel_match = re.search(r'"back_channel":\s*(\d+)', response_text)
-
-                        data = {
-                            "reflective": int(reflective_match.group(1)) if reflective_match else 0,
-                            "open_ended": int(open_ended_match.group(1)) if open_ended_match else 0,
-                            "back_channel": int(back_channel_match.group(1)) if back_channel_match else 0
-                        }
-
+                prompt = COUNSELOR_ANALYSIS_PROMPT.format(message=message)
+                response = await self._invoke_llm(prompt, output_class=CounselorMessageAnalysis)
                 return {
-                    "reflective_questions_asked": int(data.get("reflective", 0)),
-                    "open_ended_questions_asked": int(data.get("open_ended", 0)),
-                    "back_channel_cues": int(data.get("back_channel", 0))
+                    "reflective_questions_asked": response.reflective,
+                    "open_ended_questions_asked": response.open_ended,
+                    "back_channel_cues": response.back_channel
                 }
 
             except Exception as e:
@@ -853,9 +808,5 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             totals["reflective_questions_asked"] += result["reflective_questions_asked"]
             totals["open_ended_questions_asked"] += result["open_ended_questions_asked"]
             totals["back_channel_cues"] += result["back_channel_cues"]
-
-        logger.info(f"Total counts -> Reflective: {totals['reflective_questions_asked']}, "
-                    f"Open-ended: {totals['open_ended_questions_asked']}, "
-                    f"Back-channel cues: {totals['back_channel_cues']}")
 
         return totals
