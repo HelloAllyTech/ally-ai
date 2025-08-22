@@ -1,6 +1,7 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
 
 from app.api.v1.api import api_router
 from app.core.config import settings
@@ -17,7 +18,7 @@ async def lifespan(_: FastAPI):
     # Initialize Weaviate client
     WeaviateClient.create_client()
     await WeaviateClient.connect(WeaviateClient.get_client())
-    
+
     # Initialize OpenAI clients
     initialize_openai_clients()
     logger.info("OpenAI clients initialized")
@@ -40,4 +41,10 @@ app = FastAPI(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host=settings.SERVER_HOST, port=settings.SERVER_PORT, log_config=logging_config, access_log=False)
+    uvicorn.run(
+        app,
+        host=settings.SERVER_HOST,
+        port=settings.SERVER_PORT,
+        log_config=logging_config,
+        access_log=False,
+    )

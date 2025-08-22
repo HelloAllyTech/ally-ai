@@ -14,7 +14,10 @@ class BaseCustomException(Exception):
 
     def __str__(self):
         """Return a formatted string representation of the error."""
-        return f"{self.__class__.__name__}: {self.args[0]} (Status Code: {self.status_code})"
+        return (
+            f"{self.__class__.__name__}: {self.args[0]} "
+            f"(Status Code: {self.status_code})"
+        )
 
 
 class TranscriptionFailedException(BaseCustomException):
@@ -22,19 +25,20 @@ class TranscriptionFailedException(BaseCustomException):
     Raised when audio transcription fails.
     """
 
-    def __init__(self,
-                 message="Audio transcription failed",
-                 status_code=500,
-                 audio_source: str = None,
-                 error_details: str = None
-                 ) -> None:
+    def __init__(
+        self,
+        message="Audio transcription failed",
+        status_code=500,
+        audio_source: str = None,
+        error_details: str = None,
+    ) -> None:
         self.audio_source = audio_source
         self.error_details = error_details
-        
+
         # Enhance message with additional context if available
         if audio_source:
             message = f"Audio transcription failed for source: {audio_source}"
         if error_details:
             message += f" - Details: {error_details}"
-            
+
         super().__init__(message, status_code)

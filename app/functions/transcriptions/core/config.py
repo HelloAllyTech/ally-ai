@@ -1,14 +1,11 @@
-import os
-from typing import Optional
-
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     """
     Lambda function settings loaded from environment variables.
-    
+
     This class defines the configuration settings for the transcription Lambda function,
     including AWS credentials, SQS queue URLs, and transcription provider settings.
     """
@@ -27,4 +24,5 @@ class Settings(BaseSettings):
     # Transcription Provider
     TRANSCRIPTION_PROVIDER: str = Field(default="openai")
 
-settings = Settings() 
+
+settings = Settings()

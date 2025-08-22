@@ -1,6 +1,8 @@
 from app.core.constants import EmbeddingConstants, TextGenerationConstants
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
-from app.core.text_generations.openai_text_generation_client import OpenAITextGenerationClient
+from app.core.text_generations.openai_text_generation_client import (
+    OpenAITextGenerationClient,
+)
 
 
 # Initialize OpenAI clients
