@@ -186,12 +186,6 @@ class StructuredSummaryNote(BaseModel):
     homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
     plan_for_next_call: Optional[List[str]] = Field(None, description="Plan for the next call.")
     tags: List[StructuredTag] = Field(..., description="List of tags to summarize the chat messages.")
-    reflective_questions_asked: int= Field(None,
-                                                            description="Reflective questions asked by the counselor.")
-    open_ended_questions_asked: int = Field(None,
-                                                            description="Open-ended questions asked by the counselor.")
-    back_channel_cues: int= Field(None,
-                                                   description="Back channel cues used by the counselor.")
     emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
     affirmations: int = Field(0, description="Count of affirmations used by the counselor.")
     call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
@@ -354,15 +348,12 @@ class StructuredDiarization(BaseModel):
         }
 class CounselorMessageAnalysis(BaseModel):
     """Structured output model for counselor message analysis."""
-    reflective: int = Field(
-        description="Count of reflective questions that mirror client's words/feelings back as questions",
-        ge=0
+    reflective: List[str] = Field(
+        description="Array of reflective questions that mirror client's words/feelings back as questions"
     )
-    open_ended: int = Field(
-        description="Count of open-ended questions that cannot be answered with yes/no and encourage elaboration",
-        ge=0
+    open_ended: List[str] = Field(
+        description="Array of open-ended questions that cannot be answered with yes/no and encourage elaboration"
     )
-    back_channel: int = Field(
-        description="Count of back-channel cues - brief active listening signals like 'hmm', 'I see', etc.",
-        ge=0
+    back_channel: List[str] = Field(
+        description="Array of back-channel cues - brief active listening signals like 'hmm', 'I see', etc."
     )

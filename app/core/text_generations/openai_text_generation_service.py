@@ -663,10 +663,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             try:
                 prompt = COUNSELOR_ANALYSIS_PROMPT.format(message=message)
                 response = await self._invoke_llm(prompt, output_class=CounselorMessageAnalysis)
+
+                logger.info(f"\nMessage {index + 1}: {message}")
+                logger.info(f"  Reflective → {response.reflective}")
+                logger.info(f"  Open-ended → {response.open_ended}")
+                logger.info(f"  Back-channel → {response.back_channel}")
+
                 return {
-                    "reflective_questions_asked": response.reflective,
-                    "open_ended_questions_asked": response.open_ended,
-                    "back_channel_cues": response.back_channel
+                    "reflective_questions_asked": len(response.reflective),
+                    "open_ended_questions_asked": len(response.open_ended),
+                    "back_channel_cues": len(response.back_channel)
                 }
 
             except Exception as e:
