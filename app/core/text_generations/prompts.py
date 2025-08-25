@@ -187,14 +187,15 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
 
         Read the counselor's message below and return ONLY a JSON object with three integer fields:
 
-        - "reflective" → Count reflective questions (mirror the client’s words/feelings back as a question).
-          Example: "So you're saying you felt overwhelmed?"
+        - "reflective" → Questions that reframe or mirror what the client has expressed 
+          (their feelings, thoughts, or experiences) back to them as a question.
 
-        - "open_ended" → Count open-ended questions (cannot be answered with yes/no, encourage elaboration).
-          Example: "How did that affect you?"
+        - "open_ended" → Questions that encourage elaboration and cannot be answered with yes/no, 
+          but do not directly mirror the client’s content.
 
-        - "back_channel" → Count back-channel cues (short listening signals like "hmm", "yes", "I see", "go on").
-          Example: "Hmm", "Right", "Tell me more"
+        - "back_channel" → Brief supportive or attentive signals that show listening, 
+          such as short cues ("hmm", "I see") or concise empathetic statements 
+          that don’t seek new information.
 
         Counselor Message:
         ```

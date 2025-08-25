@@ -28,6 +28,7 @@ from pydantic import create_model
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.language_detector import detect_languages
+from app.utils.rate_limiter import rate_limiter
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
 from app.utils.utterance_duration_calculator import calculate_avg_client_utterance_duration
 from app.utils.silence_calculator import calculate_silence_by_counselor
@@ -49,7 +50,9 @@ logger = get_logger(__name__)
 
 # Constants for chunking
 MAX_WORDS_PER_CHUNK = 2000  # Conservative limit based on word count (roughly equivalent to 3000 tokens)
-CHUNK_OVERLAP_WORDS = 300  # Overlap between chunks to maintain context (roughly equivalent to 500 tokens)
+CHUNK_OVERLAP_WORDS = 300  # Overlap between chunks to maintain context (roughly equivalent to 500 tokens)\
+
+
 
 @tool
 def generate_dynamic_summary(fields: dict[str, Union[str, int]]) -> dict[str, Union[str, int]]:
@@ -213,6 +216,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 - If `output_class` is provided, returns an instance of `output_class` (T).
                 - Otherwise, returns the raw response content as a string.
         """
+
+        await rate_limiter.acquire()
 
         async with self.semaphore:
             # Use the model from base class

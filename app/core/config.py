@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # OpenAI Creds
     OPENAI_API_KEY: str = Field(...)
     OPENAI_ORGANIZATION_ID: str = Field(...)
+    OPENAI_RATE_LIMIT: int = Field(...)
+    OPENAI_WINDOW_SECONDS: int = Field(...)
 
     # LangSmith Creds
     # TODO make the Langsmith tracing optional
@@ -68,6 +70,8 @@ class Settings(BaseSettings):
 
     # Rate
     MAX_CONCURRENT_LLM_CALLS: int = Field(...)
+
+
     
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
