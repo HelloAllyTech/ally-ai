@@ -1,6 +1,7 @@
 # dependencies.py
 
 from fastapi import Depends
+import boto3
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from weaviate.client import WeaviateAsyncClient
 
@@ -13,13 +14,10 @@ from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
 from app.core.text_generations.openai_text_generation_client import OpenAITextGenerationClient
-from app.core.transcriptions.deepgram import DeepgramTranscriptionService
 from app.core.vector_db.base import VectorDB
 from app.core.vector_db.weaviate import WeaviateDB
 from app.core.vector_db.weaviate_client import WeaviateClient
 from app.core.conversations.conversation_service import ConversationService
-from app.core.transcriptions.openai.transcription_service import OpenAITranscriptionService
-
 
 # Dependency for the Weaviate async client
 async def get_weaviate_client() -> WeaviateAsyncClient:
@@ -111,12 +109,3 @@ async def get_reference_document_service(
     """
     return ReferenceDocumentService(vector_db, embedding_service)
 
-
-# Dependency for the transcription service
-async def get_transcription_service(
-        text_generation_service=Depends(get_text_generation_service)
-) -> DeepgramTranscriptionService:
-    """
-    Returns an instance of OpenAITranscriptionService.
-    """
-    return DeepgramTranscriptionService(text_generation_service)

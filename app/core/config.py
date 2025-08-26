@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,6 +13,9 @@ class Settings(BaseSettings):
     server configuration, API version, Weaviate database settings, and OpenAI credentials.
     """
     model_config = SettingsConfigDict(env_file=[".env", "./.env", "../.env"])
+
+    # ENV
+    ENV: str = Field(...)
 
     # Log settings
     LOG_LEVEL: str = "INFO"
@@ -40,22 +44,28 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(...)
     OPENAI_ORGANIZATION_ID: str = Field(...)
 
-    # Deepgram Creds
-    DEEPGRAM_API_KEY: str = Field(...)
-
     # LangSmith Creds
+    # TODO make the Langsmith tracing optional
     LANGSMITH_TRACING: str = Field(...)
     LANGSMITH_ENDPOINT: str = Field(...)
     LANGSMITH_API_KEY: str = Field(...)
     LANGSMITH_PROJECT: str = Field(...)
 
-    # Backend Service URL
-    CORE_SERVICE_ENDPOINT: str = Field(...)
-    CORE_API_KEY: str = Field(...)
+    # SQS Configs
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(default=None)
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(default=None)
+    AWS_REGION: Optional[str] = Field(default=None)
+    AWS_ENDPOINT_URL: Optional[str] = Field(default=None)
 
-    # Reference document settings
+    TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET: str = Field(...)
+
+    # SQS Queue URLs
+    TRANSCRIPTION_RESULTS_QUEUE_URL: str = Field(...)
+    TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL: str = Field(...)
+
+     # Reference document settings
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = Field(default=0.65)
-
+    
     @field_validator('SERVER_PORT', mode='before')
     @classmethod
     def parse_str_to_int(cls, v):
