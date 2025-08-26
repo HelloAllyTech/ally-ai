@@ -50,15 +50,6 @@ class LangSmithSettings(BaseModel):
     API_KEY: str = Field(...)
     PROJECT: str = Field(...)
 
-    def model_post_init(self, __context=None) -> None:
-        """
-        After initialization, automatically propagate values to os.environ.
-        Ensures SDKs like LangSmith can discover credentials globally.
-        """
-        os.environ["LANGSMITH_TRACING"] = self.TRACING
-        os.environ["LANGSMITH_ENDPOINT"] = self.ENDPOINT
-        os.environ["LANGSMITH_API_KEY"] = self.API_KEY
-        os.environ["LANGSMITH_PROJECT"] = self.PROJECT
 
 
 class AWSSettings(BaseModel):
@@ -102,6 +93,17 @@ class AppSettings(BaseSettings):
     AWS: AWSSettings
     QUEUE: QueueSettings
     REFERENCE_DOCS: ReferenceDocSettings
+
+    def model_post_init(self, __context=None) -> None:
+        """
+        After initialization, automatically propagate LangSmith values to os.environ.
+        """
+        os.environ["LANGSMITH_TRACING"] = self.LANGSMITH.TRACING
+        os.environ["LANGSMITH_ENDPOINT"] = self.LANGSMITH.ENDPOINT
+        os.environ["LANGSMITH_API_KEY"] = self.LANGSMITH.API_KEY
+        os.environ["LANGSMITH_PROJECT"] = self.LANGSMITH.PROJECT
+
+
 
 # --------------------
 # Global Settings Singleton
