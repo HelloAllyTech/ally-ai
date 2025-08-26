@@ -19,8 +19,30 @@ services:
     networks:
       - lifeline-network
 
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack-ally
+    ports:
+      - "4566:4566"  # LocalStack edge service
+      - "4510-4559:4510-4559"  # external services port range
+    environment:
+      - SERVICES=sqs, s3
+      - DEBUG=1
+      - DATA_DIR=/var/lib/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=ap-southeast-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - lifeline-network
+
 volumes:
   weaviate_data:
+    driver: local
+  localstack_data:
     driver: local
 
 networks:
