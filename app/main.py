@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
+from app.core.constants import APISettings
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.vector_db.weaviate_client import WeaviateClient
@@ -38,13 +39,13 @@ app = FastAPI(
 )
 
 # Include routers
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix=APISettings.API_V1_STR)
 
 if __name__ == "__main__":
     uvicorn.run(
         app,
-        host=settings.SERVER_HOST,
-        port=settings.SERVER_PORT,
+        host=settings.SERVER.HOST,
+        port=settings.SERVER.PORT,
         log_config=logging_config,
         access_log=False,
     )

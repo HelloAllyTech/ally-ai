@@ -46,8 +46,8 @@ class OpenAIEmbeddingClient:
             logger.info(f"Creating a new OpenAI embedding client with model {model}...")
             _openai_embedding_client = OpenAIEmbeddings(
                 model=model,
-                api_key=settings.OPENAI_API_KEY,
-                organization=settings.OPENAI_ORGANIZATION_ID,
+                api_key=settings.OPENAI.API_KEY,
+                organization=settings.OPENAI.ORGANIZATION_ID,
             )
         else:
             logger.warning(

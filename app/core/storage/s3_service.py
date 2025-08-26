@@ -21,11 +21,11 @@ class S3Service:
         """
         Initialize the S3 service with AWS credentials from settings.
         """
-        self.aws_access_key_id = settings.AWS_ACCESS_KEY_ID
-        self.aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
-        self.aws_region = settings.AWS_REGION
+        self.aws_access_key_id = settings.AWS.ACCESS_KEY_ID
+        self.aws_secret_access_key = settings.AWS.SECRET_ACCESS_KEY
+        self.aws_region = settings.AWS.REGION
 
-        if settings.ENV == ENV.DEVELOPMENT:
+        if settings.ENV.ENV == ENV.DEVELOPMENT:
             self.s3_client = boto3.client(
                 "s3",
                 aws_access_key_id=self.aws_access_key_id,

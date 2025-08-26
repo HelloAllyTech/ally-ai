@@ -47,18 +47,18 @@ async def main():
         # Pass text_generation_service to the handler
         transcription_handler = TranscriptionHandler(
             queue_service=queue_service,
-            request_queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
-            result_queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL,
+            request_queue_url=settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
+            result_queue_url=settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL,
             text_generation_service=text_generation_service,
             storage_service=S3Service(),
-            bucket_name=settings.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
+            bucket_name=settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
         )
 
         # Use direct handler instead of router
         transcription_processor = MessageProcessor(
             queue_service=queue_service,
             handler=transcription_handler.process_request,
-            queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+            queue_url=settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
             max_messages=SQSWorkerConstants.MAX_MESSAGES,
             wait_time_seconds=SQSWorkerConstants.WAIT_TIME_SECONDS,
             visibility_timeout=SQSWorkerConstants.VISIBILITY_TIMEOUT,
@@ -67,7 +67,7 @@ async def main():
         )
 
         logger.info(
-            f"Starting processor for: {settings.TRANSCRIPTION_RESULTS_QUEUE_URL}"
+            f"Starting processor for: {settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL}"
         )
 
         # Start processor and wait for it to complete

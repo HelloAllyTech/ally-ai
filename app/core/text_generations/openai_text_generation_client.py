@@ -44,8 +44,8 @@ class OpenAITextGenerationClient:
             logger.info(f"Creating a new OpenAI chat client with model {model_name}...")
             _openai_chat_client = ChatOpenAI(
                 model=model_name,
-                api_key=settings.OPENAI_API_KEY,
-                organization=settings.OPENAI_ORGANIZATION_ID,
+                api_key=settings.OPENAI.API_KEY,
+                organization=settings.OPENAI.ORGANIZATION_ID,
             )
         else:
             logger.warning(

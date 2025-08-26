@@ -32,12 +32,12 @@ class WeaviateClient:
         if not _weaviate_client:
             logger.info("Creating a new Weaviate client...")
             _weaviate_client = weaviate.use_async_with_custom(
-                http_host=settings.WEAVIATE_HTTP_HOST,
-                http_port=settings.WEAVIATE_HTTP_PORT,
-                http_secure=settings.WEAVIATE_HTTP_SECURE,
-                grpc_host=settings.WEAVIATE_GRPC_HOST,
-                grpc_port=settings.WEAVIATE_GRPC_PORT,
-                grpc_secure=settings.WEAVIATE_GRPC_SECURE,
+                http_host=settings.WEAVIATE.HTTP_HOST,
+                http_port=settings.WEAVIATE.HTTP_PORT,
+                http_secure=settings.WEAVIATE.HTTP_SECURE,
+                grpc_host=settings.WEAVIATE.GRPC_HOST,
+                grpc_port=settings.WEAVIATE.GRPC_PORT,
+                grpc_secure=settings.WEAVIATE.GRPC_SECURE,
             )
         else:
             logger.warning(
