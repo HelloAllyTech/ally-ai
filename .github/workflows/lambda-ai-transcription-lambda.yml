@@ -49,7 +49,7 @@ jobs:
             esac
           fi
 
-          if [[ "$ENV" == "prd" && "$BRANCH" == "main" ]]; then
+          if [[ "$ENV" == "prd" && "$BRANCH" == "master" ]]; then
             echo "AWS_ROLE=${{ vars.PRD_AWS_ROLE }}"      >> $GITHUB_OUTPUT
             echo "AWS_REGION=${{ vars.PRD_AWS_REGION }}"  >> $GITHUB_OUTPUT
             echo "PROJECT_PREFIX=ally-prd"                >> $GITHUB_OUTPUT
