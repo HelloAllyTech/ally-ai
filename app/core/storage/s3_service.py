@@ -2,6 +2,8 @@ import boto3
 import json
 import asyncio
 from typing import Dict, Any, Optional
+
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from app.utils.logger import get_logger
 from app.core.config import settings
@@ -21,16 +23,19 @@ class S3Service:
         self.aws_access_key_id = settings.AWS_ACCESS_KEY_ID
         self.aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
         self.aws_region = settings.AWS_REGION
-        
+
+        config = Config(signature_version='s3v4')
+
         if settings.ENV == ENV.DEVELOPMENT:
             self.s3_client = boto3.client(
                 's3',
                 aws_access_key_id=self.aws_access_key_id,
                 aws_secret_access_key=self.aws_secret_access_key,
-                region_name=self.aws_region
+                region_name=self.aws_region,
+                config=config
             )
         else:
-            self.s3_client = boto3.client('s3')
+            self.s3_client = boto3.client('s3', region_name=self.aws_region, config=config)
     
     async def upload_to_s3(self, bucket_name: str, object_key: str, payload: Dict[str, Any]) -> str:
         """
