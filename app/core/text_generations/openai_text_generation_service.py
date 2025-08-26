@@ -40,9 +40,9 @@ from app.core.text_generations.prompts import (
     NUDGE_PROMPT,
     CONTENT_ENHANCE_PROMPT,
     IDENTIFY_USER_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT
+    TAG_POSITIVITY_RATING_PROMPT,
+    DIARIZATION_PROMPT
 )
-from app.core.transcriptions.openai.prompts import DIARIZATION_PROMPT
 from app.utils.logger import get_logger
 from app.core.constants import TextGenerationConstants
 
@@ -451,11 +451,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 response = cast(
                     StructuredSummaryNote,
                     await self._invoke_llm(
-                            prompt,
+                                prompt,
                         StructuredSummaryNote,
-                            **kwargs
+                                **kwargs
+                            )
                         )
-                    )
                 
                 logger.info("Note generated successfully")
 

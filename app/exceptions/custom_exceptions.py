@@ -206,25 +206,3 @@ class CoreAPIFailedException(BaseCustomException):
             
         super().__init__(message, status_code)
 
-
-class TranscriptionFailedException(BaseCustomException):
-    """
-    Raised when audio transcription fails.
-    """
-
-    def __init__(self,
-                 message="Audio transcription failed",
-                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                 audio_source: str = None,
-                 error_details: str = None
-                 ) -> None:
-        self.audio_source = audio_source
-        self.error_details = error_details
-        
-        # Enhance message with additional context if available
-        if audio_source:
-            message = f"Audio transcription failed for source: {audio_source}"
-        if error_details:
-            message += f" - Details: {error_details}"
-            
-        super().__init__(message, status_code)
