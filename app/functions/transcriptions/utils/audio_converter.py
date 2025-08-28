@@ -30,9 +30,7 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': '*/*',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
         }
         # Download the file first with a generic extension
         async with httpx.AsyncClient(timeout=60.0) as client:
