@@ -77,7 +77,7 @@ List[str]:
 
         temp_downloaded_file_path, detected_extension = await download_file_to_temp_and_get_details(audio_url)
 
-        if detected_extension == 'raw':
+        if detected_extension == '.raw':
             file_path = await download_and_convert_raw_audio_to_wav(temp_downloaded_file_path, sample_rate)
         else:
             file_path = temp_downloaded_file_path
