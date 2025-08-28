@@ -24,10 +24,19 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
     """
     try:
         logger.info(f"Downloading audio from: {audio_url}")
-
+        # Download the file first with a generic extension
+        # Mainly to handle ozontel mp3 file download
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        }
         # Download the file first with a generic extension
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.get(audio_url)
+            response = await client.get(audio_url, headers=headers)
             response.raise_for_status()
 
             # Create temporary input file with generic extension first
