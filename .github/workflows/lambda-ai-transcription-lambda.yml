@@ -134,4 +134,3 @@ jobs:
             --image-uri "${{ needs.build-push-image.outputs.IMAGE_URI_LATEST }}"
           aws lambda wait function-updated --function-name "${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }}"
           echo ":white_check_mark: Updated ${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }} to image ${{ needs.build-push-image.outputs.IMAGE_URI_LATEST }}" >> $GITHUB_STEP_SUMMARY
-

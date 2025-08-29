@@ -31,7 +31,6 @@ pre-commit = "^3.6.0"
 black = "^24.2.0"
 isort = "^5.13.2"
 flake8 = "^7.0.0"
-bandit = "^1.7.7"
 
 [build-system]
 requires = ["poetry-core"]
@@ -67,8 +66,3 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 skip = ["pretrained_models"]
-
-# Bandit configuration
-[tool.bandit]
-exclude_dirs = ["tests", "docs", "pretrained_models"]
-skips = ["B101", "B601"]

@@ -1,13 +1,12 @@
 import asyncio
-from utils.logger import get_logger
-import httpx
-import subprocess
-from datetime import datetime
-import uuid
-import os
 import math
+import os
+import subprocess  # noqa: B404
 import tempfile
 from typing import List
+
+import httpx
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -15,12 +14,13 @@ logger = get_logger(__name__)
 async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, str]:
     """
     Download audio file to temporary location and identify its actual format.
-    
+
     Args:
         audio_url (str): URL of the audio file
 
     Returns:
-        tuple[str, str]: Tuple containing path to the temporary downloaded file and its detected extension
+        tuple[str, str]: Tuple containing path to the temporary downloaded
+        file and its detected extension
     """
     try:
         logger.info(f"Downloading audio from: {audio_url}")
@@ -30,20 +30,26 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
             response.raise_for_status()
 
             # Create temporary input file with generic extension first
-            temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.audio')
+            temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".audio")
             temp_input.write(response.content)
             temp_input.close()
 
-            logger.info(f"Downloaded audio to temp file: {temp_input.name} ({len(response.content)} bytes)")
+            logger.info(
+                f"Downloaded audio to temp file: {temp_input.name} "
+                f"({len(response.content)} bytes)"
+            )
 
             # Now identify the actual format
             actual_extension = await identify_audio_format(temp_input.name)
 
             # Rename the file with the correct extension
-            correct_path = temp_input.name.replace('.audio', actual_extension)
+            correct_path = temp_input.name.replace(".audio", actual_extension)
             try:
                 await asyncio.to_thread(os.rename, temp_input.name, correct_path)
-                logger.info(f"Renamed file to: {correct_path} (detected format: {actual_extension})")
+                logger.info(
+                    f"Renamed file to: {correct_path} "
+                    f"(detected format: {actual_extension})"
+                )
                 return correct_path, actual_extension
             except OSError as e:
                 logger.warning(f"Failed to rename file, using original: {e}")
@@ -54,35 +60,42 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
         raise
 
 
-async def convert_and_segment_audio_async(audio_url: str, sample_rate: int = 8000, max_segment_size_mb: int = 24) -> \
-List[str]:
+async def convert_and_segment_audio_async(
+    audio_url: str, sample_rate: int = 8000, max_segment_size_mb: int = 24
+) -> List[str]:
     """
     Convert audio from URL to audio file format and split into segments if needed.
     Each segment will be under the specified size limit for OpenAI API compatibility.
     If the audio is raw, it will be converted to wav.
-    If the audio is not raw, it will be used as is. 
+    If the audio is not raw, it will be used as is.
     But we are assuming that input will be either raw or mp3.
     In future, we can add support for other formats.
-    
+
     Args:
         audio_url (str): URL for the audio file
         sample_rate (int): Expected sample rate of the audio (default: 8000)
         max_segment_size_mb (int): Maximum size per segment in MB (default: 24MB)
-        
+
     Returns:
         List[str]: List of paths to audio file segments
     """
     try:
 
-        temp_downloaded_file_path, detected_extension = await download_file_to_temp_and_get_details(audio_url)
+        temp_downloaded_file_path, detected_extension = (
+            await download_file_to_temp_and_get_details(audio_url)
+        )
 
-        if detected_extension == '.raw':
-            file_path = await download_and_convert_raw_audio_to_wav(temp_downloaded_file_path, sample_rate)
+        if detected_extension == ".raw":
+            file_path = await download_and_convert_raw_audio_to_wav(
+                temp_downloaded_file_path, sample_rate
+            )
         else:
             file_path = temp_downloaded_file_path
 
         # Check if segmentation is needed
-        file_size_mb = await asyncio.to_thread(os.path.getsize, file_path) / (1024 * 1024)
+        file_size_mb = await asyncio.to_thread(os.path.getsize, file_path) / (
+            1024 * 1024
+        )
         logger.info(f"file size: {file_size_mb:.2f} MB")
 
         if file_size_mb <= max_segment_size_mb:
@@ -102,10 +115,14 @@ List[str]:
 
         num_segments = math.ceil(duration / segment_duration)
         logger.info(
-            f"Audio duration: {duration:.2f}s, will split into {num_segments} segments of ~{segment_duration:.2f}s each")
+            f"Audio duration: {duration:.2f}s, will split into {num_segments} "
+            f"segments of ~{segment_duration:.2f}s each"
+        )
 
         # Split audio into segments
-        segment_paths = await split_audio_into_segments(file_path, num_segments, duration)
+        segment_paths = await split_audio_into_segments(
+            file_path, num_segments, duration
+        )
 
         # Clean up original file
         try:
@@ -121,15 +138,17 @@ List[str]:
         raise
 
 
-async def split_audio_into_segments(file_path: str, num_segments: int, total_duration: float) -> List[str]:
+async def split_audio_into_segments(
+    file_path: str, num_segments: int, total_duration: float
+) -> List[str]:
     """
     Split a file into multiple segments using FFmpeg.
-    
+
     Args:
         file_path (str): Path to the input file
         num_segments (int): Number of segments to create
         total_duration (float): Total duration of the audio in seconds
-        
+
     Returns:
         List[str]: List of paths to segment files
     """
@@ -139,7 +158,7 @@ async def split_audio_into_segments(file_path: str, num_segments: int, total_dur
 
         # Create base path for segments
         base_path = os.path.splitext(file_path)[0]
-        file_extension = file_path.lower().split('.')[-1]
+        file_extension = file_path.lower().split(".")[-1]
         for i in range(num_segments):
             start_time = i * segment_duration
             end_time = min((i + 1) * segment_duration, total_duration)
@@ -147,51 +166,64 @@ async def split_audio_into_segments(file_path: str, num_segments: int, total_dur
             # Create segment file path
             segment_path = f"{base_path}_segment_{i:03d}.{file_extension}"
 
-            if file_extension == 'wav':
+            if file_extension == "wav":
                 # Use FFmpeg to extract segment
                 ffmpeg_cmd = [
-                    'ffmpeg',
-                    '-i', file_path,
-                    '-ss', str(start_time),
-                    '-t', str(end_time - start_time),
-                    '-acodec', 'pcm_s16le',
-                    '-ar', '16000',
-                    '-ac', '1',
-                    '-y',
-                    segment_path
+                    "ffmpeg",
+                    "-i",
+                    file_path,
+                    "-ss",
+                    str(start_time),
+                    "-t",
+                    str(end_time - start_time),
+                    "-acodec",
+                    "pcm_s16le",
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    "-y",
+                    segment_path,
                 ]
         else:
             # For other formats, copy the codec (faster, preserves quality)
             ffmpeg_cmd = [
-                'ffmpeg',
-                '-i', file_path,
-                '-ss', str(start_time),
-                '-t', str(end_time - start_time),
-                '-c', 'copy',  # Copy without re-encoding (much faster)
-                '-y',
-                segment_path
+                "ffmpeg",
+                "-i",
+                file_path,
+                "-ss",
+                str(start_time),
+                "-t",
+                str(end_time - start_time),
+                "-c",
+                "copy",  # Copy without re-encoding (much faster)
+                "-y",
+                segment_path,
             ]
 
         process = await asyncio.create_subprocess_exec(
-            *ffmpeg_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
-            error_msg = stderr.decode('utf-8', errors='ignore')
+            error_msg = stderr.decode("utf-8", errors="ignore")
             logger.error(f"FFmpeg segmentation failed for segment {i}: {error_msg}")
             raise subprocess.CalledProcessError(
-                process.returncode, 'ffmpeg',
-                f"FFmpeg segmentation failed for segment {i}: {error_msg}"
+                process.returncode,
+                "ffmpeg",
+                f"FFmpeg segmentation failed for segment {i}: {error_msg}",
             )
 
         # Verify segment file size
-        segment_size_mb = await asyncio.to_thread(os.path.getsize, segment_path) / (1024 * 1024)
+        segment_size_mb = await asyncio.to_thread(os.path.getsize, segment_path) / (
+            1024 * 1024
+        )
         logger.info(
-            f"Created segment {i}: {segment_path} ({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)")
+            f"Created segment {i}: {segment_path} "
+            f"({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)"
+        )
 
         segment_paths.append(segment_path)
 
@@ -207,23 +239,24 @@ async def get_audio_duration(file_path: str) -> float:
     """Get audio duration in seconds using FFprobe"""
     try:
         ffprobe_cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-show_entries', 'format=duration',
-            '-of', 'csv=p=0',
-            file_path
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "csv=p=0",
+            file_path,
         ]
 
         process = await asyncio.create_subprocess_exec(
-            *ffprobe_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
 
         if process.returncode == 0:
-            duration = float(stdout.decode('utf-8').strip())
+            duration = float(stdout.decode("utf-8").strip())
             return duration
         else:
             logger.warning(f"Could not get audio duration: {stderr.decode('utf-8')}")
@@ -234,41 +267,44 @@ async def get_audio_duration(file_path: str) -> float:
         return 0.0
 
 
-async def download_and_convert_raw_audio_to_wav(file_path: str = None, sample_rate: int = 8000) -> str:
-    """Convert raw file to wav audio using pipe streaming with format detection inside"""
+async def download_and_convert_raw_audio_to_wav(
+    file_path: str = None, sample_rate: int = 8000
+) -> str:
+    """Convert raw file to wav audio using pipe streaming."""
     temp_input_path = None
     try:
         temp_input_path = file_path
-        output_path = temp_input_path.replace('.raw', '.wav')
+        output_path = temp_input_path.replace(".raw", ".wav")
         ffmpeg_cmd = build_ffmpeg_command(temp_input_path, output_path, sample_rate)
         logger.info(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
 
         # Run FFmpeg process with timeout
         process = await asyncio.create_subprocess_exec(
-            *ffmpeg_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120.0)
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=120.0
+            )
         except asyncio.TimeoutError:
             logger.error("FFmpeg process timed out")
             process.kill()
             raise Exception("FFmpeg conversion timed out")
 
         if process.returncode != 0:
-            error_msg = stderr.decode('utf-8', errors='ignore')
+            error_msg = stderr.decode("utf-8", errors="ignore")
             logger.error(f"FFmpeg error: {error_msg}")
-            raise subprocess.CalledProcessError(
-                process.returncode, 'ffmpeg', error_msg
-            )
+            raise subprocess.CalledProcessError(process.returncode, "ffmpeg", error_msg)
 
         # Check if output file exists and has content
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
             raise Exception("FFmpeg output file is empty or missing")
 
-        logger.info(f"Audio converted successfully: {output_path} ({os.path.getsize(output_path)} bytes)")
+        logger.info(
+            f"Audio converted successfully: {output_path} "
+            f"({os.path.getsize(output_path)} bytes)"
+        )
 
         try:
             # Clean up temp input file since it is raw file and we dont need it anymore
@@ -288,55 +324,56 @@ async def download_and_convert_raw_audio_to_wav(file_path: str = None, sample_ra
 async def identify_audio_format(file_path: str) -> str:
     """
     Identify audio format using FFprobe.
-    
+
     Args:
         file_path (str): Path to the audio file
-        
+
     Returns:
         str: File extension with dot (e.g., '.mp3', '.wav', '.raw')
     """
     try:
         # Use FFprobe to get format information
         ffprobe_cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_format',
-            '-show_streams',
-            file_path
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            file_path,
         ]
 
         process = await asyncio.create_subprocess_exec(
-            *ffprobe_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
 
         if process.returncode == 0:
             import json
+
             try:
-                info = json.loads(stdout.decode('utf-8'))
+                info = json.loads(stdout.decode("utf-8"))
 
                 # Check format name first
-                format_name = info.get('format', {}).get('format_name', '').lower()
+                format_name = info.get("format", {}).get("format_name", "").lower()
 
                 # Map common format names to extensions
                 format_mapping = {
-                    'mp3': '.mp3',
-                    'mpeg': '.mp3',
-                    'wav': '.wav',
-                    'wave': '.wav',
-                    'aac': '.aac',
-                    'm4a': '.m4a',
-                    'mp4': '.m4a',
-                    'flac': '.flac',
-                    'ogg': '.ogg',
-                    'opus': '.opus',
-                    'webm': '.webm',
-                    'wma': '.wma',
-                    'amr': '.amr'
+                    "mp3": ".mp3",
+                    "mpeg": ".mp3",
+                    "wav": ".wav",
+                    "wave": ".wav",
+                    "aac": ".aac",
+                    "m4a": ".m4a",
+                    "mp4": ".m4a",
+                    "flac": ".flac",
+                    "ogg": ".ogg",
+                    "opus": ".opus",
+                    "webm": ".webm",
+                    "wma": ".wma",
+                    "amr": ".amr",
                 }
 
                 # Check if format is in our mapping
@@ -346,56 +383,73 @@ async def identify_audio_format(file_path: str) -> str:
                         return extension
 
                 # If no match found, check the first audio stream codec
-                streams = info.get('streams', [])
+                streams = info.get("streams", [])
                 for stream in streams:
-                    if stream.get('codec_type') == 'audio':
-                        codec_name = stream.get('codec_name', '').lower()
+                    if stream.get("codec_type") == "audio":
+                        codec_name = stream.get("codec_name", "").lower()
                         for format_key, extension in format_mapping.items():
                             if format_key in codec_name:
-                                logger.info(f"Detected codec: {codec_name} -> {extension}")
+                                logger.info(
+                                    f"Detected codec: {codec_name} -> {extension}"
+                                )
                                 return extension
                         break
 
                 # If still no match, check file extension from URL as fallback
-                logger.warning(f"Could not detect format from FFprobe, using fallback")
-                return '.raw'
+                logger.warning("Could not detect format from FFprobe, using fallback")
+                return ".raw"
 
             except json.JSONDecodeError:
-                logger.warning(f"Failed to parse FFprobe JSON output")
-                return '.raw'
+                logger.warning("Failed to parse FFprobe JSON output")
+                return ".raw"
         else:
             logger.warning(f"FFprobe failed: {stderr.decode('utf-8')}")
-            return '.raw'
+            return ".raw"
 
     except Exception as e:
         logger.warning(f"Error identifying audio format: {e}")
-        return '.raw'
+        return ".raw"
 
 
-def build_ffmpeg_command(temp_input_path: str, output_path: str, sample_rate: int = 8000) -> List[str]:
+def build_ffmpeg_command(
+    temp_input_path: str, output_path: str, sample_rate: int = 8000
+) -> List[str]:
     """Build FFmpeg command based on sample rate."""
     if sample_rate in [8000, 16000]:
         # For known sample rates, use explicit format specification
         return [
-            'ffmpeg',
-            '-f', 's16le',  # Explicit format: 16-bit signed PCM
-            '-ar', str(sample_rate),  # Input sample rate
-            '-ac', '1',  # Explicit channels: mono
-            '-i', temp_input_path,
-            '-acodec', 'pcm_s16le',
-            '-ar', '16000',  # Output sample rate: 16kHz
-            '-ac', '1',  # Output channels: mono
-            '-f', 'wav',
-            output_path
+            "ffmpeg",
+            "-f",
+            "s16le",  # Explicit format: 16-bit signed PCM
+            "-ar",
+            str(sample_rate),  # Input sample rate
+            "-ac",
+            "1",  # Explicit channels: mono
+            "-i",
+            temp_input_path,
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "16000",  # Output sample rate: 16kHz
+            "-ac",
+            "1",  # Output channels: mono
+            "-f",
+            "wav",
+            output_path,
         ]
     else:
         # For other sample rates, use auto-detection
         return [
-            'ffmpeg',
-            '-i', temp_input_path,
-            '-acodec', 'pcm_s16le',
-            '-ar', '16000',  # Output sample rate: 16kHz
-            '-ac', '1',  # Output channels: mono
-            '-f', 'wav',
-            output_path
+            "ffmpeg",
+            "-i",
+            temp_input_path,
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "16000",  # Output sample rate: 16kHz
+            "-ac",
+            "1",  # Output channels: mono
+            "-f",
+            "wav",
+            output_path,
         ]

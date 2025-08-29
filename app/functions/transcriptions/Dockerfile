@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y curl xz-utils && rm -rf /var/lib/apt/li
 
 # Download static FFmpeg
 RUN curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ
-   
+
 # Find and copy the binaries (handle different archive structures)
 RUN find . -name "ffmpeg" -type f -executable -exec cp {} /ffmpeg \; && \
     find . -name "ffprobe" -type f -executable -exec cp {} /ffprobe \; && \
