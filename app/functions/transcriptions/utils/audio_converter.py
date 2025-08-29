@@ -1,7 +1,7 @@
 import asyncio
 import math
 import os
-import subprocess  # noqa: B404
+import subprocess
 import tempfile
 from typing import List
 
