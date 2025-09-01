@@ -18,7 +18,7 @@ class OpenAIEmbeddingClient:
         Returns:
             OpenAIEmbeddings: The OpenAI embedding client.
         """
-        global _openai_embedding_client  # noqa: F824
+        global _openai_embedding_client
 
         if not _openai_embedding_client:
             logger.error(
