@@ -95,7 +95,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Worker stopped")
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        logger.exception(f"Fatal error: {e}")
         raise
     finally:
         logger.info("Worker exited")

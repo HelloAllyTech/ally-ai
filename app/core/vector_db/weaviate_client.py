@@ -13,7 +13,7 @@ _weaviate_client = None
 class WeaviateClient:
     @staticmethod
     def get_client() -> WeaviateAsyncClient:
-        global _weaviate_client  # noqa: F824
+        global _weaviate_client
 
         if not _weaviate_client:
             logger.error(

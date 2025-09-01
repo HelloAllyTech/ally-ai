@@ -18,7 +18,7 @@ class OpenAITextGenerationClient:
         Returns:
             ChatOpenAI: The OpenAI chat client.
         """
-        global _openai_chat_client  # noqa: F824
+        global _openai_chat_client
 
         if not _openai_chat_client:
             logger.error(
