@@ -369,7 +369,7 @@ class WeaviateDB(VectorDB):
                 agg_result = await collection.aggregate.near_vector(
                     near_vector=vector,
                     filters=query_filters,
-                    distance=settings.REFERENCE_DOCS.DISTANCE_THRESHOLD,
+                    distance=settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD,
                     group_by="category",
                 )
                 # Get category breakdown
@@ -387,7 +387,7 @@ class WeaviateDB(VectorDB):
                     limit=limit,
                     filters=query_filters,
                     include_vector=include_vector,
-                    distance=settings.REFERENCE_DOCS.DISTANCE_THRESHOLD,
+                    distance=settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD,
                     return_metadata=MetadataQuery(
                         distance=True
                     ),  # Correctly specify metadata to return

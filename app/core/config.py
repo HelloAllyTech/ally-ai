@@ -53,9 +53,9 @@ class LangSmithSettings(BaseModel):
 
 
 class AWSSettings(BaseModel):
+    REGION: str = Field(...)
     ACCESS_KEY_ID: Optional[str] = None
     SECRET_ACCESS_KEY: Optional[str] = None
-    REGION: Optional[str] = None
     ENDPOINT_URL: Optional[str] = None
 
 
@@ -92,7 +92,7 @@ class AppSettings(BaseSettings):
     LANGSMITH: LangSmithSettings
     AWS: AWSSettings
     QUEUE: QueueSettings
-    REFERENCE_DOCS: ReferenceDocSettings
+    REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = 0.65
 
     def model_post_init(self, __context=None) -> None:
         """
