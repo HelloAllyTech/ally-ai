@@ -56,19 +56,19 @@ class SQSQueueClient:
             )
 
             # Create the boto3 client
-            if settings.ENV == ENV.DEVELOPMENT:
+            if settings.ENV.ENV == ENV.DEVELOPMENT:
                 _sqs_client = boto3.client(
                     "sqs",
-                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                    region_name=settings.AWS_REGION,
-                    endpoint_url=settings.AWS_ENDPOINT_URL,
+                    aws_access_key_id=settings.AWS.ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS.SECRET_ACCESS_KEY,
+                    region_name=settings.AWS.REGION,
+                    endpoint_url=settings.AWS.ENDPOINT_URL,
                     config=config,
                 )
             else:
                 # Service should be granted access using IAM
                 _sqs_client = boto3.client(
-                    "sqs", region_name=settings.AWS_REGION, config=config
+                    "sqs", region_name=settings.AWS.REGION, config=config
                 )
 
             logger.info("SQS client initialized")
