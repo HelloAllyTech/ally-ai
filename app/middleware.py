@@ -39,12 +39,13 @@ def get_middlewares() -> List[Middleware]:
     """
     middlewares = [
         Middleware(LogRequestMiddleware),
+        # CORS middleware that should only be called from other services
         Middleware(
             CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_origins=[],  # Empty list = reject all origins
+            allow_credentials=False,  # Disable credentials
+            allow_methods=[],  # Empty list = reject all methods
+            allow_headers=[],  # Empty list = reject all headers
         ),
     ]
     return middlewares
