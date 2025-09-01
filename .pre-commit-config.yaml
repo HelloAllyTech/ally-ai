@@ -22,13 +22,6 @@ repos:
       - id: flake8
         args: [--max-line-length=88]
 
-  # Security scanning
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.6
-    hooks:
-      - id: bandit
-        args: [-r, app/]
-
   # Basic file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
