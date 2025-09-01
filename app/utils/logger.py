@@ -61,31 +61,31 @@ handlers = {
 }
 
 loggers = {
-    "root": {"level": settings.LOG_LEVEL, "handlers": ["stdout"]},
+    "root": {"level": settings.LOG.LEVEL, "handlers": ["stdout"]},
     "lifeline-ai": {
-        "level": settings.LOG_LEVEL,
+        "level": settings.LOG.LEVEL,
         "handlers": ["stdout"],
         "propagate": False,
     },
     "uvicorn": {
-        "level": settings.LOG_LEVEL,
+        "level": settings.LOG.LEVEL,
         "handlers": ["stdout"],
         "propagate": False,
     },
     "uvicorn.access": {
-        "level": settings.LOG_LEVEL,
+        "level": settings.LOG.LEVEL,
         "handlers": ["stdout"],
         "propagate": False,
     },
-    "slack": {"level": settings.LOG_LEVEL, "handlers": ["stdout"], "propagate": False},
+    "slack": {"level": settings.LOG.LEVEL, "handlers": ["stdout"], "propagate": False},
 }
 
-if settings.SLACK_ALERTS_ENABLED:
+if settings.SLACK_ALERTS.ENABLED:
     handlers["slack_alerts"] = {
         "()": SlackSdkHandler,
-        "token": settings.SLACK_ALERTS_API_TOKEN,
-        "channel_id": settings.SLACK_ALERTS_CHANNEL_ID,
-        "level": settings.SLACK_ALERTS_LOG_LEVEL,
+        "token": settings.SLACK_ALERTS.API_TOKEN,
+        "channel_id": settings.SLACK_ALERTS.CHANNEL_ID,
+        "level": settings.SLACK_ALERTS.LOG_LEVEL,
         "formatter": "simple",
     }
     for logger_name in loggers:
