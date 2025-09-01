@@ -1,6 +1,6 @@
 import boto3
-from botocore.config import Config
 from botocore.client import BaseClient
+from botocore.config import Config
 
 from app.core.config import settings
 from app.core.constants import ENV
@@ -31,8 +31,12 @@ class SQSQueueClient:
         global _sqs_client
 
         if not _sqs_client:
-            logger.error("SQS client has not been created. Please create a client first.")
-            raise Exception("SQS client has not been created. Please create a client first.")
+            logger.error(
+                "SQS client has not been created. Please create a client first."
+            )
+            raise Exception(
+                "SQS client has not been created. Please create a client first."
+            )
 
         return _sqs_client
 
@@ -48,27 +52,23 @@ class SQSQueueClient:
 
             # Configure the client with appropriate timeouts
             config = Config(
-                connect_timeout=5,
-                read_timeout=60,
-                retries={'max_attempts': 3}
+                connect_timeout=5, read_timeout=60, retries={"max_attempts": 3}
             )
 
             # Create the boto3 client
             if settings.ENV == ENV.DEVELOPMENT:
                 _sqs_client = boto3.client(
-                    'sqs',
+                    "sqs",
                     aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                     aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
                     region_name=settings.AWS_REGION,
                     endpoint_url=settings.AWS_ENDPOINT_URL,
-                    config=config
+                    config=config,
                 )
             else:
                 # Service should be granted access using IAM
                 _sqs_client = boto3.client(
-                    'sqs',
-                    region_name=settings.AWS_REGION,
-                    config=config
+                    "sqs", region_name=settings.AWS_REGION, config=config
                 )
 
             logger.info("SQS client initialized")
@@ -86,7 +86,9 @@ class SQSQueueClient:
             logger.info("Closing SQS client...")
             try:
                 # Close the underlying HTTP session to shut down ThreadPoolExecutor
-                if hasattr(_sqs_client, '_endpoint') and hasattr(_sqs_client._endpoint, 'http_session'):
+                if hasattr(_sqs_client, "_endpoint") and hasattr(
+                    _sqs_client._endpoint, "http_session"
+                ):
                     _sqs_client._endpoint.http_session.close()
                     logger.info("SQS client HTTP session closed successfully")
                 else:

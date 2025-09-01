@@ -14,15 +14,19 @@ class OpenAITextGenerationClient:
     def get_client() -> ChatOpenAI:
         """
         Get the singleton instance of the OpenAI chat client.
-            
+
         Returns:
             ChatOpenAI: The OpenAI chat client.
         """
         global _openai_chat_client
 
         if not _openai_chat_client:
-            logger.error("OpenAI chat client has not been created. Please create a client first.")
-            raise Exception("OpenAI chat client has not been created. Please create a client first.")
+            logger.error(
+                "OpenAI chat client has not been created. Please create a client first."
+            )
+            raise Exception(
+                "OpenAI chat client has not been created. Please create a client first."
+            )
 
         return _openai_chat_client
 
@@ -30,7 +34,7 @@ class OpenAITextGenerationClient:
     def create_client(model_name: str) -> None:
         """
         Create a singleton instance of the OpenAI chat client.
-        
+
         Parameters:
             model_name (str): The name of the model to use.
         """
@@ -44,4 +48,6 @@ class OpenAITextGenerationClient:
                 organization=settings.OPENAI_ORGANIZATION_ID,
             )
         else:
-            logger.warning("OpenAI chat client already exists. Reusing the existing client.")
+            logger.warning(
+                "OpenAI chat client already exists. Reusing the existing client."
+            )

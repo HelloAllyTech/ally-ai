@@ -1,5 +1,5 @@
 # Stage 1: Use Debian to download static ffmpeg
-# Reason: public.ecr.aws/lambda/python:3.12 isn't Debian- or Amazon Linux-based in the traditional sense. 
+# Reason: public.ecr.aws/lambda/python:3.12 isn't Debian- or Amazon Linux-based in the traditional sense.
 # It’s a minimal AWS Lambda runtime image that doesn’t include common package managers like yum or apt.
 # So we need to download static ffmpeg and copy it to the final image.
 # Solution: Use a full-featured base (e.g., debian or python:3.12-slim) to download static FFmpeg.
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y curl xz-utils && rm -rf /var/lib/apt/li
 
 # Download static FFmpeg
 RUN curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar -xJ
-   
+
 # Find and copy the binaries (handle different archive structures)
 RUN find . -name "ffmpeg" -type f -executable -exec cp {} /ffmpeg \; && \
     find . -name "ffprobe" -type f -executable -exec cp {} /ffprobe \; && \

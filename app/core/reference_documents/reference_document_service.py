@@ -1,17 +1,17 @@
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from app.core.constants import VectorDBCollectionNames
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.vector_db.base import VectorDB
 from app.exceptions.custom_exceptions import (
-    VectorDBInsertFailedException,
-    VectorDBUpdateFailedException,
-    VectorDBDeleteFailedException,
-    EmbeddingFailedException,
-    DocumentNotFoundException,
     DocumentAlreadyExistsException,
-    VectorDBSearchFailedException
+    DocumentNotFoundException,
+    EmbeddingFailedException,
+    VectorDBDeleteFailedException,
+    VectorDBInsertFailedException,
+    VectorDBSearchFailedException,
+    VectorDBUpdateFailedException,
 )
 from app.utils.logger import get_logger
 
@@ -19,20 +19,30 @@ logger = get_logger(__name__)
 
 
 class ReferenceDocumentService:
-    def __init__(self, vector_db: VectorDB, embedding_service: BaseEmbeddingService) -> None:
+    def __init__(
+        self, vector_db: VectorDB, embedding_service: BaseEmbeddingService
+    ) -> None:
         """
-        Initialize the ReferenceDocumentService with a vector database and embedding service.
+        Initialize the ReferenceDocumentService with a vector
+        database and embedding service.
 
         Parameters:
             vector_db (VectorDB): An instance of the vector database.
-            embedding_service (BaseEmbeddingService): Service for generating embeddings.
+            embedding_service (BaseEmbeddingService): Service for generating
+            embeddings.
         """
         self.vector_db = vector_db
         self.embedding_service = embedding_service
         self.collection_name = VectorDBCollectionNames.REFERENCE_DOCUMENTS
 
     async def create_document(
-            self, heading: str, content: str, category: str, tags: List[str], tenant_id: str, document_id: UUID
+        self,
+        heading: str,
+        content: str,
+        category: str,
+        tags: List[str],
+        tenant_id: str,
+        document_id: UUID,
     ) -> str:
         """
         Create a new reference document in the vector database.
@@ -49,7 +59,8 @@ class ReferenceDocumentService:
             str: The UUID of the created document.
 
         Raises:
-            DocumentAlreadyExistsException: If a document with the given ID already exists.
+            DocumentAlreadyExistsException: If a document with the given ID already
+            exists.
             EmbeddingFailedException: If embedding generation fails.
             VectorDBInsertFailedException: If document insertion fails.
         """
@@ -57,11 +68,12 @@ class ReferenceDocumentService:
             # Check if document with the given ID already exists
             try:
                 existing_document = await self.vector_db.get_document_by_id(
-                    collection_name=self.collection_name,
-                    document_id=str(document_id)
+                    collection_name=self.collection_name, document_id=str(document_id)
                 )
                 if existing_document:
-                    raise DocumentAlreadyExistsException(f"Reference document with ID {document_id} already exists")
+                    raise DocumentAlreadyExistsException(
+                        f"Reference document with ID {document_id} already exists"
+                    )
             except DocumentNotFoundException:
                 # Document doesn't exist, we can proceed with creation
                 pass
@@ -75,7 +87,7 @@ class ReferenceDocumentService:
                 "content": content,
                 "category": category,
                 "tags": tags,
-                "tenant_id": tenant_id
+                "tenant_id": tenant_id,
             }
 
             # Create the document in the vector database
@@ -83,7 +95,7 @@ class ReferenceDocumentService:
                 collection_name=self.collection_name,
                 document_data=document_data,
                 vector=vector,
-                document_id=str(document_id)
+                document_id=str(document_id),
             )
 
             logger.info(f"Created reference document with ID: {document_id}")
@@ -102,12 +114,12 @@ class ReferenceDocumentService:
             raise
 
     async def update_document(
-            self,
-            document_id: str,
-            heading: Optional[str] = None,
-            content: Optional[str] = None,
-            category: Optional[str] = None,
-            tags: Optional[List[str]] = None
+        self,
+        document_id: str,
+        heading: Optional[str] = None,
+        content: Optional[str] = None,
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> None:
         """
         Update an existing reference document in the vector database.
@@ -125,15 +137,24 @@ class ReferenceDocumentService:
             VectorDBUpdateFailedException: If document update fails.
         """
         try:
-            # Get the existing document to verify it exists and to use its values if needed
-            existing_document = await self.get_document(document_id, include_vector=True)
+            # Get the existing document to verify it exists and to use its values
+            # if needed
+            existing_document = await self.get_document(
+                document_id, include_vector=True
+            )
 
             # Prepare update data with non-None values or existing values
             update_data = {
-                "heading": heading if heading is not None else existing_document["heading"],
-                "category": category if category is not None else existing_document["category"],
+                "heading": (
+                    heading if heading is not None else existing_document["heading"]
+                ),
+                "category": (
+                    category if category is not None else existing_document["category"]
+                ),
                 "tags": tags if tags is not None else existing_document["tags"],
-                "tenant_id": existing_document["tenant_id"]  # Always preserve tenant_id
+                "tenant_id": existing_document[
+                    "tenant_id"
+                ],  # Always preserve tenant_id
             }
 
             # Handle content update and embedding generation if needed
@@ -146,7 +167,8 @@ class ReferenceDocumentService:
                     update_data["content"] = content
                     vector = await self.embedding_service.embed(content)
                 else:
-                    # Content is the same as existing, just update the field without changing vector
+                    # Content is the same as existing, just update the field
+                    # without changing vector
                     update_data["content"] = content
             else:
                 # Keep the existing content
@@ -157,7 +179,7 @@ class ReferenceDocumentService:
                 collection_name=self.collection_name,
                 document_id=document_id,
                 document_data=update_data,
-                vector=vector
+                vector=vector,
             )
 
             logger.info(f"Updated reference document with ID: {document_id}")
@@ -189,12 +211,13 @@ class ReferenceDocumentService:
             try:
                 await self.get_document(document_id)
             except Exception:
-                raise DocumentNotFoundException(f"Reference document with ID {document_id} not found")
+                raise DocumentNotFoundException(
+                    f"Reference document with ID {document_id} not found"
+                )
 
             # Delete the document
             await self.vector_db.delete_document(
-                collection_name=self.collection_name,
-                document_id=document_id
+                collection_name=self.collection_name, document_id=document_id
             )
 
             logger.info(f"Deleted reference document with ID: {document_id}")
@@ -206,7 +229,9 @@ class ReferenceDocumentService:
             logger.error(f"Failed to delete reference document: {str(e)}")
             raise
 
-    async def get_document(self, document_id: str, include_vector: bool = False) -> Dict[str, Any]:
+    async def get_document(
+        self, document_id: str, include_vector: bool = False
+    ) -> Dict[str, Any]:
         """
         Get a reference document by its ID.
 
@@ -225,11 +250,13 @@ class ReferenceDocumentService:
             result = await self.vector_db.get_document_by_id(
                 collection_name=self.collection_name,
                 document_id=document_id,
-                include_vector=include_vector
+                include_vector=include_vector,
             )
 
             if not result:
-                raise DocumentNotFoundException(f"Reference document with ID {document_id} not found")
+                raise DocumentNotFoundException(
+                    f"Reference document with ID {document_id} not found"
+                )
 
             # Format the document data
             document = {
@@ -238,7 +265,7 @@ class ReferenceDocumentService:
                 "content": result.get("content"),
                 "category": result.get("category"),
                 "tags": result.get("tags"),
-                "tenant_id": result.get("tenant_id")
+                "tenant_id": result.get("tenant_id"),
             }
 
             # Include vector if it was requested and is available
@@ -252,23 +279,26 @@ class ReferenceDocumentService:
 
         except Exception as e:
             logger.error(f"Failed to get document: {str(e)}")
-            raise DocumentNotFoundException(f"Reference document with ID {document_id} not found")
+            raise DocumentNotFoundException(
+                f"Reference document with ID {document_id} not found"
+            )
 
     async def search_documents(
-            self,
-            query: str,
-            document_ids: Optional[List[str]] = None,
-            limit: int = 10,
-            filters: Optional[Dict[str, Any]] = None,
-            sort_by: Optional[str] = None,
-            sort_order: str = "desc"
+        self,
+        query: str,
+        document_ids: Optional[List[str]] = None,
+        limit: int = 10,
+        filters: Optional[Dict[str, Any]] = None,
+        sort_by: Optional[str] = None,
+        sort_order: str = "desc",
     ) -> Dict[str, Any]:
         """
         Search for reference documents based on semantic similarity to the query.
 
         Parameters:
             query (str): The search query for semantic similarity.
-            document_ids (Optional[List[str]]): List of document IDs to restrict the search to.
+            document_ids (Optional[List[str]]): List of document IDs to restrict
+            the search to.
             limit (int): Maximum number of results to return.
             filters (Optional[Dict[str, Any]]): Dictionary of filters to apply.
                 Supported keys: 'category' (str), 'tags' (List[str]), 'tenant_id' (str)
@@ -302,7 +332,7 @@ class ReferenceDocumentService:
                 collection_name=self.collection_name,
                 query=query,
                 limit=limit,
-                filters=filters
+                filters=filters,
             )
 
             # Format the results
@@ -315,7 +345,7 @@ class ReferenceDocumentService:
                     "category": obj.get("category", ""),
                     "tags": obj.get("tags", []),
                     "tenant_id": obj.get("tenant_id", ""),
-                    "score": obj.get("score")  # Include the score from the vector DB
+                    "score": obj.get("score"),  # Include the score from the vector DB
                 }
                 documents.append(doc)
 
@@ -328,7 +358,7 @@ class ReferenceDocumentService:
                 "documents": documents,
                 "total": results["total"],
                 "limit": limit,
-                "categories": results["categories"]
+                "categories": results["categories"],
             }
 
         except ValueError as e:
@@ -341,4 +371,6 @@ class ReferenceDocumentService:
 
         except Exception as e:
             logger.exception(f"Failed to search reference documents: {str(e)}")
-            raise VectorDBSearchFailedException(f"Failed to search reference documents: {str(e)}")
+            raise VectorDBSearchFailedException(
+                f"Failed to search reference documents: {str(e)}"
+            )

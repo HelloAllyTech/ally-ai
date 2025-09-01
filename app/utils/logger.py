@@ -1,6 +1,6 @@
+import contextvars
 import logging
 import logging.config
-import contextvars
 from logging import LogRecord
 
 from slack_sdk import WebClient
@@ -12,6 +12,7 @@ from app.core.config import settings
 trace_id_var = contextvars.ContextVar("trace_id", default="N/A")
 
 _slack_alerts_logger = logging.getLogger(__name__)
+
 
 def get_trace_id():
     """Retrieve the current Trace ID."""
@@ -31,7 +32,8 @@ class SlackSdkHandler(logging.Handler):
 
     def __init__(self, token, channel_id):
         super().__init__()
-        # Slack client is initialized as a Synchronous client since Handler is synchronous.
+        # Slack client is initialized as a Synchronous client
+        # since Handler is synchronous.
         # To make it async, can go for asyncio or emitting as a background tasks
         self.client = WebClient(token=token)
         self.channel_id = channel_id
@@ -44,7 +46,9 @@ class SlackSdkHandler(logging.Handler):
                 text=f"*Log Level*: {record.levelname}\n*Message*: {log_entry}",
             )
         except SlackApiError as e:
-            _slack_alerts_logger.error(f"Failed to send log to Slack: {e.response['error']}")
+            _slack_alerts_logger.error(
+                f"Failed to send log to Slack: {e.response['error']}"
+            )
 
 
 handlers = {
@@ -58,9 +62,21 @@ handlers = {
 
 loggers = {
     "root": {"level": settings.LOG_LEVEL, "handlers": ["stdout"]},
-    "lifeline-ai": {"level": settings.LOG_LEVEL, "handlers": ["stdout"], "propagate": False},
-    "uvicorn": {"level": settings.LOG_LEVEL, "handlers": ["stdout"], "propagate": False},
-    "uvicorn.access": {"level": settings.LOG_LEVEL, "handlers": ["stdout"], "propagate": False},
+    "lifeline-ai": {
+        "level": settings.LOG_LEVEL,
+        "handlers": ["stdout"],
+        "propagate": False,
+    },
+    "uvicorn": {
+        "level": settings.LOG_LEVEL,
+        "handlers": ["stdout"],
+        "propagate": False,
+    },
+    "uvicorn.access": {
+        "level": settings.LOG_LEVEL,
+        "handlers": ["stdout"],
+        "propagate": False,
+    },
     "slack": {"level": settings.LOG_LEVEL, "handlers": ["stdout"], "propagate": False},
 }
 
@@ -73,7 +89,7 @@ if settings.SLACK_ALERTS_ENABLED:
         "formatter": "simple",
     }
     for logger_name in loggers:
-        if logger_name != "root": #do not add slack alerts to the root logger.
+        if logger_name != "root":  # do not add slack alerts to the root logger.
             loggers[logger_name]["handlers"].append("slack_alerts")
 
 logging_config = {

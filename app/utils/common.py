@@ -18,4 +18,4 @@ def convert_chat_messages_to_string(chat_messages: List[ChatMessage]) -> str:
         str: A single string with each message formatted as "role: content"
              on its own line.
     """
-    return '\n'.join(f'{msg.role}: {msg.content}' for msg in chat_messages)
+    return "\n".join(f"{msg.role}: {msg.content}" for msg in chat_messages)

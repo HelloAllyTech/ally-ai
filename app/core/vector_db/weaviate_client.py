@@ -16,8 +16,12 @@ class WeaviateClient:
         global _weaviate_client
 
         if not _weaviate_client:
-            logger.error("Weaviate client has not been created. Please create a client first.")
-            raise Exception("Weaviate client has not been created. Please create a client first.")
+            logger.error(
+                "Weaviate client has not been created. Please create a client first."
+            )
+            raise Exception(
+                "Weaviate client has not been created. Please create a client first."
+            )
 
         return _weaviate_client
 
@@ -36,7 +40,9 @@ class WeaviateClient:
                 grpc_secure=settings.WEAVIATE_GRPC_SECURE,
             )
         else:
-            logger.warning("Weaviate client already exists. Reusing the existing client.")
+            logger.warning(
+                "Weaviate client already exists. Reusing the existing client."
+            )
 
     @staticmethod
     async def connect(client: WeaviateAsyncClient) -> None:

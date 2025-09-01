@@ -3,21 +3,24 @@ Production SQS Worker with proper cleanup and shutdown.
 """
 
 import asyncio
-import sys
-from app.core.queue.sqs_queue_client import SQSQueueClient
-from app.core.queue.sqs_queue_service import SQSQueueService
-from app.core.queue.message_processor import MessageProcessor
-from app.core.queue.transcription_handler import TranscriptionHandler
+
 from app.core.config import settings
-from app.utils.logger import get_logger
-from app.core.text_generations.openai_text_generation_service import OpenAITextGenerationService
-from app.core.storage.s3_service import S3Service
 from app.core.constants import SQSWorkerConstants
-from app.utils.startup import initialize_openai_clients
-from app.core.text_generations.openai_text_generation_client import OpenAITextGenerationClient
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
-
+from app.core.queue.message_processor import MessageProcessor
+from app.core.queue.sqs_queue_client import SQSQueueClient
+from app.core.queue.sqs_queue_service import SQSQueueService
+from app.core.queue.transcription_handler import TranscriptionHandler
+from app.core.storage.s3_service import S3Service
+from app.core.text_generations.openai_text_generation_client import (
+    OpenAITextGenerationClient,
+)
+from app.core.text_generations.openai_text_generation_service import (
+    OpenAITextGenerationService,
+)
+from app.utils.logger import get_logger
+from app.utils.startup import initialize_openai_clients
 
 logger = get_logger(__name__)
 
@@ -29,36 +32,32 @@ async def main():
     try:
         # Initialize components
         SQSQueueClient.create_client()
-        sqs_client = SQSQueueClient.get_client()
-        queue_service = SQSQueueService(client=sqs_client)
-        
+        queue_service = SQSQueueService(client=SQSQueueClient.get_client())
+
         # Initialize OpenAI clients
-        initialize_openai_clients()        
-        
-        text_generation_client = OpenAITextGenerationClient.get_client()
-        embedding_client = OpenAIEmbeddingClient.get_client()
-        embedding_service = OpenAIEmbeddingService(embedding_client)
+        initialize_openai_clients()
+
         text_generation_service = OpenAITextGenerationService(
-            client=text_generation_client,
-            embedding_service=embedding_service
+            client=OpenAITextGenerationClient.get_client(),
+            embedding_service=OpenAIEmbeddingService(
+                OpenAIEmbeddingClient.get_client()
+            ),
         )
-        
-        storage_service = S3Service()
-        
+
         # Pass text_generation_service to the handler
         transcription_handler = TranscriptionHandler(
             queue_service=queue_service,
             request_queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
             result_queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL,
-            text_generation_service=text_generation_service,  # Pass the service
-            storage_service=storage_service,
+            text_generation_service=text_generation_service,
+            storage_service=S3Service(),
             bucket_name=settings.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
         )
 
         # Use direct handler instead of router
         transcription_processor = MessageProcessor(
             queue_service=queue_service,
-            handler=transcription_handler.process_request,  # Direct handler
+            handler=transcription_handler.process_request,
             queue_url=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
             max_messages=SQSWorkerConstants.MAX_MESSAGES,
             wait_time_seconds=SQSWorkerConstants.WAIT_TIME_SECONDS,
@@ -67,7 +66,9 @@ async def main():
             delete_after_processing=True,
         )
 
-        logger.info(f"Starting processor for: {settings.TRANSCRIPTION_RESULTS_QUEUE_URL}")
+        logger.info(
+            f"Starting processor for: {settings.TRANSCRIPTION_RESULTS_QUEUE_URL}"
+        )
 
         # Start processor and wait for it to complete
         await transcription_processor.start()
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Worker stopped")
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        sys.exit(1)
+        logger.exception(f"Fatal error: {e}")
+        raise
     finally:
         logger.info("Worker exited")

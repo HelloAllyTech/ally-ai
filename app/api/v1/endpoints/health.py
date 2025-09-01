@@ -6,6 +6,7 @@ from app.utils.logger import get_logger
 router = APIRouter()
 health_logger = get_logger(__name__)
 
+
 @router.get("", tags=["health"], response_model=HealthCheckResponse)
 async def health_check():
     """
