@@ -4,7 +4,8 @@ from typing import List
 
 class BaseEmbeddingService[ClientT](ABC):
     """
-    Abstract base class for embedding services using a client to generate embedding vectors.
+    Abstract base class for embedding services using a client to generate embedding
+    vectors.
 
     Parameters:
         client (ClientT): An instance of an embedding client.

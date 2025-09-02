@@ -1,4 +1,5 @@
-from typing import Optional, List, Literal
+from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field
 
 from app.core.constants import AgeRange, UserRole
@@ -85,7 +86,7 @@ DominantFeelingLiteral = Literal[
     "Victimized:Vulnerable",
     "Fragile:Vulnerable",
     "Isolated:Lonely",
-    "Abandoned:Lonely"
+    "Abandoned:Lonely",
 ]
 
 CodeOfConcernLiteral = Literal[
@@ -108,7 +109,8 @@ CodeOfConcernLiteral = Literal[
     "Overthinking / Worrying",
     "Phobias / Fears",
     "Pregnancy and Parenting Stress",
-    "Prank",  # Prank / Sexual Gratification, removing Sexual Gratification to remove confusion with other categories for the LLM
+    "Prank",  # Prank / Sexual Gratification, removing Sexual Gratification to
+    # remove confusion with other categories for the LLM
     "Referral Request",
     "Non-suicidal Self-Harm",
     "Self-esteem/ image Concerns",
@@ -119,21 +121,12 @@ CodeOfConcernLiteral = Literal[
     "Vicarious Trauma / Compassion Fatigue",
     "Violence",
     "Work-life Concerns",
-    "Seeking Information (General Inquiry)"
+    "Seeking Information (General Inquiry)",
 ]
 
-WorkingStatusLiteral = Literal[
-    "Student",
-    "Working",
-    "Other"
-]
+WorkingStatusLiteral = Literal["Student", "Working", "Other"]
 
-GenderLiteral = Literal[
-    "Male",
-    "Female",
-    "Non-binary",
-    "Client Prefers Not to Say"
-]
+GenderLiteral = Literal["Male", "Female", "Non-binary", "Client Prefers Not to Say"]
 
 PositivityRatingLiteral = Literal[1, 2, 3, 4, 5]
 
@@ -142,53 +135,111 @@ class StructuredTag(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
     """
-    tag: str = Field(..., description="A tag to summarize the chat messages. Tag shouldn't be lengthy")
-    positivity_rating: int = Field(...,
-                                   description="Positivity rating of the tag, 5 for highly positive and 1 for highly negative.")
+
+    tag: str = Field(
+        ...,
+        description="A tag to summarize the chat messages. Tag shouldn't be lengthy",
+    )
+    positivity_rating: int = Field(
+        ...,
+        description="Positivity rating of the tag, 5 for highly positive and 1 for "
+        "highly negative.",
+    )
 
 
 class StructuredSummaryNote(BaseModel):
     """
     A Pydantic model capturing the summary of the counseling session.
     """
+
     # Session Details
-    date_of_session: Optional[str] = Field(None, description="Date of the counseling session.")
-    new_call_follow_up: Optional[str] = Field(None, description="Indicates if this is a new or follow-up call.")
-    session_number: Optional[str] = Field(None, description="Session number if it's a follow-up.")
-    counselor_name: Optional[str] = Field(None, description="Name of the counselor handling the session.")
+    date_of_session: Optional[str] = Field(
+        None, description="Date of the counseling session."
+    )
+    new_call_follow_up: Optional[str] = Field(
+        None, description="Indicates if this is a new or follow-up call."
+    )
+    session_number: Optional[str] = Field(
+        None, description="Session number if it's a follow-up."
+    )
+    counselor_name: Optional[str] = Field(
+        None, description="Name of the counselor handling the session."
+    )
 
     # Demographic Details
     client_id: Optional[str] = Field(None, description="Client ID if available.")
     gender: Optional[GenderLiteral] = Field(None, description="Gender of the client.")
     age: Optional[AgeRange] = Field(None, description="Age range of the client.")
     location: Optional[str] = Field(None, description="Client's location.")
-    working_status: Optional[WorkingStatusLiteral] = Field(None, description="Client's working status.")
-    any_formal_diagnosis: Optional[str] = Field(None, description="Any formal diagnosis if available.")
-    code_of_concern: Optional[CodeOfConcernLiteral] = Field(None, description="Code of concern for the session.")
+    working_status: Optional[WorkingStatusLiteral] = Field(
+        None, description="Client's working status."
+    )
+    any_formal_diagnosis: Optional[str] = Field(
+        None, description="Any formal diagnosis if available."
+    )
+    code_of_concern: Optional[CodeOfConcernLiteral] = Field(
+        None, description="Code of concern for the session."
+    )
     call_id: Optional[str] = Field(None, description="Call ID of the session.")
-    call_duration: Optional[int] = Field(None, description="Duration of the call in seconds.")
+    call_duration: Optional[int] = Field(
+        None, description="Duration of the call in seconds."
+    )
     call_time: Optional[str] = Field(None, description="Time of the call.")
     counsellor: Optional[str] = Field(None, description="Counsellor of the session.")
     call_type: Optional[str] = Field(None, description="Type of the call.")
     profession: Optional[str] = Field(None, description="Profession of the client.")
-    relationship_status: Optional[str] = Field(None, description="Relationship status of the client.")
-    session_summary: Optional[str] = Field(None, description="Detailed summary of the session, which have 250 to 500 words.")
-    counseling_process_flow: Optional[List[str]] = Field(None, description="Sequential flow of the counseling session broken down into distinct phases or stages")
-    key_concerns: Optional[List[str]] = Field(None, description="Key concerns shared by the client.")
-    subjective_observations: Optional[List[str]] = Field(None, description="Subjective observations of the client.")
-    objective_observations: Optional[List[str]] = Field(None, description="Objective observations of the client.")
+    relationship_status: Optional[str] = Field(
+        None, description="Relationship status of the client."
+    )
+    session_summary: Optional[str] = Field(
+        None,
+        description="Detailed summary of the session, which have 250 to 500 words.",
+    )
+    counseling_process_flow: Optional[List[str]] = Field(
+        None,
+        description="Sequential flow of the counseling session broken down into "
+        "distinct phases or stages",
+    )
+    key_concerns: Optional[List[str]] = Field(
+        None, description="Key concerns shared by the client."
+    )
+    subjective_observations: Optional[List[str]] = Field(
+        None, description="Subjective observations of the client."
+    )
+    objective_observations: Optional[List[str]] = Field(
+        None, description="Objective observations of the client."
+    )
     assessment: Optional[str] = Field(None, description="Assessment of the client.")
-    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(None,
-                                                                      description="Dominant feelings expressed by the client.")
-    issues_worked_on: Optional[List[str]] = Field(None, description="Issues worked on during the session.")
-    key_therapeutic_techniques: Optional[List[str]] = Field(None, description="Key therapeutic techniques used.")
-    referrals_provided: Optional[List[str]] = Field(None, description="Referrals provided to the client.")
-    homework: Optional[List[str]] = Field(None, description="Homework or tasks assigned to the client.")
-    plan_for_next_call: Optional[List[str]] = Field(None, description="Plan for the next call.")
-    tags: List[StructuredTag] = Field(..., description="List of tags to summarize the chat messages.")
-    emotional_lift: Optional[str] = Field(None, description="Emotional lift of the client.")
-    affirmations: int = Field(0, description="Count of affirmations used by the counselor.")
-    call_quality: int = Field(..., description="Quality rating of the call from 0 to 100.")
+    dominant_feelings: Optional[List[DominantFeelingLiteral]] = Field(
+        None, description="Dominant feelings expressed by the client."
+    )
+    issues_worked_on: Optional[List[str]] = Field(
+        None, description="Issues worked on during the session."
+    )
+    key_therapeutic_techniques: Optional[List[str]] = Field(
+        None, description="Key therapeutic techniques used."
+    )
+    referrals_provided: Optional[List[str]] = Field(
+        None, description="Referrals provided to the client."
+    )
+    homework: Optional[List[str]] = Field(
+        None, description="Homework or tasks assigned to the client."
+    )
+    plan_for_next_call: Optional[List[str]] = Field(
+        None, description="Plan for the next call."
+    )
+    tags: List[StructuredTag] = Field(
+        ..., description="List of tags to summarize the chat messages."
+    )
+    emotional_lift: Optional[str] = Field(
+        None, description="Emotional lift of the client."
+    )
+    affirmations: int = Field(
+        0, description="Count of affirmations used by the counselor."
+    )
+    call_quality: int = Field(
+        ..., description="Quality rating of the call from 0 to 100."
+    )
 
     class ConfigDict:
         json_schema_extra = {
@@ -206,104 +257,83 @@ class StructuredSummaryNote(BaseModel):
                 "relationship_status": "Single",
                 "location": "Mumbai",
                 "code_of_concern": "Work-life Concerns",
-                "session_summary": "Client discussed work-life balance challenges and developed coping strategies.",
+                "session_summary": "Client discussed work-life balance challenges "
+                "and developed coping strategies.",
                 "counseling_process_flow": [
                     "Initial assessment",
                     "Discussion of concerns",
-                    "Strategy development"
+                    "Strategy development",
                 ],
                 "key_concerns": [
                     "Feeling overwhelmed by responsibilities",
-                    "Difficulty managing time"
+                    "Difficulty managing time",
                 ],
                 "subjective_observations": [
                     "Client appears tired",
-                    "Shows interest in learning new techniques"
+                    "Shows interest in learning new techniques",
                 ],
                 "objective_observations": [
                     "Maintained good eye contact",
-                    "Engaged in discussion"
+                    "Engaged in discussion",
                 ],
-                "assessment": "Client is experiencing work-related stress but is motivated to improve.",
-
-                "dominant_feelings": [
-                    "Anxious",
-                    "Overwhelmed"
-                ],
-                "issues_worked_on": [
-                    "Time management",
-                    "Stress reduction"
-                ],
-                "key_therapeutic_techniques": [
-                    "Deep breathing",
-                    "Thought challenging"
-                ],
+                "assessment": "Client is experiencing work-related stress but is "
+                "motivated to improve.",
+                "dominant_feelings": ["Anxious", "Overwhelmed"],
+                "issues_worked_on": ["Time management", "Stress reduction"],
+                "key_therapeutic_techniques": ["Deep breathing", "Thought challenging"],
                 "referrals_provided": [
                     "Stress management workshop",
-                    "Time management course"
+                    "Time management course",
                 ],
                 "homework": [
                     "Practice meditation for 5 minutes daily",
-                    "Keep a time log"
+                    "Keep a time log",
                 ],
                 "plan_for_next_call": [
                     "Review progress",
-                    "Adjust strategies if needed"
+                    "Adjust strategies if needed",
                 ],
                 "tags": [
-                    {
-                        "tag": "Stress",
-                        "positivity_rating": 2
-                    },
-                    {
-                        "tag": "Work-life balance",
-                        "positivity_rating": 3
-                    }
+                    {"tag": "Stress", "positivity_rating": 2},
+                    {"tag": "Work-life balance", "positivity_rating": 3},
                 ],
                 "reflective_questions_asked": [
                     "What are your thoughts on the session?",
-                    "What did you think of the strategies we discussed?"
+                    "What did you think of the strategies we discussed?",
                 ],
                 "open_ended_questions_asked": [
                     "Can you tell me more about your work-life balance challenges?",
-                    "How do you think we can work together to improve your time management skills?"
+                    "How do you think we can work together to improve your time "
+                    "management skills?",
                 ],
                 "back_channel_cues": [
                     "I see what you mean.",
                     "Hmm, I understand.",
-                    "I'm with you."
+                    "I'm with you.",
                 ],
                 "emotional_lift": "Client felt more relaxed after the session",
-                "call_quality": 90
+                "call_quality": 90,
             }
         }
 
 
-UserIdentityLiteral = Literal[
-    "client",
-    "counselor",
-    "unknown"
-]
+UserIdentityLiteral = Literal["client", "counselor", "unknown"]
 
 
 class StructuredIdentifyUsers(BaseModel):
     """
     A Pydantic model for structured output of user identification.
     """
+
     speaker0: UserIdentityLiteral = Field(
-        ...,
-        description="The role of speaker0 (client, counselor, or unknown)"
+        ..., description="The role of speaker0 (client, counselor, or unknown)"
     )
     speaker1: UserIdentityLiteral = Field(
-        ...,
-        description="The role of speaker1 (client, counselor, or unknown)"
+        ..., description="The role of speaker1 (client, counselor, or unknown)"
     )
     model_config = {
         "json_schema_extra": {
-            "example": {
-                "speaker0": "client",
-                "speaker1": "counselor"
-            }
+            "example": {"speaker0": "client", "speaker1": "counselor"}
         }
     }
 
@@ -312,7 +342,13 @@ class StructuredDiarizedMessage(BaseModel):
     """
     A Pydantic model for individual diarized messages.
     """
-    role: UserRole = Field(..., description="Speaker role (e.g., {}, {})".format(UserRole.CLIENT, UserRole.COUNSELOR))
+
+    role: UserRole = Field(
+        ...,
+        description="Speaker role (e.g., {}, {})".format(
+            UserRole.CLIENT, UserRole.COUNSELOR
+        ),
+    )
     content: str = Field(..., description="The transcribed content for this speaker")
     start_time: float = Field(..., description="Start time of the message in seconds")
     end_time: float = Field(..., description="End time of the message in seconds")
@@ -323,7 +359,7 @@ class StructuredDiarizedMessage(BaseModel):
                 "role": UserRole.COUNSELOR,
                 "content": "Hello, how are you doing today?",
                 "start_time": 0.0,
-                "end_time": 0.0
+                "end_time": 0.0,
             }
         }
 
@@ -332,17 +368,29 @@ class StructuredDiarization(BaseModel):
     """
     A Pydantic model for structured output of diarization.
     """
+
     messages: List[StructuredDiarizedMessage] = Field(
-        ..., 
-        description="Array of diarized messages with speaker roles, content (translated to English), start_time and end_time"
+        ...,
+        description="Array of diarized messages with speaker roles, content "
+        "(translated to English), start_time and end_time",
     )
 
     class ConfigDict:
         json_schema_extra = {
             "example": {
                 "messages": [
-                    {"role": UserRole.COUNSELOR, "content": "Hello, how are you doing today?", "start_time": 0.0, "end_time": 0.0},
-                    {"role": UserRole.CLIENT, "content": "I'm doing well, thank you for asking.", "start_time": 0.0, "end_time": 0.0}
+                    {
+                        "role": UserRole.COUNSELOR,
+                        "content": "Hello, how are you doing today?",
+                        "start_time": 0.0,
+                        "end_time": 0.0,
+                    },
+                    {
+                        "role": UserRole.CLIENT,
+                        "content": "I'm doing well, thank you for asking.",
+                        "start_time": 0.0,
+                        "end_time": 0.0,
+                    },
                 ]
             }
         }

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class VectorDB[T](ABC):
@@ -20,7 +20,9 @@ class VectorDB[T](ABC):
         self.client = client
 
     @abstractmethod
-    async def similarity_search[QueryResult](self, vector: List[float], top_k: int = 1) -> QueryResult:
+    async def similarity_search[
+        QueryResult
+    ](self, vector: List[float], top_k: int = 1) -> QueryResult:
         """
         Perform a similarity search given a vector.
 
@@ -38,7 +40,9 @@ class VectorDB[T](ABC):
         pass
 
     @abstractmethod
-    async def fetch_relevant_conversations[QueryResult](self, query: str, top_k: int = 1) -> QueryResult:
+    async def fetch_relevant_conversations[
+        QueryResult
+    ](self, query: str, top_k: int = 1) -> QueryResult:
         """
         Fetches the most relevant conversations from the database for the given query.
 
@@ -55,7 +59,13 @@ class VectorDB[T](ABC):
         pass
 
     @abstractmethod
-    async def create_document(self, collection_name: str, document_data: Dict[str, Any], vector: List[float], document_id: str) -> str:
+    async def create_document(
+        self,
+        collection_name: str,
+        document_data: Dict[str, Any],
+        vector: List[float],
+        document_id: str,
+    ) -> str:
         """
         Create a new document in the vector database.
 
@@ -74,8 +84,9 @@ class VectorDB[T](ABC):
         pass
 
     @abstractmethod
-    async def get_document_by_id(self, collection_name: str, document_id: str, include_vector: bool = True) -> Dict[
-        str, Any]:
+    async def get_document_by_id(
+        self, collection_name: str, document_id: str, include_vector: bool = True
+    ) -> Dict[str, Any]:
         """
         Get a document by its ID from the vector database.
 
@@ -93,8 +104,13 @@ class VectorDB[T](ABC):
         pass
 
     @abstractmethod
-    async def update_document(self, collection_name: str, document_id: str, document_data: Dict[str, Any],
-                              vector: List[float]) -> None:
+    async def update_document(
+        self,
+        collection_name: str,
+        document_id: str,
+        document_data: Dict[str, Any],
+        vector: List[float],
+    ) -> None:
         """
         Update an existing document in the vector database.
 
@@ -126,12 +142,12 @@ class VectorDB[T](ABC):
 
     @abstractmethod
     async def search_documents(
-            self,
-            collection_name: str,
-            query: str,
-            limit: int = 10,
-            filters: Optional[Dict[str, Any]] = None,
-            include_vector: bool = False
+        self,
+        collection_name: str,
+        query: str,
+        limit: int = 10,
+        filters: Optional[Dict[str, Any]] = None,
+        include_vector: bool = False,
     ) -> Dict[str, Any]:
         """
         Search for documents based on semantic similarity to the query.

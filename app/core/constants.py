@@ -1,5 +1,6 @@
-from typing import Final
 from enum import Enum
+from typing import Final
+
 from pydantic import BaseModel, Field
 
 
@@ -27,13 +28,18 @@ class AgeRange(str, Enum):
 
 class ReferenceDocumentConstants(BaseModel):
     """Model for reference document."""
+
     SIMILARITY_THRESHOLD: Final[float] = 0.5
 
 
 class Language(BaseModel):
     """Model for language and its percentage in the conversation."""
+
     language: str = Field(..., description="Name of the language")
-    percentage: float = Field(..., description="Percentage of the language used in conversation")
+    percentage: float = Field(
+        ..., description="Percentage of the language used in conversation"
+    )
+
 
 class UserRole(str, Enum):
     CLIENT = "CLIENT"
@@ -46,9 +52,14 @@ class ENV(str, Enum):
     PROD = "PROD"
     STG = "STG"
 
+
 class SQSWorkerConstants:
     """Constants for SQS worker configuration."""
+
     MAX_MESSAGES: Final[int] = 10
     WAIT_TIME_SECONDS: Final[int] = 10
     VISIBILITY_TIMEOUT: Final[int] = 120
     POLLING_INTERVAL: Final[int] = 0
+
+class APISettings:
+    API_V1_STR: str = "/api/v1"
