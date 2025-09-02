@@ -132,9 +132,6 @@ class DeepgramTranscriptionService:
                 addons={"mip_opt_out": "true"},
             )
 
-            if response and hasattr(response, "metadata"):
-                logger.info(f"Deepgram response metadata: {response.metadata}")
-
             if not response or not hasattr(response, "results"):
                 logger.error("Invalid response from Deepgram SDK")
                 raise TranscriptionFailedException("Invalid response from Deepgram SDK")
