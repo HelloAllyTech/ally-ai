@@ -127,8 +127,13 @@ class DeepgramTranscriptionService:
 
             # Make the transcription request
             response = await self.deepgram.listen.asyncrest.v("1").transcribe_file(
-                payload, options
+                payload,
+                options,
+                addons={"mip_opt_out": "true"},
             )
+
+            if response and hasattr(response, "metadata"):
+                logger.info(f"Deepgram response metadata: {response.metadata}")
 
             if not response or not hasattr(response, "results"):
                 logger.error("Invalid response from Deepgram SDK")
