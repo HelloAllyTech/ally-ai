@@ -61,5 +61,6 @@ class SQSWorkerConstants:
     VISIBILITY_TIMEOUT: Final[int] = 120
     POLLING_INTERVAL: Final[int] = 0
 
+
 class APISettings:
     API_V1_STR: str = "/api/v1"

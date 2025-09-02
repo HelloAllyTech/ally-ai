@@ -225,10 +225,12 @@ DIARIZATION_PROMPT = PromptTemplate(
 
 
 COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
-    template=textwrap.dedent("""
-        You are analyzing counselor communication. 
+    template=textwrap.dedent(
+        """
+        You are analyzing counselor communication.
 
-        Read the counselor's message below and return ONLY a JSON object with three array fields.
+        Read the counselor's message below and
+        return ONLY a JSON object with three array fields.
 
         Important rules:
         - Only include text that EXACTLY appears in the counselor's message.
@@ -236,14 +238,20 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
         - If nothing matches a category, return an empty array [].
 
         Categories:
-        - "reflective" → An array of reflective questions that reframe or mirror what the client 
-          has expressed (their feelings, thoughts, or experiences) back to them as a question.
+        - "reflective" → An array of reflective
+         questions that reframe or mirror what the client
+          has expressed (their feelings, thoughts,
+           or experiences) back to them as a question.
 
-        - "open_ended" → An array of open-ended questions that encourage elaboration and cannot be 
-          answered with yes/no, but do not directly mirror the client’s content.
+        - "open_ended" → An array of open-ended
+         questions that encourage elaboration and cannot be
+          answered with yes/no, but do not
+           directly mirror the client’s content.
 
-        - "back_channel" → An array of brief supportive or attentive signals that show listening, 
-          such as short cues ("hmm", "I see") or concise empathetic statements that don’t seek 
+        - "back_channel" → An array of brief
+         supportive or attentive signals that show listening,
+         such as short cues ("hmm", "I see")
+          or concise empathetic statements that don’t seek
           new information.
 
         Counselor Message:
@@ -252,6 +260,7 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
         ```
 
         Return only valid JSON.
-    """),
-    input_variables=["message"]
+    """
+    ),
+    input_variables=["message"],
 )

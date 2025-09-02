@@ -394,14 +394,21 @@ class StructuredDiarization(BaseModel):
                 ]
             }
         }
+
+
 class CounselorMessageAnalysis(BaseModel):
     """Structured output model for counselor message analysis."""
+
     reflective: List[str] = Field(
-        description="Array of reflective questions that mirror client's words/feelings back as questions"
+        description="Array of reflective questions"
+        " that mirror client's words/feelings "
+        "back as questions"
     )
     open_ended: List[str] = Field(
-        description="Array of open-ended questions that cannot be answered with yes/no and encourage elaboration"
+        description="Array of open-ended questions that cannot"
+        " be answered with yes/no and encourage elaboration"
     )
     back_channel: List[str] = Field(
-        description="Array of back-channel cues - brief active listening signals like 'hmm', 'I see', etc."
+        description="Array of back-channel cues - brief active"
+        " listening signals like 'hmm', 'I see', etc."
     )

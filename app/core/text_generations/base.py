@@ -98,14 +98,18 @@ class BaseTextGenerationService[ModelT](ABC):
             Exception: If the positivity rating generation fails.
         """
         pass
+
     @abstractmethod
-    async def analyze_counselor_messages(self, chat_history: List[ChatMessage]) -> Dict[str, int]:
+    async def analyze_counselor_messages(
+        self, chat_history: List[ChatMessage]
+    ) -> Dict[str, int]:
         """
         Analyze a single counselor message asynchronously.
 
         Args:
             message (str): The message text that needs to be analyzed.
-            index (int): The position of the message in the list, useful for tracking or debugging.
+            index (int): The position of the
+            message in the list, useful for tracking or debugging.
 
         Returns:
             Any: The result of the analysis. This could be an integer score,

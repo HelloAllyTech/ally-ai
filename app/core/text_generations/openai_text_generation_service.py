@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any,Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import openai
 from langchain_core.messages import BaseMessage
@@ -8,22 +8,24 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from pydantic import create_model
 
+from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.prompts import (
     CONTENT_ENHANCE_PROMPT,
+    COUNSELOR_ANALYSIS_PROMPT,
     DIARIZATION_PROMPT,
     DYNAMIC_SUMMARY_PROMPT,
     IDENTIFY_USER_PROMPT,
     NUDGE_PROMPT,
     SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT, COUNSELOR_ANALYSIS_PROMPT,
+    TAG_POSITIVITY_RATING_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
+    CounselorMessageAnalysis,
     StructuredDiarization,
     StructuredIdentifyUsers,
     StructuredSummaryNote,
-    CounselorMessageAnalysis,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -32,28 +34,28 @@ from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
     SummaryNoteFailedException,
 )
-from app.schemas.conversation import Nudge, IdentifyResponse
-from app.schemas.summary import ContentEnhance, Tag
 from app.schemas.common import ChatMessage
-from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
+from app.schemas.conversation import IdentifyResponse, Nudge
+from app.schemas.summary import (
+    ContentEnhance,
+    DynamicSummaryNoteResponse,
+    SummaryNoteAndTagsResponse,
+    Tag,
+)
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.counselor_interruption_calculator import (
     calculate_counselor_interruptions,
 )
 from app.utils.language_detector import detect_languages
-from app.utils.rate_limiter import rate_limiter
 from app.utils.logger import get_logger
+from app.utils.rate_limiter import rate_limiter
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
-from app.utils.utterance_duration_calculator import calculate_avg_client_utterance_duration
 from app.utils.silence_calculator import calculate_silence_by_counselor
-from app.utils.counselor_interruption_calculator import calculate_counselor_interruptions
 from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.utils.utterance_duration_calculator import (
     calculate_avg_client_utterance_duration,
 )
-from app.utils.logger import get_logger
-from app.core.constants import TextGenerationConstants
 
 logger = get_logger(__name__)
 
@@ -210,7 +212,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Store the embedding service
         self.embedding_service = embedding_service
         # Initialize semaphore for rate limiting at class level
-        self.semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_LLM_CALLS)
+        self.semaphore = asyncio.Semaphore(settings.LLM.MAX_CONCURRENT_LLM_CALLS)
 
         # Initialize the base class with the client
         super().__init__(client)
@@ -318,7 +320,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         return response.nudge
 
-    async def generate_summary_notes(self, chat_history: List[ChatMessage], keys: Optional[List[str]] = None, **kwargs)-> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
+    async def generate_summary_notes(
+        self,
+        chat_history: List[ChatMessage],
+        keys: Optional[List[str]] = None,
+        **kwargs,
+    ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         logger.info("Generating summary notes using OpenAI")
         chat_history_str = self._chat_history_to_str(chat_history)
         try:
@@ -333,9 +340,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 )
         except Exception as e:
             logger.exception(f"Failed to generate summary: {str(e)}")
-            raise SummaryNoteFailedException(f"Failed to generate summary: {str(e)}") from e
+            raise SummaryNoteFailedException(
+                f"Failed to generate summary: {str(e)}"
+            ) from e
 
-    async def _generate_dynamic_summary(self, chat_history, chat_history_str, keys, **kwargs):
+    async def _generate_dynamic_summary(
+        self, chat_history, chat_history_str, keys, **kwargs
+    ):
         precomputed = await self._calculate_metrics(
             chat_history, chat_history_str, keys
         )
@@ -344,7 +355,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         if not key_descriptions:
             return DynamicSummaryNoteResponse(fields=precomputed)
 
-        prompt = DYNAMIC_SUMMARY_PROMPT.format(chat_history=chat_history_str, key_descriptions=key_descriptions)
+        prompt = DYNAMIC_SUMMARY_PROMPT.format(
+            chat_history=chat_history_str, key_descriptions=key_descriptions
+        )
         model = self.model.bind_tools([generate_dynamic_summary])
         response = await model.ainvoke(prompt)
 
@@ -352,11 +365,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         merged = {**tool_fields, **precomputed}
         return DynamicSummaryNoteResponse(fields=merged)
 
-    async def _generate_structured_summary(self, chat_history, chat_history_str, **kwargs):
+    async def _generate_structured_summary(
+        self, chat_history, chat_history_str, **kwargs
+    ):
         prompt = SUMMARY_PROMPT.format(chat_history=chat_history_str)
         response = cast(
             StructuredSummaryNote,
-            await self._invoke_llm(prompt, StructuredSummaryNote, **kwargs)
+            await self._invoke_llm(prompt, StructuredSummaryNote, **kwargs),
         )
 
         response = structured_output_model_to_rest(response)
@@ -364,7 +379,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # enrich with extra metrics
         metrics = await self._calculate_metrics(chat_history, chat_history_str)
 
-        for key,value in metrics.items():
+        for key, value in metrics.items():
             setattr(response, key, value)
 
         return response
@@ -373,10 +388,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
 
     async def _calculate_metrics(
-            self,
-            chat_history,
-            chat_history_str,
-            keys: Optional[List[str]] = None,
+        self,
+        chat_history,
+        chat_history_str,
+        keys: Optional[List[str]] = None,
     ) -> dict[str, Any]:
         """
         Calculate metrics:
@@ -387,11 +402,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Simple metrics
         simple_dispatch = {
             "languages": (lambda: detect_languages(chat_history_str)),
-            "reflective_listening": (lambda: calculate_reflective_listening(chat_history, self.embedding_service)),
-            "avg_client_utterance_duration": (lambda: calculate_avg_client_utterance_duration(chat_history)),
-            "silence_by_counselor": (lambda: calculate_silence_by_counselor(chat_history)),
-            "client_positivity_lift": (lambda: calculate_client_positivity_lift(chat_history)),
-            "counselor_interruptions": (lambda: calculate_counselor_interruptions(chat_history)),
+            "reflective_listening": (
+                lambda: calculate_reflective_listening(
+                    chat_history, self.embedding_service
+                )
+            ),
+            "avg_client_utterance_duration": (
+                lambda: calculate_avg_client_utterance_duration(chat_history)
+            ),
+            "silence_by_counselor": (
+                lambda: calculate_silence_by_counselor(chat_history)
+            ),
+            "client_positivity_lift": (
+                lambda: calculate_client_positivity_lift(chat_history)
+            ),
+            "counselor_interruptions": (
+                lambda: calculate_counselor_interruptions(chat_history)
+            ),
             "affirmations": (lambda: count_affirmations(chat_history)),
         }
 
@@ -418,13 +445,18 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             elif key in counselor_analysis_keys:
                 if counselor_analysis is None:
-                    counselor_analysis = await self.analyze_counselor_messages(chat_history)
+                    counselor_analysis = await self.analyze_counselor_messages(
+                        chat_history
+                    )
                 results[key] = counselor_analysis.get(key, 0)
 
         return results
 
     def _extract_tool_fields(self, response) -> dict[str, Any]:
-        if hasattr(response, "additional_kwargs") and "tool_calls" in response.additional_kwargs:
+        if (
+            hasattr(response, "additional_kwargs")
+            and "tool_calls" in response.additional_kwargs
+        ):
             tool_call = response.additional_kwargs["tool_calls"][0]
             if tool_call["function"]["name"] == "generate_dynamic_summary":
                 fields = json.loads(tool_call["function"]["arguments"])
@@ -723,7 +755,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 "Failed to diarize transcription."
             ) from e
 
-    async def analyze_counselor_messages(self, chat_history: List[ChatMessage]) -> Dict[str, int]:
+    async def analyze_counselor_messages(
+        self, chat_history: List[ChatMessage]
+    ) -> Dict[str, int]:
         """
         Analyze counselor messages to extract counts of:
           - Reflective questions
@@ -735,15 +769,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         # Extract counselor messages
         counselor_messages = [
-            msg.content for msg in chat_history
-            if msg.role.lower() == 'counselor'
+            msg.content for msg in chat_history if msg.role.lower() == "counselor"
         ]
 
         if not counselor_messages:
             return {
                 "reflective_questions_asked": 0,
                 "open_ended_questions_asked": 0,
-                "back_channel_cues": 0
+                "back_channel_cues": 0,
             }
 
         async def analyze_single_message(message: str, index: int) -> Dict[str, int]:
@@ -751,17 +784,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             try:
                 prompt = COUNSELOR_ANALYSIS_PROMPT.format(message=message)
-                response = await self._invoke_llm(prompt, output_class=CounselorMessageAnalysis)
-
-                logger.info(f"\nMessage {index + 1}: {message}")
-                logger.info(f"  Reflective → {response.reflective}")
-                logger.info(f"  Open-ended → {response.open_ended}")
-                logger.info(f"  Back-channel → {response.back_channel}")
+                response = await self._invoke_llm(
+                    prompt, output_class=CounselorMessageAnalysis
+                )
 
                 return {
                     "reflective_questions_asked": len(response.reflective),
                     "open_ended_questions_asked": len(response.open_ended),
-                    "back_channel_cues": len(response.back_channel)
+                    "back_channel_cues": len(response.back_channel),
                 }
 
             except Exception as e:
@@ -769,13 +799,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 return {
                     "reflective_questions_asked": 0,
                     "open_ended_questions_asked": 0,
-                    "back_channel_cues": 0
+                    "back_channel_cues": 0,
                 }
 
         # Run all analyses in parallel
         tasks = [
-            analyze_single_message(msg, i)
-            for i, msg in enumerate(counselor_messages)
+            analyze_single_message(msg, i) for i, msg in enumerate(counselor_messages)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -783,7 +812,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         totals = {
             "reflective_questions_asked": 0,
             "open_ended_questions_asked": 0,
-            "back_channel_cues": 0
+            "back_channel_cues": 0,
         }
 
         for i, result in enumerate(results):

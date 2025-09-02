@@ -1,12 +1,13 @@
 import os
 from typing import Optional
+
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # --------------------
 # Sub-configs
 # --------------------
+
 
 class EnvSettings(BaseModel):
     ENV: str = Field(...)
@@ -26,7 +27,6 @@ class SlackSettings(BaseModel):
 class ServerSettings(BaseModel):
     HOST: str = Field("localhost")
     PORT: int = Field(8000)
-
 
 
 class WeaviateSettings(BaseModel):
@@ -51,7 +51,6 @@ class LangSmithSettings(BaseModel):
     ENDPOINT: str = Field(...)
     API_KEY: str = Field(...)
     PROJECT: str = Field(...)
-
 
 
 class AWSSettings(BaseModel):
@@ -79,6 +78,7 @@ class LLMSettings(BaseModel):
 # Root App Settings
 # --------------------
 
+
 class AppSettings(BaseSettings):
     """Root settings container that composes all sub-configs."""
 
@@ -87,7 +87,6 @@ class AppSettings(BaseSettings):
         extra="forbid",  # fail on extra vars
         env_nested_delimiter="__",
     )
-
 
     ENV: EnvSettings
     LOG: LogSettings
@@ -99,7 +98,7 @@ class AppSettings(BaseSettings):
     AWS: AWSSettings
     QUEUE: QueueSettings
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = 0.65
-    LLM:LLMSettings
+    LLM: LLMSettings
 
     def model_post_init(self, __context=None) -> None:
         """
@@ -109,7 +108,6 @@ class AppSettings(BaseSettings):
         os.environ["LANGSMITH_ENDPOINT"] = self.LANGSMITH.ENDPOINT
         os.environ["LANGSMITH_API_KEY"] = self.LANGSMITH.API_KEY
         os.environ["LANGSMITH_PROJECT"] = self.LANGSMITH.PROJECT
-
 
 
 # --------------------
