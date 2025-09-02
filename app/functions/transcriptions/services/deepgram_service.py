@@ -127,7 +127,9 @@ class DeepgramTranscriptionService:
 
             # Make the transcription request
             response = await self.deepgram.listen.asyncrest.v("1").transcribe_file(
-                payload, options
+                payload,
+                options,
+                addons={"mip_opt_out": "true"},
             )
 
             if not response or not hasattr(response, "results"):
