@@ -256,21 +256,21 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             if output_class:
                 llm = llm.with_structured_output(output_class)
 
-        try:
-            response = await llm.ainvoke(messages)
-        except openai.RateLimitError as e:
-            logger.exception(str(e))
-            raise LLMInvocationFailedException(
-                "OpenAI API rate limit exceeded. Please try again later."
-            ) from e
+            try:
+                response = await llm.ainvoke(messages)
+            except openai.RateLimitError as e:
+                logger.exception(str(e))
+                raise LLMInvocationFailedException(
+                    "OpenAI API rate limit exceeded. Please try again later."
+                ) from e
 
-        except openai.APIConnectionError as e:
-            logger.exception(str(e))
-            raise LLMInvocationFailedException(
-                "OpenAI API error. Please try again later."
-            ) from e
+            except openai.APIConnectionError as e:
+                logger.exception(str(e))
+                raise LLMInvocationFailedException(
+                    "OpenAI API error. Please try again later."
+                ) from e
 
-        return response if output_class else response.content
+            return response if output_class else response.content
 
     async def generate_nudge(
         self, conversation: str, chat_history: str, suggestion: str, **kwargs
