@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from app.core.constants import APISettings
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.constants import APISettings
 from app.core.vector_db.weaviate_client import WeaviateClient
 from app.middleware import get_middlewares
 from app.utils.logger import logger, logging_config

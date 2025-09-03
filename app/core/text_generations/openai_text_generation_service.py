@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Dict, List, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import openai
 from langchain_core.messages import BaseMessage
@@ -8,10 +8,12 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from pydantic import create_model
 
+from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.prompts import (
     CONTENT_ENHANCE_PROMPT,
+    COUNSELOR_ANALYSIS_PROMPT,
     DIARIZATION_PROMPT,
     DYNAMIC_SUMMARY_PROMPT,
     IDENTIFY_USER_PROMPT,
@@ -20,6 +22,7 @@ from app.core.text_generations.prompts import (
     TAG_POSITIVITY_RATING_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
+    CounselorMessageAnalysis,
     StructuredDiarization,
     StructuredIdentifyUsers,
     StructuredSummaryNote,
@@ -46,6 +49,7 @@ from app.utils.counselor_interruption_calculator import (
 )
 from app.utils.language_detector import detect_languages
 from app.utils.logger import get_logger
+from app.utils.rate_limiter import rate_limiter
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
 from app.utils.silence_calculator import calculate_silence_by_counselor
 from app.utils.structured_model_converter import structured_output_model_to_rest
@@ -207,6 +211,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         # Store the embedding service
         self.embedding_service = embedding_service
+        # Initialize semaphore for rate limiting at class level
+        self.semaphore = asyncio.Semaphore(settings.LLM.MAX_CONCURRENT_LLM_CALLS)
 
         # Initialize the base class with the client
         super().__init__(client)
@@ -239,28 +245,32 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 `output_class` (T).
                 - Otherwise, returns the raw response content as a string.
         """
-        # Use the model from base class
-        llm = self.model
 
-        # Bind structured output class with the llm if passed by user
-        if output_class:
-            llm = llm.with_structured_output(output_class)
+        await rate_limiter.acquire()
 
-        try:
-            response = await llm.ainvoke(messages)
-        except openai.RateLimitError as e:
-            logger.exception(str(e))
-            raise LLMInvocationFailedException(
-                "OpenAI API rate limit exceeded. Please try again later."
-            ) from e
+        async with self.semaphore:
+            # Use the model from base class
+            llm = self.model
 
-        except openai.APIConnectionError as e:
-            logger.exception(str(e))
-            raise LLMInvocationFailedException(
-                "OpenAI API error. Please try again later."
-            ) from e
+            # Bind structured output class with the llm if passed by user
+            if output_class:
+                llm = llm.with_structured_output(output_class)
 
-        return response if output_class else response.content
+            try:
+                response = await llm.ainvoke(messages)
+            except openai.RateLimitError as e:
+                logger.exception(str(e))
+                raise LLMInvocationFailedException(
+                    "OpenAI API rate limit exceeded. Please try again later."
+                ) from e
+
+            except openai.APIConnectionError as e:
+                logger.exception(str(e))
+                raise LLMInvocationFailedException(
+                    "OpenAI API error. Please try again later."
+                ) from e
+
+            return response if output_class else response.content
 
     async def generate_nudge(
         self, conversation: str, chat_history: str, suggestion: str, **kwargs
@@ -316,284 +326,150 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         keys: Optional[List[str]] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
-        """
-        Generate summary notes from chat history.
-
-        Parameters:
-            chat_history (List[ChatMessage]): The chat history to summarize
-            as a list of ChatMessage objects
-            keys (Optional[List[str]]): Optional list of keys to generate. If
-                provided, returns a DynamicSummaryNoteResponse with only the
-                requested fields. If None, returns a SummaryNoteAndTagsResponse
-                with all predefined fields.
-            **kwargs: Additional keyword arguments
-
-        Returns:
-            Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]: The
-            generated summary notes
-
-        Raises:
-            SummaryNoteFailedException: If the summary generation fails
-        """
         logger.info("Generating summary notes using OpenAI")
+        chat_history_str = self._chat_history_to_str(chat_history)
         try:
-            # Convert chat history to string
-            chat_history_str = "\n".join(
-                [f"{msg.role}: {msg.content}" for msg in chat_history]
-            )
-
-            # Count affirmations
-            affirmation_count = count_affirmations(chat_history)
-
-            # Get the embedding service
-            embedding_service = self.embedding_service
 
             if keys:
-                languages = None
-                reflective_listening_score = None
-                avg_client_utterance_duration = None
-                silence_by_counselor = None
-                client_positivity_lift = None
-                counselor_interruptions = None
-                logger.info("Generating dynamic summary")
-                # Get field descriptions from StructuredSummaryNote
-                key_descriptions = []
-                for key in keys:
-                    if key == "languages":
-                        languages = detect_languages(chat_history_str)
-                    elif key == "affirmations" and affirmation_count > 0:
-                        # If affirmations is requested and we have a count, we'll
-                        # add it later
-                        continue
-                    elif key == "reflective_listening":
-                        # Calculate reflective listening if requested
-                        reflective_listening_score = (
-                            await calculate_reflective_listening(
-                                chat_history, embedding_service
-                            )
-                        )
-                        continue
-                    elif key == "avg_client_utterance_duration":
-                        avg_client_utterance_duration = (
-                            calculate_avg_client_utterance_duration(chat_history)
-                        )
-                        continue
-                    elif key == "silence_by_counselor":
-                        silence_by_counselor = calculate_silence_by_counselor(
-                            chat_history
-                        )
-                        continue
-                    elif key == "client_positivity_lift":
-                        client_positivity_lift = calculate_client_positivity_lift(
-                            chat_history
-                        )
-                        continue
-                    elif key == "counselor_interruptions":
-                        counselor_interruptions = calculate_counselor_interruptions(
-                            chat_history
-                        )
-                        continue
-                    else:
-                        # Get the field from StructuredSummaryNote if it exists
-                        field = StructuredSummaryNote.model_fields.get(key)
-                        if field:
-                            description = field.description
-                            key_descriptions.append(f"- {key}: {description}")
-                        else:
-                            logger.info(
-                                f"Key not found in StructuredSummaryNote: {key}"
-                            )
-
-                if key_descriptions:
-                    key_descriptions_text = "\n".join(key_descriptions)
-                    prompt = DYNAMIC_SUMMARY_PROMPT.format(
-                        chat_history=chat_history_str,
-                        key_descriptions=key_descriptions_text,
-                    )
-
-                    # Get the model and bind the tool
-                    model = self.model
-                    model = model.bind_tools([generate_dynamic_summary])
-
-                    # Generate the response
-                    response = await model.ainvoke(prompt)
-
-                    # Extract the tool call result
-                    if (
-                        hasattr(response, "additional_kwargs")
-                        and "tool_calls" in response.additional_kwargs
-                    ):
-                        tool_call = response.additional_kwargs["tool_calls"][0]
-                        if tool_call["function"]["name"] == "generate_dynamic_summary":
-                            fields = json.loads(tool_call["function"]["arguments"])
-                            fields_dict = fields.get("fields", {})
-
-                            # Add languages to fields if it was requested in keys
-                            if languages and "languages" in keys:
-                                fields_dict["languages"] = [
-                                    lang.model_dump() for lang in languages
-                                ]
-
-                            # Add affirmations count if requested
-                            if "affirmations" in keys and affirmation_count > 0:
-                                fields_dict["affirmations"] = affirmation_count
-
-                            # Add reflective listening if requested
-                            if reflective_listening_score is not None:
-                                fields_dict["reflective_listening"] = (
-                                    reflective_listening_score
-                                )
-
-                            # Add avg_client_utterance_duration if requested
-                            if avg_client_utterance_duration is not None:
-                                fields_dict["avg_client_utterance_duration"] = (
-                                    avg_client_utterance_duration
-                                )
-
-                            # Add silence_by_counselor if requested
-                            if "silence_by_counselor" in keys:
-                                fields_dict["silence_by_counselor"] = (
-                                    silence_by_counselor
-                                )
-
-                            # Add client_positivity_lift if requested
-                            if "client_positivity_lift" in keys:
-                                fields_dict["client_positivity_lift"] = (
-                                    client_positivity_lift
-                                )
-
-                            # Add counselor_interruptions if requested
-                            if "counselor_interruptions" in keys:
-                                fields_dict["counselor_interruptions"] = (
-                                    counselor_interruptions
-                                )
-
-                            logger.info("Note generated successfully")
-                            return DynamicSummaryNoteResponse(fields=fields_dict)
-                else:
-                    # If no tool call result but languages was requested, return just
-                    # languages
-                    fields_dict = {}
-
-                    if languages and "languages" in keys:
-                        logger.info("Adding languages field")
-                        fields_dict["languages"] = [
-                            lang.model_dump() for lang in languages
-                        ]
-
-                    # Add affirmations count if requested
-                    if "affirmations" in keys:
-                        logger.info("Adding affirmations field")
-                        fields_dict["affirmations"] = affirmation_count
-
-                    # Add reflective listening if requested
-                    if "reflective_listening" in keys:
-                        logger.info("Adding reflective_listening field")
-                        reflective_listening_score = (
-                            await calculate_reflective_listening(
-                                chat_history, embedding_service
-                            )
-                        )
-                        fields_dict["reflective_listening"] = reflective_listening_score
-
-                    # Add avg_client_utterance_duration if requested
-                    if "avg_client_utterance_duration" in keys:
-                        logger.info("Adding avg_client_utterance_duration field")
-                        avg_client_utterance_duration = (
-                            calculate_avg_client_utterance_duration(chat_history)
-                        )
-                        fields_dict["avg_client_utterance_duration"] = (
-                            avg_client_utterance_duration
-                        )
-
-                    # Add silence_by_counselor if requested
-                    if "silence_by_counselor" in keys:
-                        logger.info("Adding silence_by_counselor field")
-                        silence_by_counselor = calculate_silence_by_counselor(
-                            chat_history
-                        )
-                        fields_dict["silence_by_counselor"] = silence_by_counselor
-
-                    # Add client_positivity_lift if requested
-                    if "client_positivity_lift" in keys:
-                        logger.info("Adding client_positivity_lift field")
-                        client_positivity_lift = calculate_client_positivity_lift(
-                            chat_history
-                        )
-                        fields_dict["client_positivity_lift"] = client_positivity_lift
-
-                    # Add counselor_interruptions if requested
-                    if "counselor_interruptions" in keys:
-                        logger.info("Adding counselor_interruptions field")
-                        counselor_interruptions = calculate_counselor_interruptions(
-                            chat_history
-                        )
-                        fields_dict["counselor_interruptions"] = counselor_interruptions
-
-                    if fields_dict:
-                        logger.info("Returning fields")
-                        return DynamicSummaryNoteResponse(fields=fields_dict)
-
-                    logger.info("No fields found in the response")
-                    return DynamicSummaryNoteResponse(fields={})
+                return await self._generate_dynamic_summary(
+                    chat_history, chat_history_str, keys, **kwargs
+                )
             else:
-                # Handle structured summary without keys
-                prompt = SUMMARY_PROMPT.format(chat_history=chat_history_str)
-
-                logger.info("Generating structured summary")
-                # Generate structured summary
-                response = cast(
-                    StructuredSummaryNote,
-                    await self._invoke_llm(prompt, StructuredSummaryNote, **kwargs),
+                return await self._generate_structured_summary(
+                    chat_history, chat_history_str, **kwargs
                 )
-
-                logger.info("Note generated successfully")
-
-                response.affirmations = affirmation_count
-
-                # Convert the summary to a response using the appropriate converter
-                response = structured_output_model_to_rest(response)
-                languages = detect_languages(chat_history_str)
-
-                response.languages = languages
-                response.affirmations = affirmation_count
-
-                # Calculate reflective listening using the embedding service
-                reflective_listening = await calculate_reflective_listening(
-                    chat_history, embedding_service
-                )
-                response.reflective_listening = reflective_listening
-
-                # Calculate avg_client_utterance_duration
-                avg_client_utterance_duration = calculate_avg_client_utterance_duration(
-                    chat_history
-                )
-                response.avg_client_utterance_duration = avg_client_utterance_duration
-
-                # Calculate silence_by_counselor
-                silence_by_counselor = calculate_silence_by_counselor(chat_history)
-                response.silence_by_counselor = silence_by_counselor
-
-                # Calculate client_positivity_lift
-                client_positivity_lift = calculate_client_positivity_lift(chat_history)
-                response.client_positivity_lift = client_positivity_lift
-
-                # Calculate counselor_interruptions
-                counselor_interruptions = calculate_counselor_interruptions(
-                    chat_history
-                )
-                response.counselor_interruptions = counselor_interruptions
-
-                return response
-
-        except LLMInvocationFailedException as e:
-            logger.error(f"Failed to invoke LLM: {str(e)}")
-            raise SummaryNoteFailedException("Failed to invoke LLM.") from e
         except Exception as e:
             logger.exception(f"Failed to generate summary: {str(e)}")
             raise SummaryNoteFailedException(
                 f"Failed to generate summary: {str(e)}"
             ) from e
+
+    async def _generate_dynamic_summary(
+        self, chat_history, chat_history_str, keys, **kwargs
+    ):
+        precomputed = await self._calculate_metrics(
+            chat_history, chat_history_str, keys
+        )
+
+        key_descriptions = self._get_key_descriptions(keys)
+        if not key_descriptions:
+            return DynamicSummaryNoteResponse(fields=precomputed)
+
+        prompt = DYNAMIC_SUMMARY_PROMPT.format(
+            chat_history=chat_history_str, key_descriptions=key_descriptions
+        )
+        model = self.model.bind_tools([generate_dynamic_summary])
+        response = await model.ainvoke(prompt)
+
+        tool_fields = self._extract_tool_fields(response)
+        merged = {**tool_fields, **precomputed}
+        return DynamicSummaryNoteResponse(fields=merged)
+
+    async def _generate_structured_summary(
+        self, chat_history, chat_history_str, **kwargs
+    ):
+        prompt = SUMMARY_PROMPT.format(chat_history=chat_history_str)
+        response = cast(
+            StructuredSummaryNote,
+            await self._invoke_llm(prompt, StructuredSummaryNote, **kwargs),
+        )
+
+        response = structured_output_model_to_rest(response)
+
+        # enrich with extra metrics
+        metrics = await self._calculate_metrics(chat_history, chat_history_str)
+
+        for key, value in metrics.items():
+            setattr(response, key, value)
+
+        return response
+
+    def _chat_history_to_str(self, chat_history: List[ChatMessage]) -> str:
+        return "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+
+    async def _calculate_metrics(
+        self,
+        chat_history,
+        chat_history_str,
+        keys: Optional[List[str]] = None,
+    ) -> dict[str, Any]:
+        """
+        Calculate metrics:
+        - If keys=None → calculate all available metrics
+        - If keys provided → calculate only those
+        """
+
+        # Simple metrics
+        simple_dispatch = {
+            "languages": (lambda: detect_languages(chat_history_str)),
+            "reflective_listening": (
+                lambda: calculate_reflective_listening(
+                    chat_history, self.embedding_service
+                )
+            ),
+            "avg_client_utterance_duration": (
+                lambda: calculate_avg_client_utterance_duration(chat_history)
+            ),
+            "silence_by_counselor": (
+                lambda: calculate_silence_by_counselor(chat_history)
+            ),
+            "client_positivity_lift": (
+                lambda: calculate_client_positivity_lift(chat_history)
+            ),
+            "counselor_interruptions": (
+                lambda: calculate_counselor_interruptions(chat_history)
+            ),
+            "affirmations": (lambda: count_affirmations(chat_history)),
+        }
+
+        counselor_analysis_keys = {
+            "reflective_questions_asked",
+            "open_ended_questions_asked",
+            "back_channel_cues",
+        }
+
+        # Determine which keys to process
+        keys_to_process = (
+            list(simple_dispatch.keys()) + list(counselor_analysis_keys)
+            if keys is None
+            else keys
+        )
+        results = {}
+        counselor_analysis = None
+
+        for key in keys_to_process:
+            if key in simple_dispatch:
+                fn = simple_dispatch[key]
+                value = fn()
+                results[key] = await value if asyncio.iscoroutine(value) else value
+
+            elif key in counselor_analysis_keys:
+                if counselor_analysis is None:
+                    counselor_analysis = await self.analyze_counselor_messages(
+                        chat_history
+                    )
+                results[key] = counselor_analysis.get(key, 0)
+
+        return results
+
+    def _extract_tool_fields(self, response) -> dict[str, Any]:
+        if (
+            hasattr(response, "additional_kwargs")
+            and "tool_calls" in response.additional_kwargs
+        ):
+            tool_call = response.additional_kwargs["tool_calls"][0]
+            if tool_call["function"]["name"] == "generate_dynamic_summary":
+                fields = json.loads(tool_call["function"]["arguments"])
+                return fields.get("fields", {})
+        return {}
+
+    def _get_key_descriptions(self, keys: list[str]) -> str:
+        descriptions = []
+        for key in keys:
+            field = StructuredSummaryNote.model_fields.get(key)
+            if field and field.description:
+                descriptions.append(f"- {key}: {field.description}")
+        return "\n".join(descriptions)
 
     async def enhance_content(self, content: str, **kwargs) -> str:
         """
@@ -878,3 +754,73 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             raise LLMInvocationFailedException(
                 "Failed to diarize transcription."
             ) from e
+
+    async def analyze_counselor_messages(
+        self, chat_history: List[ChatMessage]
+    ) -> Dict[str, int]:
+        """
+        Analyze counselor messages to extract counts of:
+          - Reflective questions
+          - Open-ended questions
+          - Back-channel cues
+
+        Runs per-message analysis in parallel (asyncio.gather).
+        """
+
+        # Extract counselor messages
+        counselor_messages = [
+            msg.content for msg in chat_history if msg.role.lower() == "counselor"
+        ]
+
+        if not counselor_messages:
+            return {
+                "reflective_questions_asked": 0,
+                "open_ended_questions_asked": 0,
+                "back_channel_cues": 0,
+            }
+
+        async def analyze_single_message(message: str, index: int) -> Dict[str, int]:
+            """Analyze one counselor message and return counts as dict."""
+
+            try:
+                prompt = COUNSELOR_ANALYSIS_PROMPT.format(message=message)
+                response = await self._invoke_llm(
+                    prompt, output_class=CounselorMessageAnalysis
+                )
+
+                return {
+                    "reflective_questions_asked": len(response.reflective),
+                    "open_ended_questions_asked": len(response.open_ended),
+                    "back_channel_cues": len(response.back_channel),
+                }
+
+            except Exception as e:
+                logger.warning(f"Failed to analyze message {index + 1}: {str(e)}")
+                return {
+                    "reflective_questions_asked": 0,
+                    "open_ended_questions_asked": 0,
+                    "back_channel_cues": 0,
+                }
+
+        # Run all analyses in parallel
+        tasks = [
+            analyze_single_message(msg, i) for i, msg in enumerate(counselor_messages)
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Aggregate results
+        totals = {
+            "reflective_questions_asked": 0,
+            "open_ended_questions_asked": 0,
+            "back_channel_cues": 0,
+        }
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.warning(f"Task {i + 1} failed with exception: {result}")
+                continue
+            totals["reflective_questions_asked"] += result["reflective_questions_asked"]
+            totals["open_ended_questions_asked"] += result["open_ended_questions_asked"]
+            totals["back_channel_cues"] += result["back_channel_cues"]
+
+        return totals

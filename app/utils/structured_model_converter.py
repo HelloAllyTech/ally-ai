@@ -264,19 +264,6 @@ def _convert_structured_summary_note(
             else None
         ),
         tags=tags,
-        reflective_questions_asked=(
-            len(sop_model.reflective_questions_asked)
-            if sop_model.reflective_questions_asked
-            else 0
-        ),
-        open_ended_questions_asked=(
-            len(sop_model.open_ended_questions_asked)
-            if sop_model.open_ended_questions_asked
-            else 0
-        ),
-        back_channel_cues=(
-            len(sop_model.back_channel_cues) if sop_model.back_channel_cues else 0
-        ),
         listening_share=None,
         emotional_lift=sop_model.emotional_lift,
         call_quality=max(0, min(sop_model.call_quality, 100)),
