@@ -29,17 +29,5 @@ class TranscriptionFailedException(BaseCustomException):
         self,
         message="Audio transcription failed",
         status_code=500,
-        audio_source: str = None,
-        error_details: str = None,
     ) -> None:
-        # Don't store sensitive data in instance variables for HIPAA compliance
-        # self.audio_source = audio_source  # Removed for HIPAA compliance
-        # self.error_details = error_details  # Removed for HIPAA compliance
-
-        # Don't include sensitive data in error messages for HIPAA compliance
-        # if audio_source:
-        #     message = f"Audio transcription failed for source: {audio_source}"
-        # if error_details:
-        #     message += f" - Details: {error_details}"
-
         super().__init__(message, status_code)
