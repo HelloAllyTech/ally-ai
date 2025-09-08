@@ -145,11 +145,14 @@ async def process_transcription_request(
         return {"status": "success", "chat_id": chat_id}
 
     except Exception as e:
-        logger.exception(f"Error processing transcription request: {str(e)}")
+        chat_id = request_data.get("chat_id", "unknown")
+        logger.exception(
+            f"Error processing transcription request: {chat_id} {type(e).__name__}"
+        )
         return {
             "status": "error",
-            "error": str(e),
-            "chat_id": request_data.get("chat_id", "unknown"),
+            "error": "Processing failed",
+            "chat_id": chat_id,
         }
 
 
@@ -164,7 +167,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         Dict containing the processing result
     """
-    logger.info(f"Lambda function started. Event: {json.dumps(event)}")
+    logger.info("Lambda function started")
     # Initialize services
     initialize_services()
 
@@ -180,21 +183,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Process the single message
         record = records[0]  # Each Lambda processes one message
         message_body = json.loads(record["body"])
+        chat_id = message_body.get("chat_id", "unknown")
         receipt_handle = record["receiptHandle"]  # Get receipt handle for deletion
-        logger.info(f"Processing message: {message_body.get('chat_id', 'unknown')}")
+        logger.info(f"Processing message: {chat_id}")
 
         # Process the transcription request
         result = asyncio.run(
             process_transcription_request(message_body, receipt_handle)
         )
 
-        logger.info(f"Message processed successfully: {result}")
+        logger.info(f"Message processed successfully: {chat_id}")
 
         return {"statusCode": 200, "body": json.dumps(result)}
 
     except Exception as e:
-        logger.exception(f"Lambda function error: {str(e)}")
+        logger.exception(f"Lambda function error: {type(e).__name__}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"status": "error", "error": str(e)}),
+            "body": json.dumps({"status": "error", "error": "Internal server error"}),
         }

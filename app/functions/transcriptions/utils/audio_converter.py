@@ -23,7 +23,7 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
         file and its detected extension
     """
     try:
-        logger.info(f"Downloading audio from: {audio_url}")
+        logger.info("Downloading audio file")
         # Download the file first with a generic extension
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(audio_url)
@@ -34,10 +34,7 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
             temp_input.write(response.content)
             temp_input.close()
 
-            logger.info(
-                f"Downloaded audio to temp file: {temp_input.name} "
-                f"({len(response.content)} bytes)"
-            )
+            logger.info(f"Downloaded audio file ({len(response.content)} bytes)")
 
             # Now identify the actual format
             actual_extension = await identify_audio_format(temp_input.name)
@@ -46,17 +43,16 @@ async def download_file_to_temp_and_get_details(audio_url: str) -> tuple[str, st
             correct_path = temp_input.name.replace(".audio", actual_extension)
             try:
                 await asyncio.to_thread(os.rename, temp_input.name, correct_path)
-                logger.info(
-                    f"Renamed file to: {correct_path} "
-                    f"(detected format: {actual_extension})"
-                )
+                logger.info(f"Renamed file (detected format: {actual_extension})")
                 return correct_path, actual_extension
             except OSError as e:
-                logger.warning(f"Failed to rename file, using original: {e}")
+                logger.warning(
+                    f"Failed to rename file, using original: {type(e).__name__}"
+                )
                 return temp_input.name, actual_extension
 
     except Exception as e:
-        logger.error(f"Error downloading audio from {audio_url}: {e}")
+        logger.error(f"Error downloading audio: {type(e).__name__}")
         raise
 
 
@@ -127,14 +123,14 @@ async def convert_and_segment_audio_async(
         # Clean up original file
         try:
             await asyncio.to_thread(os.remove, file_path)
-            logger.info(f"Cleaned up original file: {file_path}")
+            logger.info("Cleaned up original file")
         except OSError as e:
-            logger.warning(f"Failed to cleanup original file {file_path}: {e}")
+            logger.warning(f"Failed to cleanup original file: {type(e).__name__}")
 
         return segment_paths
 
     except Exception as e:
-        logger.error(f"Error in convert_and_segment_audio_async: {e}")
+        logger.error(f"Error in convert_and_segment_audio_async: {type(e).__name__}")
         raise
 
 
@@ -208,12 +204,11 @@ async def split_audio_into_segments(
         stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
-            error_msg = stderr.decode("utf-8", errors="ignore")
-            logger.error(f"FFmpeg segmentation failed for segment {i}: {error_msg}")
+            logger.error(f"FFmpeg segmentation failed for segment {i}")
             raise subprocess.CalledProcessError(
                 process.returncode,
                 "ffmpeg",
-                f"FFmpeg segmentation failed for segment {i}: {error_msg}",
+                f"FFmpeg segmentation failed for segment {i}",
             )
 
         # Verify segment file size
@@ -221,7 +216,7 @@ async def split_audio_into_segments(
             1024 * 1024
         )
         logger.info(
-            f"Created segment {i}: {segment_path} "
+            f"Created segment {i} "
             f"({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)"
         )
 
@@ -231,7 +226,7 @@ async def split_audio_into_segments(
         return segment_paths
 
     except Exception as e:
-        logger.exception(f"Error in split_audio_into_segments: {e}")
+        logger.exception(f"Error in split_audio_into_segments: {type(e).__name__}")
         raise
 
 
@@ -259,11 +254,11 @@ async def get_audio_duration(file_path: str) -> float:
             duration = float(stdout.decode("utf-8").strip())
             return duration
         else:
-            logger.warning(f"Could not get audio duration: {stderr.decode('utf-8')}")
+            logger.warning("Could not get audio duration")
             return 0.0
 
     except Exception as e:
-        logger.warning(f"Error getting audio duration: {e}")
+        logger.warning(f"Error getting audio duration: {type(e).__name__}")
         return 0.0
 
 
@@ -276,7 +271,7 @@ async def download_and_convert_raw_audio_to_wav(
         temp_input_path = file_path
         output_path = temp_input_path.replace(".raw", ".wav")
         ffmpeg_cmd = build_ffmpeg_command(temp_input_path, output_path, sample_rate)
-        logger.info(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
+        logger.info("Running FFmpeg conversion")
 
         # Run FFmpeg process with timeout
         process = await asyncio.create_subprocess_exec(
@@ -293,31 +288,33 @@ async def download_and_convert_raw_audio_to_wav(
             raise Exception("FFmpeg conversion timed out")
 
         if process.returncode != 0:
-            error_msg = stderr.decode("utf-8", errors="ignore")
-            logger.error(f"FFmpeg error: {error_msg}")
-            raise subprocess.CalledProcessError(process.returncode, "ffmpeg", error_msg)
+            logger.error("FFmpeg conversion error")
+            raise subprocess.CalledProcessError(
+                process.returncode, "ffmpeg", "FFmpeg conversion failed"
+            )
 
         # Check if output file exists and has content
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
             raise Exception("FFmpeg output file is empty or missing")
 
         logger.info(
-            f"Audio converted successfully: {output_path} "
-            f"({os.path.getsize(output_path)} bytes)"
+            f"Audio converted successfully " f"({os.path.getsize(output_path)} bytes)"
         )
 
         try:
             # Clean up temp input file since it is raw file and we dont need it anymore
             # We will return the output path of wav file instead of the temp file_path
             os.unlink(temp_input_path)
-            logger.info(f"Cleaned up temp input file: {temp_input_path}")
+            logger.info("Cleaned up temp input file")
         except Exception as e:
-            logger.warning(f"Failed to clean up temp input file: {e}")
+            logger.warning(f"Failed to clean up temp input file: {type(e).__name__}")
 
         return output_path
 
     except Exception as e:
-        logger.error(f"Error in download_and_convert_raw_audio_to_wav: {e}")
+        logger.error(
+            f"Error in download_and_convert_raw_audio_to_wav: {type(e).__name__}"
+        )
         raise
 
 
@@ -403,11 +400,11 @@ async def identify_audio_format(file_path: str) -> str:
                 logger.warning("Failed to parse FFprobe JSON output")
                 return ".raw"
         else:
-            logger.warning(f"FFprobe failed: {stderr.decode('utf-8')}")
+            logger.warning("FFprobe failed")
             return ".raw"
 
     except Exception as e:
-        logger.warning(f"Error identifying audio format: {e}")
+        logger.warning(f"Error identifying audio format: {type(e).__name__}")
         return ".raw"
 
 
