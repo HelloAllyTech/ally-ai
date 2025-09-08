@@ -95,7 +95,7 @@ class SQSQueueClient:
                     logger.info("SQS client closed (no HTTP session to close)")
 
             except Exception as e:
-                logger.warning(f"Error closing SQS client: {e}")
+                logger.warning(f"Error closing SQS client: {type(e).__name__}")
             finally:
                 _sqs_client = None
                 logger.info("SQS client reference cleared")

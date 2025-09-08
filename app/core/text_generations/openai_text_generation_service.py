@@ -95,7 +95,7 @@ def generate_dynamic_summary(
         _ = StructuredSummaryNote(**validated_fields)
         return validated_fields
     except Exception as e:
-        logger.error(f"Validation failed: {str(e)}")
+        logger.error(f"Validation failed: {type(e).__name__}")
         return {}
 
 
@@ -259,13 +259,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             try:
                 response = await llm.ainvoke(messages)
             except openai.RateLimitError as e:
-                logger.exception(str(e))
+                logger.exception(f"Error: {type(e).__name__}")
                 raise LLMInvocationFailedException(
                     "OpenAI API rate limit exceeded. Please try again later."
                 ) from e
 
             except openai.APIConnectionError as e:
-                logger.exception(str(e))
+                logger.exception(f"Error: {type(e).__name__}")
                 raise LLMInvocationFailedException(
                     "OpenAI API error. Please try again later."
                 ) from e
@@ -339,10 +339,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     chat_history, chat_history_str, **kwargs
                 )
         except Exception as e:
-            logger.exception(f"Failed to generate summary: {str(e)}")
-            raise SummaryNoteFailedException(
-                f"Failed to generate summary: {str(e)}"
-            ) from e
+            logger.exception(f"Failed to generate summary: {type(e).__name__}")
+            raise SummaryNoteFailedException("Failed to generate summary") from e
 
     async def _generate_dynamic_summary(
         self, chat_history, chat_history_str, keys, **kwargs
@@ -583,11 +581,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ]
 
         except LLMInvocationFailedException as e:
-            logger.exception(f"Failed to get positivity ratings: {str(e)}")
+            logger.exception(f"Failed to get positivity ratings: {type(e).__name__}")
             raise Exception("Failed to get positivity ratings for tags.") from e
 
         except Exception as e:
-            logger.exception(f"Unexpected error getting positivity ratings: {str(e)}")
+            logger.exception(
+                f"Unexpected error getting positivity ratings: {type(e).__name__}"
+            )
             raise Exception(
                 "An unexpected error occurred while getting positivity ratings."
             ) from e
@@ -665,7 +665,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 logger.info("Diarization completed successfully")
                 return result
             except Exception as e:
-                logger.error(f"Failed to diarize single chunk: {str(e)}")
+                logger.error(f"Failed to diarize single chunk: {type(e).__name__}")
                 raise LLMInvocationFailedException(
                     "Failed to diarize transcription."
                 ) from e
@@ -706,7 +706,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 )
                 return result
             except Exception as e:
-                logger.error(f"Chunk {index + 1} failed to diarize: {str(e)}")
+                logger.error(f"Chunk {index + 1} failed to diarize: {type(e).__name__}")
                 raise LLMInvocationFailedException(f"Chunk {index + 1} failed") from e
 
         try:
@@ -722,7 +722,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     failed_chunks.append(i + 1)
-                    logger.error(f"Chunk {i + 1} failed: {str(result)}")
+                    logger.error(f"Chunk {i + 1} failed: {type(result).__name__}")
 
             if failed_chunks:
                 raise LLMInvocationFailedException(
@@ -750,7 +750,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             return StructuredDiarization(messages=combined_messages)
 
         except Exception as e:
-            logger.error(f"Failed during parallel diarization: {str(e)}")
+            logger.error(f"Failed during parallel diarization: {type(e).__name__}")
             raise LLMInvocationFailedException(
                 "Failed to diarize transcription."
             ) from e
@@ -795,7 +795,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 }
 
             except Exception as e:
-                logger.warning(f"Failed to analyze message {index + 1}: {str(e)}")
+                logger.warning(
+                    f"Failed to analyze message {index + 1}: {type(e).__name__}"
+                )
                 return {
                     "reflective_questions_asked": 0,
                     "open_ended_questions_asked": 0,
@@ -817,7 +819,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.warning(f"Task {i + 1} failed with exception: {result}")
+                logger.warning(
+                    f"Task {i + 1} failed with exception: {type(result).__name__}"
+                )
                 continue
             totals["reflective_questions_asked"] += result["reflective_questions_asked"]
             totals["open_ended_questions_asked"] += result["open_ended_questions_asked"]

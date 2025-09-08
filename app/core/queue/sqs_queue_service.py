@@ -101,7 +101,7 @@ class SQSQueueService:
             return message_id
 
         except Exception as e:
-            logger.exception(f"Error sending message to queue {queue_url}: {str(e)}")
+            logger.exception(f"Error sending message to queue: {type(e).__name__}")
             raise
 
     async def receive_messages(
@@ -165,9 +165,7 @@ class SQSQueueService:
             return processed_messages
 
         except Exception as e:
-            logger.exception(
-                f"Error receiving messages from queue {queue_url}: {str(e)}"
-            )
+            logger.exception(f"Error receiving messages from queue: {type(e).__name__}")
             raise
 
     async def delete_message(self, queue_url: str, receipt_handle: str) -> None:
@@ -195,5 +193,5 @@ class SQSQueueService:
             return response
 
         except Exception as e:
-            logger.exception(f"Error deleting message from queue {queue_url}: {str(e)}")
+            logger.exception(f"Error deleting message from queue: {type(e).__name__}")
             raise
