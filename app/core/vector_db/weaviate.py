@@ -72,13 +72,13 @@ class WeaviateDB(VectorDB):
                 )
 
         except WeaviateConnectionError as e:
-            logger.exception(str(e))
+            logger.exception(f"Weaviate connection error: {type(e).__name__}")
             raise VectorDBSearchFailedException(
                 "Weaviate connection error. Please try again later."
             ) from e
 
         except AuthenticationFailedException as e:
-            logger.exception(str(e))
+            logger.exception(f"Weaviate authentication error: {type(e).__name__}")
             raise VectorDBSearchFailedException(
                 "Weaviate authentication failed. Please try again later."
             ) from e
@@ -158,8 +158,8 @@ class WeaviateDB(VectorDB):
             return str(result_id)
 
         except Exception as e:
-            logger.exception(f"Failed to create document: {str(e)}")
-            raise VectorDBInsertFailedException(f"Failed to create document: {str(e)}")
+            logger.exception(f"Failed to create document: {type(e).__name__}")
+            raise VectorDBInsertFailedException("Failed to create document")
 
     async def get_document_by_id(
         self, collection_name: str, document_id: str, include_vector: bool = True
@@ -209,7 +209,7 @@ class WeaviateDB(VectorDB):
             # Re-raise DocumentNotFoundException
             raise e
         except Exception as e:
-            logger.exception(f"Failed to get document: {str(e)}")
+            logger.exception(f"Failed to get document: {type(e).__name__}")
             raise DocumentNotFoundException(f"Document with ID {document_id} not found")
 
     async def update_document(
@@ -242,8 +242,8 @@ class WeaviateDB(VectorDB):
                 )
 
         except Exception as e:
-            logger.exception(f"Failed to update document: {str(e)}")
-            raise VectorDBUpdateFailedException(f"Failed to update document: {str(e)}")
+            logger.exception(f"Failed to update document: {type(e).__name__}")
+            raise VectorDBUpdateFailedException("Failed to update document")
 
     async def delete_document(self, collection_name: str, document_id: str) -> None:
         """
@@ -265,8 +265,8 @@ class WeaviateDB(VectorDB):
                 await collection.data.delete_by_id(document_id)
 
         except Exception as e:
-            logger.exception(f"Failed to delete document: {str(e)}")
-            raise VectorDBDeleteFailedException(f"Failed to delete document: {str(e)}")
+            logger.exception(f"Failed to delete document: {type(e).__name__}")
+            raise VectorDBDeleteFailedException("Failed to delete document")
 
     async def search_documents(
         self,
@@ -419,5 +419,5 @@ class WeaviateDB(VectorDB):
                 "categories": categories,
             }
         except Exception as e:
-            logger.exception(f"Failed to search documents: {str(e)}")
-            raise VectorDBSearchFailedException(f"Failed to search documents: {str(e)}")
+            logger.exception(f"Failed to search documents: {type(e).__name__}")
+            raise VectorDBSearchFailedException("Failed to search documents")

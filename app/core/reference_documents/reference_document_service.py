@@ -102,15 +102,15 @@ class ReferenceDocumentService:
             return document_id
 
         except DocumentAlreadyExistsException as e:
-            logger.error(f"Document already exists: {str(e)}")
+            logger.error(f"Document already exists: {type(e).__name__}")
             raise
 
         except EmbeddingFailedException as e:
-            logger.error(f"Failed to generate embedding: {str(e)}")
+            logger.error(f"Failed to generate embedding: {type(e).__name__}")
             raise
 
         except VectorDBInsertFailedException as e:
-            logger.error(f"Failed to create reference document: {str(e)}")
+            logger.error(f"Failed to create reference document: {type(e).__name__}")
             raise
 
     async def update_document(
@@ -188,11 +188,11 @@ class ReferenceDocumentService:
             raise
 
         except EmbeddingFailedException as e:
-            logger.error(f"Failed to generate embedding: {str(e)}")
+            logger.error(f"Failed to generate embedding: {type(e).__name__}")
             raise
 
         except VectorDBUpdateFailedException as e:
-            logger.error(f"Failed to update reference document: {str(e)}")
+            logger.error(f"Failed to update reference document: {type(e).__name__}")
             raise
 
     async def delete_document(self, document_id: str) -> None:
@@ -226,7 +226,7 @@ class ReferenceDocumentService:
             raise
 
         except VectorDBDeleteFailedException as e:
-            logger.error(f"Failed to delete reference document: {str(e)}")
+            logger.error(f"Failed to delete reference document: {type(e).__name__}")
             raise
 
     async def get_document(
@@ -278,7 +278,7 @@ class ReferenceDocumentService:
             raise
 
         except Exception as e:
-            logger.error(f"Failed to get document: {str(e)}")
+            logger.error(f"Failed to get document: {type(e).__name__}")
             raise DocumentNotFoundException(
                 f"Reference document with ID {document_id} not found"
             )
@@ -362,15 +362,17 @@ class ReferenceDocumentService:
             }
 
         except ValueError as e:
-            logger.error(f"Invalid filter: {str(e)}")
+            logger.error(f"Invalid filter: {type(e).__name__}")
             raise
 
         except EmbeddingFailedException as e:
-            logger.exception(f"Failed to generate embedding: {str(e)}")
+            logger.exception(f"Failed to generate embedding: {type(e).__name__}")
             raise
 
         except Exception as e:
-            logger.exception(f"Failed to search reference documents: {str(e)}")
+            logger.exception(
+                f"Failed to search reference documents: {type(e).__name__}"
+            )
             raise VectorDBSearchFailedException(
-                f"Failed to search reference documents: {str(e)}"
+                f"Failed to search reference documents: {type(e).__name__}"
             )

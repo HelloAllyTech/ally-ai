@@ -69,14 +69,14 @@ async def create_reference_document(
         )
 
     except EmbeddingFailedException as e:
-        logger.error(f"Embedding generation failed: {str(e)}")
+        logger.error(f"Embedding generation failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to generate embedding for document. Please try again later.",
         )
 
     except VectorDBInsertFailedException as e:
-        logger.error(f"Document creation failed: {str(e)}")
+        logger.error(f"Document creation failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create reference document. Please try again later.",
@@ -124,14 +124,14 @@ async def update_reference_document(
         )
 
     except EmbeddingFailedException as e:
-        logger.error(f"Embedding generation failed: {str(e)}")
+        logger.error(f"Embedding generation failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to generate embedding for document. Please try again later.",
         )
 
     except VectorDBUpdateFailedException as e:
-        logger.error(f"Document update failed: {str(e)}")
+        logger.error(f"Document update failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update reference document. Please try again later.",
@@ -168,7 +168,7 @@ async def delete_reference_document(
         )
 
     except VectorDBDeleteFailedException as e:
-        logger.error(f"Document deletion failed: {str(e)}")
+        logger.error(f"Document deletion failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete reference document. Please try again later.",
@@ -239,13 +239,13 @@ async def search_reference_documents(
         return ReferenceDocumentSearchResponse(**search_results)
 
     except ValueError as e:
-        logger.error(f"Invalid filter parameters: {str(e)}")
+        logger.error(f"Invalid filter parameters: {type(e).__name__}")
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=type(e).__name__
         )
 
     except EmbeddingFailedException as e:
-        logger.error(f"Embedding generation failed: {str(e)}")
+        logger.error(f"Embedding generation failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to generate embedding for search query. "
@@ -253,7 +253,7 @@ async def search_reference_documents(
         )
 
     except VectorDBSearchFailedException as e:
-        logger.error(f"Document search failed: {str(e)}")
+        logger.error(f"Document search failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to search reference documents. Please try again later.",

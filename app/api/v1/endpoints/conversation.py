@@ -32,16 +32,17 @@ async def analyze(
 
         return AnalyzeResponse(nudge=nudge, stage=stage)
 
-    except ConversationAnalysisFailedException as e:
+    except ConversationAnalysisFailedException:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Conversation analysis failed",
         )
 
     except Exception as e:
-        logger.exception(str(e))
+        logger.exception(f"Unexpected error: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str("Something went wrong. Please try again later."),
+            detail="Something went wrong. Please try again later.",
         )
 
 
