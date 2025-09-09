@@ -46,7 +46,7 @@ class SummaryService:
                 chat_history, keys
             )
         except SummaryNoteFailedException as e:
-            logger.error(f"Failed to generate summary: {str(e)}")
+            logger.error(f"Failed to generate summary: {type(e).__name__}")
             raise SummarizationFailedException(
                 "Failed to generate the summary. Please try again later."
             ) from e

@@ -89,9 +89,9 @@ async def calculate_reflective_listening(
     except EmbeddingFailedException as e:
         logger.error(
             "Embedding service failed during reflective listening "
-            f"calculation: {str(e)}"
+            f"calculation: {type(e).__name__}"
         )
         return 0
     except Exception as e:
-        logger.error(f"Error calculating reflective listening: {str(e)}")
+        logger.error(f"Error calculating reflective listening: {type(e).__name__}")
         return 0

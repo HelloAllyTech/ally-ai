@@ -44,13 +44,13 @@ class OpenAIEmbeddingService(BaseEmbeddingService[OpenAIEmbeddings]):
             return await self.client.aembed_query(text)
 
         except RateLimitError as e:
-            logger.exception(str(e))
+            logger.exception(type(e).__name__)
             raise EmbeddingFailedException(
                 "OpenAI API rate limit exceeded. Please try again later."
             ) from e
 
         except APIConnectionError as e:
-            logger.exception(str(e))
+            logger.exception(type(e).__name__)
             raise EmbeddingFailedException(
                 "OpenAI API error. Please try again later."
             ) from e
@@ -82,13 +82,13 @@ class OpenAIEmbeddingService(BaseEmbeddingService[OpenAIEmbeddings]):
             return await self.client.aembed_documents(texts)
 
         except RateLimitError as e:
-            logger.exception(str(e))
+            logger.exception(type(e).__name__)
             raise EmbeddingFailedException(
                 "OpenAI API rate limit exceeded. Please try again later."
             ) from e
 
         except APIConnectionError as e:
-            logger.exception(str(e))
+            logger.exception(type(e).__name__)
             raise EmbeddingFailedException(
                 "OpenAI API error. Please try again later."
             ) from e
