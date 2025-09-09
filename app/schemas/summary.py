@@ -344,3 +344,23 @@ class TagPositivityRatingResponse(BaseModel):
                 ]
             }
         }
+
+class SimulationAnalysisRequest(BaseModel):
+    chat_history: List[ChatMessage] = Field(
+        ...,
+        description="List of chat messages/exchanges in the simulation"
+    )
+    goal: str = Field(
+        ...,
+        description="The objective or goal to analyze the simulation against"
+    )
+
+class SimulationAnalysisResponse(BaseModel):
+    improvements: List[str] = Field(
+        ...,
+        description="Areas that need improvement with specific, actionable points"
+    )
+    positives: List[str] = Field(
+        ...,
+        description="Things that went well and positive aspects demonstrated"
+    )

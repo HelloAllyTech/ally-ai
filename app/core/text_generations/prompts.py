@@ -264,3 +264,43 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
     ),
     input_variables=["message"],
 )
+
+SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
+   template=textwrap.dedent(
+       """
+       You are a clinical supervisor analyzing a counselor training simulation 
+       where an AI client interacts with a counselor-in-training.
+
+       Evaluate the counselor's performance against the training goal and 
+       return ONLY a JSON object with two array fields.
+
+       Important rules:
+       - Provide specific, actionable feedback points
+       - Reference exact examples from the conversation
+       - Focus on clinical competencies and therapeutic techniques
+       - Each point should be concise but substantive
+
+       Training Goal: {goal}
+
+       Conversation Transcript:
+       {chat_history}
+
+       Analyze the counselor's:
+       • Therapeutic rapport building and engagement
+       • Active listening and reflective techniques
+       • Empathy expression and validation
+       • Question formulation and timing
+       • Professional boundaries and crisis response
+       • Goal alignment and skill demonstration
+
+       Return only valid JSON with these fields:
+       - "improvements" → Array of specific areas needing development 
+         with conversation examples
+       - "positives" → Array of demonstrated strengths and effective 
+         techniques with examples
+
+       Return only valid JSON.
+       """
+   ),
+   input_variables=["goal", "chat_history"],
+)
