@@ -29,16 +29,5 @@ class TranscriptionFailedException(BaseCustomException):
         self,
         message="Audio transcription failed",
         status_code=500,
-        audio_source: str = None,
-        error_details: str = None,
     ) -> None:
-        self.audio_source = audio_source
-        self.error_details = error_details
-
-        # Enhance message with additional context if available
-        if audio_source:
-            message = f"Audio transcription failed for source: {audio_source}"
-        if error_details:
-            message += f" - Details: {error_details}"
-
         super().__init__(message, status_code)

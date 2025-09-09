@@ -80,7 +80,7 @@ async def main():
     except KeyboardInterrupt:
         logger.info("Worker interrupted by user")
     except Exception as e:
-        logger.error(f"Worker error: {e}")
+        logger.error(f"Worker error: {type(e).__name__}")
         raise
     finally:
         # Critical: Close the SQS client to shut down its ThreadPoolExecutor
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Worker stopped")
     except Exception as e:
-        logger.exception(f"Fatal error: {e}")
+        logger.exception(f"Fatal error: {type(e).__name__}")
         raise
     finally:
         logger.info("Worker exited")

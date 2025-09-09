@@ -57,9 +57,10 @@ class OpenAITranscriptionService:
 
         except Exception as e:
             logger.error(
-                f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}"
+                f"Error transcribing audio from URL for chat_id {chat_id}: "
+                f"{type(e).__name__}"
             )
-            raise TranscriptionFailedException(f"Transcription failed: {str(e)}")
+            raise TranscriptionFailedException("Transcription failed")
 
     async def _transcribe_and_preprocess_audio(
         self, audio_url: str, sample_rate: int = 8000
@@ -101,9 +102,11 @@ class OpenAITranscriptionService:
             return segments_text
 
         except Exception as e:
-            logger.error(f"Error transcribing and preprocessing audio: {str(e)}")
+            logger.error(
+                f"Error transcribing and preprocessing audio: {type(e).__name__}"
+            )
             raise TranscriptionFailedException(
-                f"Audio transcription and preprocessing failed: {str(e)}"
+                "Audio transcription and preprocessing failed"
             )
         finally:
             # Clean up all segment files
@@ -111,10 +114,10 @@ class OpenAITranscriptionService:
                 if await asyncio.to_thread(os.path.exists, segment_path):
                     try:
                         await asyncio.to_thread(os.remove, segment_path)
-                        logger.info(f"Cleaned up segment file: {segment_path}")
+                        logger.info("Cleaned up segment file")
                     except OSError as e:
                         logger.warning(
-                            f"Failed to cleanup segment file {segment_path}: {e}"
+                            f"Failed to cleanup segment file: {type(e).__name__}"
                         )
 
             logger.info("Audio processing complete")
@@ -149,8 +152,8 @@ class OpenAITranscriptionService:
             return segments_text
 
         except Exception as e:
-            logger.error(f"Error transcribing single file: {e}")
-            raise TranscriptionFailedException(f"Error transcribing single file: {e}")
+            logger.error(f"Error transcribing single file: {type(e).__name__}")
+            raise TranscriptionFailedException("Error transcribing single file")
 
     async def _transcribe_multiple_segments(self, segment_paths: list) -> str:
         """Transcribe multiple audio segments in parallel and combine results"""
@@ -174,9 +177,11 @@ class OpenAITranscriptionService:
             all_segments = []
             for i, result in enumerate(segment_results):
                 if isinstance(result, Exception):
-                    logger.error(f"Segment {i} transcription failed: {result}")
+                    logger.error(
+                        f"Segment {i} transcription failed: {type(result).__name__}"
+                    )
                     raise TranscriptionFailedException(
-                        f"Segment {i} transcription failed: {result}"
+                        f"Segment {i} transcription failed"
                     )
                 all_segments.extend(result)
 
@@ -198,10 +203,8 @@ class OpenAITranscriptionService:
             return segments_text
 
         except Exception as e:
-            logger.error(f"Error transcribing multiple segments: {e}")
-            raise TranscriptionFailedException(
-                f"Error transcribing multiple segments: {e}"
-            )
+            logger.error(f"Error transcribing multiple segments: {type(e).__name__}")
+            raise TranscriptionFailedException("Error transcribing multiple segments")
 
     async def _transcribe_segment_with_offset(
         self, segment_path: str, segment_index: int
@@ -238,7 +241,9 @@ class OpenAITranscriptionService:
             return adjusted_segments
 
         except Exception as e:
-            logger.error(f"Error transcribing segment {segment_index}: {e}")
+            logger.error(
+                f"Error transcribing segment {segment_index}: {type(e).__name__}"
+            )
             raise TranscriptionFailedException(
-                f"Error transcribing segment {segment_index}: {e}"
+                f"Error transcribing segment {segment_index}"
             )

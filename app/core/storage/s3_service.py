@@ -78,11 +78,11 @@ class S3Service:
             return s3_path
 
         except ClientError as e:
-            logger.error(f"Failed to upload to S3: {str(e)}")
-            raise Exception(f"S3 upload failed: {str(e)}")
+            logger.error(f"Failed to upload to S3: {type(e).__name__}")
+            raise Exception("S3 upload failed")
         except Exception as e:
-            logger.error(f"Unexpected error uploading to S3: {str(e)}")
-            raise Exception(f"S3 upload failed: {str(e)}")
+            logger.error(f"Unexpected error uploading to S3: {type(e).__name__}")
+            raise Exception("S3 upload failed")
 
     async def generate_presigned_download_url(
         self, bucket_name: str, object_key: str, expiration: int = 3600
@@ -112,7 +112,9 @@ class S3Service:
             )
             return response
         except ClientError as e:
-            logger.error(f"Failed to generate presigned download URL: {e}")
+            logger.error(
+                f"Failed to generate presigned download URL: {type(e).__name__}"
+            )
             return None
 
     async def generate_presigned_delete_url(
@@ -143,5 +145,5 @@ class S3Service:
             )
             return response
         except ClientError as e:
-            logger.error(f"Failed to generate presigned delete URL: {e}")
+            logger.error(f"Failed to generate presigned delete URL: {type(e).__name__}")
             return None

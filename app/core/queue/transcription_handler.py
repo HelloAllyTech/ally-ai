@@ -82,7 +82,7 @@ class TranscriptionHandler:
             chat_id = message_data.get("chat_id", "unknown")
             logger.exception(
                 f"Error processing transcription request for chat_id {chat_id}: "
-                f"{str(e)}"
+                f"{type(e).__name__}"
             )
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
@@ -144,7 +144,8 @@ class TranscriptionHandler:
 
         except Exception as e:
             logger.error(
-                f"Error in diarization/summary for chat_id {request.chat_id}: {str(e)}"
+                f"Error in diarization/summary for chat_id {request.chat_id}: "
+                f"{type(e).__name__}"
             )
             return False
 
@@ -170,10 +171,12 @@ class TranscriptionHandler:
             return summary
 
         except Exception as e:
-            logger.error(f"Error generating summary for chat_id {chat_id}: {str(e)}")
+            logger.error(
+                f"Error generating summary for chat_id {chat_id}: {type(e).__name__}"
+            )
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
-            raise Exception(f"Summary generation failed: {str(e)}")
+            raise Exception("Summary generation failed")
 
     async def send_combined_result_to_queue(
         self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]
@@ -249,7 +252,7 @@ class TranscriptionHandler:
         except Exception as e:
             logger.error(
                 f"Error sending combined result to queue for chat_id {chat_id}: "
-                f"{str(e)}"
+                f"{type(e).__name__}"
             )
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
@@ -274,4 +277,7 @@ class TranscriptionHandler:
             logger.info(f"Error response sent for chat_id: {chat_id}")
 
         except Exception as e:
-            logger.error(f"Failed to send error response for chat_id {chat_id}: {e}")
+            logger.error(
+                f"Failed to send error response for chat_id {chat_id}: "
+                f"{type(e).__name__}"
+            )

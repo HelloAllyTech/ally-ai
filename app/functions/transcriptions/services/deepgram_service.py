@@ -78,11 +78,10 @@ class DeepgramTranscriptionService:
 
         except Exception as e:
             logger.error(
-                f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}"
+                f"Error transcribing audio from URL for chat_id {chat_id}: "
+                f"{type(e).__name__}"
             )
-            raise TranscriptionFailedException(
-                f"Error transcribing audio from URL for chat_id {chat_id}: {str(e)}"
-            )
+            raise TranscriptionFailedException("Error transcribing audio from URL")
 
     async def _transcribe_with_deepgram_sdk(self, wav_file_path: str) -> str:
         """
@@ -96,9 +95,7 @@ class DeepgramTranscriptionService:
             str: Formatted segments text with timing information for diarization
         """
         try:
-            logger.info(
-                f"Starting Deepgram SDK transcription for file: {wav_file_path}"
-            )
+            logger.info("Starting Deepgram SDK transcription")
 
             # Read the audio file
             with open(wav_file_path, "rb") as audio_file:
@@ -146,10 +143,10 @@ class DeepgramTranscriptionService:
             return segments_text
 
         except Exception as e:
-            logger.exception(f"Error during Deepgram SDK transcription: {e}")
-            raise TranscriptionFailedException(
-                f"Deepgram SDK transcription error: {str(e)}"
+            logger.exception(
+                f"Error during Deepgram SDK transcription: {type(e).__name__}"
             )
+            raise TranscriptionFailedException("Deepgram SDK transcription error")
 
     async def _transcribe_multiple_segments(self, segment_paths: list) -> str:
         """Transcribe multiple audio segments in parallel and combine results"""
@@ -173,7 +170,9 @@ class DeepgramTranscriptionService:
             all_segments = []
             for i, result in enumerate(segment_results):
                 if isinstance(result, Exception):
-                    logger.error(f"Segment {i} transcription failed: {result}")
+                    logger.error(
+                        f"Segment {i} transcription failed: {type(result).__name__}"
+                    )
                     raise result
                 all_segments.extend(result)
 
@@ -195,7 +194,7 @@ class DeepgramTranscriptionService:
             return segments_text
 
         except Exception as e:
-            logger.error(f"Error transcribing multiple segments: {e}")
+            logger.error(f"Error transcribing multiple segments: {type(e).__name__}")
             raise
 
     async def _transcribe_segment_with_offset(
@@ -229,7 +228,8 @@ class DeepgramTranscriptionService:
 
                     except (ValueError, IndexError) as parse_error:
                         logger.warning(
-                            f"Failed to parse segment line: {line} - {parse_error}"
+                            f"Failed to parse segment line: "
+                            f"{type(parse_error).__name__}"
                         )
                         continue
 
@@ -241,7 +241,9 @@ class DeepgramTranscriptionService:
             return adjusted_segments
 
         except Exception as e:
-            logger.error(f"Error transcribing segment {segment_index}: {e}")
+            logger.error(
+                f"Error transcribing segment {segment_index}: {type(e).__name__}"
+            )
             raise
 
     async def _cleanup_segment_files(self, segment_paths: list):
@@ -250,10 +252,10 @@ class DeepgramTranscriptionService:
             try:
                 if os.path.exists(segment_path):
                     os.remove(segment_path)
-                    logger.info(f"Cleaned up segment file: {segment_path}")
+                    logger.info("Cleaned up segment file")
             except Exception as cleanup_error:
                 logger.warning(
-                    f"Failed to clean up segment file {segment_path}: {cleanup_error}"
+                    f"Failed to clean up segment file: {type(cleanup_error).__name__}"
                 )
 
     def _format_deepgram_response_for_diarization(self, results: Results) -> str:
@@ -346,5 +348,8 @@ class DeepgramTranscriptionService:
             return segments_text
 
         except Exception as e:
-            logger.exception(f"Error formatting Deepgram response for diarization: {e}")
-            raise TranscriptionFailedException(f"Error formatting response: {str(e)}")
+            logger.exception(
+                f"Error formatting Deepgram response for diarization: "
+                f"{type(e).__name__}"
+            )
+            raise TranscriptionFailedException("Error formatting response")

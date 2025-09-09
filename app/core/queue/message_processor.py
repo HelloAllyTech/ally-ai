@@ -71,7 +71,7 @@ class MessageProcessor:
                 try:
                     body = json.loads(body)
                 except json.JSONDecodeError:
-                    logger.error(f"Failed to parse message body as JSON: {body}")
+                    logger.error("Failed to parse message body as JSON")
                     return
             # Extract chat_id early
             chat_id = body.get("chat_id", "unknown")
@@ -85,7 +85,7 @@ class MessageProcessor:
                 body.get("chat_id", "unknown") if "body" in locals() else "unknown"
             )
             logger.exception(
-                f"Error processing message for chat_id {chat_id}: {str(e)}"
+                f"Error processing message for chat_id {chat_id}: {type(e).__name__}"
             )
 
         finally:
@@ -133,7 +133,7 @@ class MessageProcessor:
                 )
 
         except Exception as e:
-            logger.exception(f"Error polling queue {self.queue_url}: {str(e)}")
+            logger.exception(f"Error polling queue: {type(e).__name__}")
 
     async def run(self) -> None:
         """
@@ -154,7 +154,7 @@ class MessageProcessor:
                 logger.info("Message processor cancelled")
                 break
             except Exception as e:
-                logger.exception(f"Error in message processor: {str(e)}")
+                logger.exception(f"Error in message processor: {type(e).__name__}")
                 # Continue running even if there's an error
                 await asyncio.sleep(1)
 
