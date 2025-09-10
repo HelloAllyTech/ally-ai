@@ -12,7 +12,7 @@ from app.schemas.summary import (
     SummaryNoteAndTagsRequest,
     SummaryNoteAndTagsResponse,
     TagPositivityRatingRequest,
-    TagPositivityRatingResponse,
+    TagPositivityRatingResponse, SimulationAnalysisResponse, SimulationAnalysisRequest,
 )
 
 router = APIRouter()
@@ -67,3 +67,23 @@ async def get_tag_positivity_ratings(
     tags = await summary_service.get_tag_positivity_ratings(request.tags)
 
     return TagPositivityRatingResponse(tags=tags)
+
+@router.post(
+    "/scenario/feedback",
+    tags=["simulation", "analysis"],
+    response_model=SimulationAnalysisResponse,
+)
+async def generate_simulation_analysis(
+        request: SimulationAnalysisRequest,
+        summary_service: SummaryService = Depends(get_summary_service),
+):
+    """
+    Generates simulation analysis based on chat history and goal.
+
+    Analyzes conversation performance to identify improvement areas and positives.
+    """
+    analysis_response = await summary_service.generate_simulation_summary(
+        request.chat_history, request.goal
+    )
+
+    return SimulationAnalysisResponse(**analysis_response)

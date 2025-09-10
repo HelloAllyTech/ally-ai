@@ -19,13 +19,13 @@ from app.core.text_generations.prompts import (
     IDENTIFY_USER_PROMPT,
     NUDGE_PROMPT,
     SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT,
+    TAG_POSITIVITY_RATING_PROMPT, SIMULATION_ANALYSIS_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
     StructuredDiarization,
     StructuredIdentifyUsers,
-    StructuredSummaryNote,
+    StructuredSummaryNote, SimulationAnalysis,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -828,3 +828,54 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             totals["back_channel_cues"] += result["back_channel_cues"]
 
         return totals
+
+    async def generate_simulation_summary(
+            self,
+            chat_history: List[ChatMessage],
+            goal: str,
+            **kwargs
+    ) -> Dict[str, List[str]]:
+        """
+        Generate simulation summary analyzing chat history against a goal.
+
+        Analyzes conversation performance to identify improvement areas and positives.
+
+        Parameters:
+            chat_history (List[str]): List of chat messages/exchanges
+            goal (str): The objective or goal to analyze against
+            **kwargs: Additional arguments for LLM invocation
+
+        Returns:
+            Dict[str, List[str]]: Dictionary with 'improvements' and 'positives' arrays
+
+        Raises:
+            LLMInvocationFailedException: If LLM invocation fails
+        """
+        logger.info("Generating simulation summary using OpenAI")
+
+        # Convert chat history to string format
+        chat_history_str = "\n".join([f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)])
+
+        try:
+            response = cast(
+                SimulationAnalysis,
+                await self._invoke_llm(
+                    SIMULATION_ANALYSIS_PROMPT.format(
+                        goal=goal,
+                        chat_history=chat_history_str
+                    ),
+                    SimulationAnalysis,
+                    **kwargs,
+                ),
+            )
+
+            logger.info("Simulation summary generated successfully")
+
+            return {
+                "improvements": response.improvements,
+                "positives": response.positives
+            }
+
+        except LLMInvocationFailedException as e:
+            logger.exception("Failed to generate simulation summary")
+            raise LLMInvocationFailedException("Failed to generate simulation summary") from e
