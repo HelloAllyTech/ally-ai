@@ -227,41 +227,29 @@ DIARIZATION_PROMPT = PromptTemplate(
 COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
-        You are analyzing counselor communication.
+        You are an extraction engine which is extracting sentences into 3 categories from a client counselor chat. 
+        Your ONLY job is to copy exact substrings from the counselor’s message into the correct categories.
+        Never rephrase. Never invent. Only copy from given sentence.
 
-        Read the counselor's message below and
-        return ONLY a JSON object with three array fields.
+        Return ONLY a JSON object like this:
+        {{
+          "reflective": [ "..." ],
+          "open_ended": [ "..." ],
+          "back_channel": [ "..." ]
+        }}
 
-        Important rules:
-        - Only include text that EXACTLY appears in the counselor's message.
-        - Do NOT rephrase, expand, or invent new sentences.
-        - If nothing matches a category, return an empty array [].
+        Rules:
+        - reflective: Copy exact counselor questions that mirror client’s own words/feelings as inquiry.
+        - open_ended: Copy exact counselor questions that START with 
+          How, What, Why, When, Where, Tell me, Describe, Explain.
+          These must invite elaboration, not yes/no.
+          - !IMPORTANT EXCLUDE yes/no patterns (Do, Did, Are, Were, Will, Would, Can, Could, Should, Have, Has, Is, Was, Does).
+        - back_channel: Copy exact short supportive acknowledgments (e.g., "Hmm", "I see", "That sounds hard").
+        - If nothing fits, return an empty array [].
 
-        Categories:
-        - "reflective" → An array of reflective
-         questions that reframe or mirror what the client
-          has expressed (their feelings, thoughts,
-           or experiences) back to them as a question.
 
-        - "open_ended" → An array of open-ended
-         questions that encourage elaboration and cannot be
-          answered with yes/no, but do not
-           directly mirror the client’s content.
-
-        - "back_channel" → An array of brief
-         supportive or attentive signals that show listening,
-         such as short cues ("hmm", "I see")
-          or concise empathetic statements that don’t seek
-          new information.
-
-        Counselor Message:
-        ```
-        {message}
-        ```
-
-        Return only valid JSON.
-    """
-    ),
+        Counselor Message: {message}
+        """),
     input_variables=["message"],
 )
 
