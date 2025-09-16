@@ -3,7 +3,10 @@ Migration: create migration history table
 Generated on: 2025-09-11 13:43:06
 """
 
-from app.core.constants import MigrationHistoryProperties, VectorDBCollectionNames
+from app.core.vector_db.constants import (
+    MigrationHistoryProperties,
+    VectorDBCollectionNames,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

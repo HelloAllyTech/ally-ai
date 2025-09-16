@@ -3,7 +3,10 @@ Migration: create-reference-document-collection
 Generated on: 2024-01-15 10:35:00
 """
 
-from app.core.constants import ReferenceDocumentProperties, VectorDBCollectionNames
+from app.core.vector_db.constants import (
+    ReferenceDocumentProperties,
+    VectorDBCollectionNames,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

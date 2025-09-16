@@ -3,7 +3,7 @@ Migration: create-conversation-collection
 Generated on: 2024-01-15 10:30:00
 """
 
-from app.core.constants import ConversationProperties, VectorDBCollectionNames
+from app.core.vector_db.constants import ConversationProperties, VectorDBCollectionNames
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

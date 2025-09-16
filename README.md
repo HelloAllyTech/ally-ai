@@ -127,55 +127,6 @@ poetry run python scripts/migrate.py status
 poetry run python scripts/migrate.py history
 ```
 
-### Migration File Structure
-
-Each migration file contains two main functions:
-
-```python
-"""
-Migration: your-migration-description
-Generated on: 2024-01-15 10:30:00
-"""
-
-from app.utils.logger import get_logger
-
-logger = get_logger(__name__)
-
-
-async def up(client):
-    """
-    Run the migration up.
-
-    Args:
-        client: Weaviate client instance
-    """
-    logger.info("Running migration up: your-migration-description")
-
-    # TODO: Implement your migration logic here
-    # Example:
-    # collection = client.collections.get("YourCollection")
-    # await collection.config.add_property(...)
-
-    logger.info("Migration up completed: your-migration-description")
-
-
-async def down(client):
-    """
-    Run the migration down (rollback).
-
-    Args:
-        client: Weaviate client instance
-    """
-    logger.info("Running migration down: your-migration-description")
-
-    # TODO: Implement your rollback logic here
-    # Example:
-    # collection = client.collections.get("YourCollection")
-    # await collection.config.remove_property(...)
-
-    logger.info("Migration down completed: your-migration-description")
-```
-
 ### Migration Best Practices
 
 1. **Always implement both `up` and `down` functions**

@@ -4,6 +4,7 @@ Handles manual migration files and Weaviate database tracking
 """
 
 import importlib
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,10 +12,13 @@ from typing import Any, Dict, List
 
 import weaviate.classes.query as wvq
 
-from app.core.constants import VectorDBCollectionNames
+from app.core.vector_db.constants import VectorDBCollectionNames
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Regex pattern for migration files: starts with 3 digits followed by a dash
+MIGRATION_FILE_PATTERN = re.compile(r"^\d{3}-.*\.py$")
 
 
 class MigrationManager:
@@ -91,8 +95,9 @@ class MigrationManager:
             return migration_files
 
         for file_path in self.migrations_dir.glob("*.py"):
-            if file_path.name != "__init__.py" and file_path.name.startswith(
-                ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+            # Skip __init__.py and check if file matches migration pattern
+            if file_path.name != "__init__.py" and MIGRATION_FILE_PATTERN.match(
+                file_path.name
             ):
                 migration_files.append(file_path)
 
@@ -102,10 +107,11 @@ class MigrationManager:
 
     def get_migration_version(self, file_path: Path) -> str:
         """Extract version number from migration filename"""
-        # Extract the number at the beginning of the filename
-        filename = file_path.stem
-        parts = filename.split("-", 1)
-        return parts[0] if parts else "000"
+        # Extract the 3-digit version number from the filename
+        match = MIGRATION_FILE_PATTERN.match(file_path.name)
+        if match:
+            return file_path.name[:3]  # First 3 characters are the version
+        return "000"  # Fallback for invalid filenames
 
     async def record_migration(
         self, version: str, name: str, description: str, status: str = "completed"

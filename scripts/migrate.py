@@ -7,6 +7,7 @@ Handles manual migration generation and execution
 import argparse
 import asyncio
 import sys
+import textwrap
 from datetime import datetime
 from pathlib import Path
 
@@ -52,49 +53,52 @@ def generate_migration(message: str) -> str:
     file_path = migrations_dir / filename
 
     # Create migration template
-    template = f'''"""
-Migration: {message}
-Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-"""
+    template = textwrap.dedent(
+        f'''\
+        """
+        Migration: {message}
+        Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        """
 
-from app.utils.logger import get_logger
+        from app.utils.logger import get_logger
 
-logger = get_logger(__name__)
-
-
-async def up(client):
-    """
-    Run the migration up.
-
-    Args:
-        client: Weaviate client instance
-    """
-    logger.info("Running migration up: {message}")
-
-    # TODO: Implement your migration logic here
-    # Example:
-    # collection = client.collections.get("YourCollection")
-    # await collection.config.add_property(...)
-
-    logger.info("Migration up completed: {message}")
+        logger = get_logger(__name__)
 
 
-async def down(client):
-    """
-    Run the migration down (rollback).
+        async def up(client):
+            """
+            Run the migration up.
 
-    Args:
-        client: Weaviate client instance
-    """
-    logger.info("Running migration down: {message}")
+            Args:
+                client: Weaviate client instance
+            """
+            logger.info("Running migration up: {message}")
 
-    # TODO: Implement your rollback logic here
-    # Example:
-    # collection = client.collections.get("YourCollection")
-    # await collection.config.remove_property(...)
+            # TODO: Implement your migration logic here
+            # Example:
+            # collection = client.collections.get("YourCollection")
+            # await collection.config.add_property(...)
 
-    logger.info("Migration down completed: {message}")
-'''
+            logger.info("Migration up completed: {message}")
+
+
+        async def down(client):
+            """
+            Run the migration down (rollback).
+
+            Args:
+                client: Weaviate client instance
+            """
+            logger.info("Running migration down: {message}")
+
+            # TODO: Implement your rollback logic here
+            # Example:
+            # collection = client.collections.get("YourCollection")
+            # await collection.config.remove_property(...)
+
+            logger.info("Migration down completed: {message}")
+        '''
+    )
 
     # Write the file
     with open(file_path, "w") as f:
@@ -126,15 +130,15 @@ async def run_migration_up():
             success = await manager.run_migration_up(version)
 
             if success:
-                logger.info("✅ Migration up completed successfully")
+                logger.info("Migration up completed successfully")
             else:
-                logger.error("❌ Migration up failed")
+                logger.error("Migration up failed")
                 sys.exit(1)
         else:
-            logger.info("✅ No pending migrations to run")
+            logger.info("No pending migrations to run")
 
-    except Exception as e:
-        logger.error(f"❌ Migration up failed: {type(e).__name__}")
+    except Exception:
+        logger.exception("Migration up failed")
         sys.exit(1)
     finally:
         if "client" in locals():
@@ -162,15 +166,15 @@ async def run_migration_down():
             success = await manager.run_migration_down(last_migration)
 
             if success:
-                logger.info("✅ Migration down completed successfully")
+                logger.info("Migration down completed successfully")
             else:
-                logger.error("❌ Migration down failed")
+                logger.error("Migration down failed")
                 sys.exit(1)
         else:
-            logger.info("✅ No applied migrations to rollback")
+            logger.info("No applied migrations to rollback")
 
-    except Exception as e:
-        logger.error(f"❌ Migration down failed: {type(e).__name__}")
+    except Exception:
+        logger.exception("Migration down failed")
         sys.exit(1)
     finally:
         if "client" in locals():
@@ -189,13 +193,13 @@ async def run_all_migrations():
         success = await manager.run_all_migrations()
 
         if success:
-            logger.info("✅ All migrations completed successfully")
+            logger.info("All migrations completed successfully")
         else:
-            logger.error("❌ Some migrations failed")
+            logger.error("Some migrations failed")
             sys.exit(1)
 
-    except Exception as e:
-        logger.error(f"❌ Migration failed: {type(e).__name__}")
+    except Exception:
+        logger.exception("Migration failed")
         sys.exit(1)
     finally:
         if "client" in locals():
@@ -213,24 +217,24 @@ async def show_migration_status():
         manager = MigrationManager(client)
         status = await manager.get_migration_status()
 
-        print("\n📊 Migration Status:")
+        print("\nMigration Status:")
         print("=" * 50)
         print(f"Total migrations: {status.get('total_migrations', 0)}")
         print(f"Applied migrations: {status.get('applied_migrations', 0)}")
         print(f"Pending migrations: {len(status.get('pending_migrations', []))}")
 
         if status.get("pending_migrations"):
-            print("\n⏳ Pending Migrations:")
+            print("\nPending Migrations:")
             for migration in status["pending_migrations"]:
                 print(f"   • {migration['version']}: {migration['file']}")
 
         if status.get("applied_versions"):
-            print("\n✅ Applied Migrations:")
+            print("\nApplied Migrations:")
             for version in status["applied_versions"]:
                 print(f"   • {version}")
 
-    except Exception as e:
-        logger.error(f"❌ Failed to get migration status: {type(e).__name__}")
+    except Exception:
+        logger.exception("Failed to get migration status")
         sys.exit(1)
     finally:
         if "client" in locals():
@@ -283,8 +287,8 @@ async def show_migration_history():
                     print(f"   Completed: {props.get('completed_at', 'N/A')}")
                 print()
 
-    except Exception as e:
-        logger.error(f"❌ Failed to get migration history: {type(e).__name__}")
+    except Exception:
+        logger.exception("Failed to get migration history")
         sys.exit(1)
     finally:
         if "client" in locals():
@@ -320,7 +324,7 @@ def main():
     # Execute the appropriate command
     if args.command == "generate":
         file_path = generate_migration(args.message)
-        print(f"✅ Created migration file: {file_path}")
+        print(f"Created migration file: {file_path}")
     elif args.command == "up":
         asyncio.run(run_migration_up())
     elif args.command == "down":
