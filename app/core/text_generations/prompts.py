@@ -38,19 +38,23 @@ NUDGE_PROMPT = PromptTemplate(
 SUMMARY_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
-        You're an assistant that creates session notes for mental health organizations.
-        Analyze the chat history and extract All available information
-        for each field in the output schema.
-        Avoid leaving fields as null/empty when information
-        is present in the conversation.
-        For the session summary, please provide a summary of the session,
-        which has 250 to 500 words.
+                You're an assistant that creates session notes for mental health organizations.
+                Analyze the chat history and extract All available information
+                for each field in the output schema.
+                Avoid leaving fields as null/empty when information
+                is present in the conversation.
+                For the session summary, provide a detailed summary between 300 and 500 words.
+                Responses shorter than 300 words are invalid.
 
-        Chat history:
-        ```
-        {chat_history}
-        ```
-    """
+                IMPORTANT RULES:
+                - If the chat history is completely empty or contains no meaningful content,
+                  return EXACTLY an empty JSON Object
+
+                Chat history:
+                ```
+                {chat_history}
+                ```
+            """
     ),
     input_variables=["chat_history"],
 )
