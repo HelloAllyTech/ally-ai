@@ -1,6 +1,8 @@
-from typing import List, Set
 import re
+from typing import List
+
 from rapidfuzz import fuzz, process, utils
+
 from app.schemas.common import ChatMessage
 
 # List of common affirmation phrases
@@ -33,7 +35,7 @@ AFFIRMATION_PHRASES = [
     "You are worthy - no matter what society says.",
     "It's okay to take your time to figure things out.",
     "You're not 'too sensitive' - your feelings are genuine.",
-    "What you want for yourself is important."
+    "What you want for yourself is important.",
 ]
 
 # Build regex pattern once at import time for better performance
@@ -45,7 +47,7 @@ SENTENCE_SPLITTER = re.compile(r"[.!?]")
 PROCESSED_PHRASES = [utils.default_process(phrase) for phrase in AFFIRMATION_PHRASES]
 
 
-def extract_sentences(content : str) -> List[str]:
+def extract_sentences(content: str) -> List[str]:
     sentences = SENTENCE_SPLITTER.split(content)
     return [s.strip() for s in sentences if len(s.strip()) > MIN_SENTENCE_LENGTH]
 
@@ -53,10 +55,10 @@ def extract_sentences(content : str) -> List[str]:
 def count_affirmations(chat_messages: List[ChatMessage]) -> int:
     """
     Count the number of affirmations used by the counselor in the chat history.
-    
+
     Args:
         chat_messages: List of chat messages
-        
+
     Returns:
         int: Count of affirmations used by the counselor
     """
@@ -64,7 +66,6 @@ def count_affirmations(chat_messages: List[ChatMessage]) -> int:
         return 0
 
     count = 0
-
 
     for msg in chat_messages:
         if msg.role.lower() != "counselor":
@@ -82,6 +83,6 @@ def count_affirmations(chat_messages: List[ChatMessage]) -> int:
             )
 
             if best_match:
-                count+=1
+                count += 1
 
     return count

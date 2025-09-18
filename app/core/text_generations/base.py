@@ -1,23 +1,24 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Union
-
-from app.schemas.conversation import IdentifyResponse
 from app.schemas.common import ChatMessage
-from app.schemas.summary import SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse
+from app.schemas.conversation import IdentifyResponse
+from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 
 
 class BaseTextGenerationService[ModelT](ABC):
     def __init__(self, model: ModelT) -> None:
         """
         Initialize the base text generation service with a model.
-        
+
         Parameters:
             model (ModelT): The model to use for text generation.
         """
         self.model = model
 
     @abstractmethod
-    async def generate_nudge(self, conversation: str, chat_history: str, suggestion: str, **kwargs) -> str:
+    async def generate_nudge(
+        self, conversation: str, chat_history: str, suggestion: str, **kwargs
+    ) -> str:
         """
         Generate a nudge based on the conversation.
 
@@ -37,20 +38,22 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def generate_summary_notes(
-            self,
-            chat_history: List[ChatMessage],
-            keys: Optional[List[str]] = None
+        self, chat_history: List[ChatMessage], keys: Optional[List[str]] = None
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate summary notes from chat history.
 
         Parameters:
-            chat_history (List[ChatMessage]): The chat history to summarize as a list of ChatMessage objects
-            keys (Optional[List[str]]): Optional list of keys to generate. If provided, returns a DynamicSummaryNoteResponse
-                with only the requested fields. If None, returns a SummaryNoteAndTagsResponse with all predefined fields.
+            chat_history (List[ChatMessage]): The chat history to summarize as a
+                list of ChatMessage objects
+            keys (Optional[List[str]]): Optional list of keys to generate. If
+                provided, returns a DynamicSummaryNoteResponse with only the
+                requested fields. If None, returns a SummaryNoteAndTagsResponse
+                with all predefined fields.
 
         Returns:
-            Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]: The generated summary notes
+            Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
+            The generated summary notes
         """
         pass
 
@@ -61,7 +64,8 @@ class BaseTextGenerationService[ModelT](ABC):
 
         Parameters:
             content (str): The content to enhance.
-            **kwargs: Additional keyword arguments to be passed to the underlying language model invocation.
+            **kwargs: Additional keyword arguments to be passed to the underlying
+            language model invocation.
 
         Returns:
             str: The enhanced content.
@@ -91,5 +95,49 @@ class BaseTextGenerationService[ModelT](ABC):
 
         Raises:
             Exception: If the positivity rating generation fails.
+        """
+        pass
+
+    @abstractmethod
+    async def analyze_counselor_messages(
+        self, chat_history: List[ChatMessage]
+    ) -> Dict[str, int]:
+        """
+        Analyze a single counselor message asynchronously.
+
+        Args:
+            message (str): The message text that needs to be analyzed.
+            index (int): The position of the
+            message in the list, useful for tracking or debugging.
+
+        Returns:
+            Any: The result of the analysis. This could be an integer score,
+                 a dictionary with structured results, or raise an exception
+                 if the analysis fails.
+        """
+        pass
+
+    @abstractmethod
+    async def generate_simulation_summary(
+            self,
+            chat_history: List[ChatMessage],
+            goal: str,
+            **kwargs
+    ) -> Dict[str, List[str]]:
+        """
+        Generate simulation summary analyzing chat history against a goal.
+
+        Analyzes conversation performance to identify improvement areas and positives.
+
+        Parameters:
+            chat_history (List[str]): List of chat messages/exchanges
+            goal (str): The objective or goal to analyze against
+            **kwargs: Additional arguments for LLM invocation
+
+        Returns:
+            Dict[str, List[str]]: Dictionary with 'improvements' and 'positives' arrays
+
+        Raises:
+            LLMInvocationFailedException: If LLM invocation fails
         """
         pass

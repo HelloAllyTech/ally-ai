@@ -1,19 +1,20 @@
-from typing import List
 import asyncio
+from typing import List
+
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from app.schemas.common import ChatMessage
+
 from app.core.constants import ReferenceDocumentConstants
 from app.core.embeddings.base import BaseEmbeddingService
 from app.exceptions.custom_exceptions import EmbeddingFailedException
+from app.schemas.common import ChatMessage
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 async def calculate_reflective_listening(
-        chat_messages: List[ChatMessage],
-        embedding_service: BaseEmbeddingService
+    chat_messages: List[ChatMessage], embedding_service: BaseEmbeddingService
 ) -> int:
     """
     Calculate reflective listening score as a percentage (0-100),
@@ -43,22 +44,24 @@ async def calculate_reflective_listening(
             if len(words) <= 5:
                 continue
 
-            if msg.role.lower() == 'client':
+            if msg.role.lower() == "client":
                 client_messages.append(text)
-            elif msg.role.lower() == 'counselor':
+            elif msg.role.lower() == "counselor":
                 counselor_messages.append(text)
                 counselor_word_counts.append(len(words))
 
         if not client_messages or not counselor_messages:
-            logger.debug("No client or counselor messages found for reflective listening calculation")
+            logger.debug(
+                "No client or counselor messages found for reflective listening "
+                "calculation"
+            )
             return 0
 
         # embed in parallel
         client_embeddings_task = embedding_service.embed_many(client_messages)
         counselor_embeddings_task = embedding_service.embed_many(counselor_messages)
         client_embeddings, counselor_embeddings = await asyncio.gather(
-            client_embeddings_task,
-            counselor_embeddings_task
+            client_embeddings_task, counselor_embeddings_task
         )
 
         client_arr = np.array(client_embeddings)
@@ -69,8 +72,9 @@ async def calculate_reflective_listening(
 
         # sum word counts of messages that exceed threshold
         reflective_words = sum(
-            wc for wc, sim in zip(counselor_word_counts, max_sims) if
-            sim > ReferenceDocumentConstants.SIMILARITY_THRESHOLD
+            wc
+            for wc, sim in zip(counselor_word_counts, max_sims)
+            if sim > ReferenceDocumentConstants.SIMILARITY_THRESHOLD
         )
         total_counselor_words = sum(counselor_word_counts)
 
@@ -83,8 +87,11 @@ async def calculate_reflective_listening(
         return reflective_score
 
     except EmbeddingFailedException as e:
-        logger.error(f"Embedding service failed during reflective listening calculation: {str(e)}")
+        logger.error(
+            "Embedding service failed during reflective listening "
+            f"calculation: {type(e).__name__}"
+        )
         return 0
     except Exception as e:
-        logger.error(f"Error calculating reflective listening: {str(e)}")
+        logger.error(f"Error calculating reflective listening: {type(e).__name__}")
         return 0
