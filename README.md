@@ -52,3 +52,23 @@ docker run -p 8000:8000 my-fastapi-app
 ```
 The application will be available at http://localhost:8000.
 
+
+# Test Black formatting
+poetry run black --check app/
+
+# Test isort import sorting
+poetry run isort --check-only app/
+
+# Test flake8 linting (optional - many issues in your codebase)
+poetry run flake8 app/ --count --show-source --statistics
+
+# Run all hooks on all files
+pre-commit run --all-files
+
+# Run specific hook
+pre-commit run black --all-files
+pre-commit run isort --all-files
+
+# Any commit will automatically trigger hooks
+git add .
+git commit -m "your commit message"

@@ -13,6 +13,11 @@ on:
           - dev
           - prd
   push:
+    branches:
+      - dev
+      - develop
+      - stg
+      - staging
     paths:
       - app/functions/transcriptions/**
 
@@ -44,12 +49,15 @@ jobs:
           if [ -z "$ENV" ]; then
             case "$BRANCH" in
               "dev"|"develop")  ENV="dev" ;;
-              "main"|"master")  ENV="prd" ;;
+              "main"|"master") 
+                echo "Production deployment must be manual via workflow_dispatch" 
+                exit 1 
+                ;;
               *) echo "ENV not configured" && exit 1 ;;
             esac
           fi
 
-          if [[ "$ENV" == "prd" && "$BRANCH" == "master" ]]; then
+          if [[ "$ENV" == "prd" ]]; then
             echo "AWS_ROLE=${{ vars.PRD_AWS_ROLE }}"      >> $GITHUB_OUTPUT
             echo "AWS_REGION=${{ vars.PRD_AWS_REGION }}"  >> $GITHUB_OUTPUT
             echo "PROJECT_PREFIX=ally-prd"                >> $GITHUB_OUTPUT

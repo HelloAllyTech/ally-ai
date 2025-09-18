@@ -6,10 +6,7 @@ from app.core.text_generations.structured_output_models import (
     StructuredSummaryNote,
     StructuredTag,
 )
-from app.schemas.summary import (
-    SummaryNoteAndTagsResponse,
-    Tag,
-)
+from app.schemas.summary import SummaryNoteAndTagsResponse, Tag
 
 # Module-level constant for level mapping.
 _LEVEL2_TO_LEVEL1: dict[str, str] = {
@@ -53,22 +50,24 @@ _LEVEL2_TO_LEVEL1: dict[str, str] = {
     "Guilty": "Sad",
     "Despair": "Sad",
     "Vulnerable": "Sad",
-    "Lonely": "Sad"
+    "Lonely": "Sad",
 }
 
 
 def fetch_levels_of_feeling_from_dominant_feelings(
-        dominant_feeling: Optional[DominantFeelingLiteral]
+    dominant_feeling: Optional[DominantFeelingLiteral],
 ) -> tuple[str, str, str] | tuple[None, None, None]:
     """
     Extracts the three levels of feeling from a dominant feeling string.
 
     The input should be a string formatted as "inner_feeling:middle_feeling".
-    The function derives the outer feeling (level1) based on a mapping from the middle feeling (level2).
+    The function derives the outer feeling (level1) based on a mapping
+    from the middle feeling (level2).
 
     Parameters:
-        dominant_feeling (Optional[DominantFeelingLiteral]): A string in the format "inner_feeling:middle_feeling".
-            If None, the function returns (None, None, None).
+        dominant_feeling (Optional[DominantFeelingLiteral]): A string in the
+        format "inner_feeling:middle_feeling". If None, the function
+        returns (None, None, None).
 
     Returns:
         tuple[str, str, str] or tuple[None, None, None]:
@@ -132,24 +131,30 @@ def structured_output_model_to_rest[T, U](sop_model: U) -> T:
     """
     Convert a structured output model to a REST response model.
 
-    This generic function converts a structured output model (of type U) into its corresponding
-    REST response model (of type T). The conversion behavior is determined by the actual type of
-    the input model, with specific implementations registered via singledispatch.
+    This generic function converts a structured output model
+    (of type U) into its corresponding REST response model
+    (of type T). The conversion behavior is determined by the
+    actual type of the input model, with specific
+    implementations registered via singledispatch.
 
     Type Parameters:
         T: The target REST response model type.
         U: The source structured output model type.
 
     Parameters:
-        sop_model (U): The structured output model instance to be converted.
+        sop_model (U): The structured output model
+        instance to be converted.
 
     Returns:
         T: The REST response model produced by the conversion.
 
     Raises:
-        NotImplementedError: If conversion for the type of `sop_model` is not implemented.
+        NotImplementedError: If conversion for the type of
+        `sop_model` is not implemented.
     """
-    raise NotImplementedError(f"Conversion for type {type(sop_model)} is not implemented.")
+    raise NotImplementedError(
+        f"Conversion for type {type(sop_model)} is not implemented."
+    )
 
 
 @structured_output_model_to_rest.register
@@ -172,17 +177,24 @@ def _convert_structured_tag(sop_model: StructuredTag) -> Tag:
 
 
 @structured_output_model_to_rest.register
-def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> SummaryNoteAndTagsResponse:
+def _convert_structured_summary_note(
+    sop_model: StructuredSummaryNote,
+) -> SummaryNoteAndTagsResponse:
     """
     Convert a StructuredSummaryNote to a SummaryNoteAndTagsResponse.
     """
     # Convert tags
-    tags = [Tag(tag=tag.tag, positivity_rating=tag.positivity_rating) for tag in sop_model.tags]
+    tags = [
+        Tag(tag=tag.tag, positivity_rating=tag.positivity_rating)
+        for tag in sop_model.tags
+    ]
 
     # Format dominant feelings
     if sop_model.dominant_feelings:
         dominant_feelings = [
-            format_dominant_feeling(*fetch_levels_of_feeling_from_dominant_feelings(feeling))
+            format_dominant_feeling(
+                *fetch_levels_of_feeling_from_dominant_feelings(feeling)
+            )
             for feeling in sop_model.dominant_feelings
         ]
     else:
@@ -204,33 +216,55 @@ def _convert_structured_summary_note(sop_model: StructuredSummaryNote) -> Summar
         location=sop_model.location,
         code_of_concern=sop_model.code_of_concern,
         session_summary=sop_model.session_summary,
-        counseling_process_flow=format_list_to_bullet_points(
-            sop_model.counseling_process_flow) if sop_model.counseling_process_flow else None,
-
-        key_concerns=format_list_to_bullet_points(sop_model.key_concerns) if sop_model.key_concerns else None,
-        subjective_observations=format_list_to_bullet_points(
-            sop_model.subjective_observations) if sop_model.subjective_observations else None,
-        objective_observations=format_list_to_bullet_points(
-            sop_model.objective_observations) if sop_model.objective_observations else None,
+        counseling_process_flow=(
+            format_list_to_bullet_points(sop_model.counseling_process_flow)
+            if sop_model.counseling_process_flow
+            else None
+        ),
+        key_concerns=(
+            format_list_to_bullet_points(sop_model.key_concerns)
+            if sop_model.key_concerns
+            else None
+        ),
+        subjective_observations=(
+            format_list_to_bullet_points(sop_model.subjective_observations)
+            if sop_model.subjective_observations
+            else None
+        ),
+        objective_observations=(
+            format_list_to_bullet_points(sop_model.objective_observations)
+            if sop_model.objective_observations
+            else None
+        ),
         assessment=sop_model.assessment,
         dominant_feelings=format_list_to_bullet_points(dominant_feelings),
-        issues_worked_on=format_list_to_bullet_points(
-            sop_model.issues_worked_on) if sop_model.issues_worked_on else None,
-        key_therapeutic_techniques=format_list_to_bullet_points(
-            sop_model.key_therapeutic_techniques) if sop_model.key_therapeutic_techniques else None,
-        referrals_provided=format_list_to_bullet_points(
-            sop_model.referrals_provided) if sop_model.referrals_provided else None,
-        homework=format_list_to_bullet_points(sop_model.homework) if sop_model.homework else None,
-        plan_for_next_call=format_list_to_bullet_points(
-            sop_model.plan_for_next_call) if sop_model.plan_for_next_call else None,
+        issues_worked_on=(
+            format_list_to_bullet_points(sop_model.issues_worked_on)
+            if sop_model.issues_worked_on
+            else None
+        ),
+        key_therapeutic_techniques=(
+            format_list_to_bullet_points(sop_model.key_therapeutic_techniques)
+            if sop_model.key_therapeutic_techniques
+            else None
+        ),
+        referrals_provided=(
+            format_list_to_bullet_points(sop_model.referrals_provided)
+            if sop_model.referrals_provided
+            else None
+        ),
+        homework=(
+            format_list_to_bullet_points(sop_model.homework)
+            if sop_model.homework
+            else None
+        ),
+        plan_for_next_call=(
+            format_list_to_bullet_points(sop_model.plan_for_next_call)
+            if sop_model.plan_for_next_call
+            else None
+        ),
         tags=tags,
-        reflective_questions_asked=len(
-            sop_model.reflective_questions_asked) if sop_model.reflective_questions_asked else 0,
-        open_ended_questions_asked=len(
-            sop_model.open_ended_questions_asked) if sop_model.open_ended_questions_asked else 0,
-        back_channel_cues=len(
-            sop_model.back_channel_cues) if sop_model.back_channel_cues else 0,
         listening_share=None,
         emotional_lift=sop_model.emotional_lift,
-        call_quality=max(0, min(sop_model.call_quality, 100))
+        call_quality=max(0, min(sop_model.call_quality, 100)),
     )

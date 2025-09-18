@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Dict, Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Dict
 
 from app.core.queue.sqs_queue_service import SQSQueueService
 from app.utils.logger import get_logger
@@ -10,19 +10,20 @@ logger = get_logger(__name__)
 
 class MessageProcessor:
     """
-    Simplified message processor for continuously polling a queue for messages and processing them.
+    Simplified message processor for continuously polling a queue for messages and
+    processing them.
     """
 
     def __init__(
-            self,
-            queue_service: SQSQueueService,
-            handler: Callable[[Dict[str, Any]], Awaitable[None]],
-            queue_url: str,
-            max_messages: int = 10,
-            wait_time_seconds: int = 20,
-            visibility_timeout: int = 30,
-            polling_interval: int = 0,
-            delete_after_processing: bool = True
+        self,
+        queue_service: SQSQueueService,
+        handler: Callable[[Dict[str, Any]], Awaitable[None]],
+        queue_url: str,
+        max_messages: int = 10,
+        wait_time_seconds: int = 20,
+        visibility_timeout: int = 30,
+        polling_interval: int = 0,
+        delete_after_processing: bool = True,
     ):
         """
         Initialize the message processor.
@@ -32,10 +33,14 @@ class MessageProcessor:
             handler (Callable): The handler function to process messages.
             queue_url (str): The URL of the queue to poll.
             max_messages (int): The maximum number of messages to receive in each batch.
-            wait_time_seconds (int): The duration (in seconds) for which the call waits for a message to arrive.
-            visibility_timeout (int): The duration (in seconds) that the received messages are hidden from subsequent retrieve requests.
-            polling_interval (int): The interval (in seconds) between polling attempts. 0 means continuous polling.
-            delete_after_processing (bool): Whether to automatically delete messages after successful processing.
+            wait_time_seconds (int): The duration (in seconds) for which the call
+                waits for a message to arrive.
+            visibility_timeout (int): The duration (in seconds) that the received
+                messages are hidden from subsequent retrieve requests.
+            polling_interval (int): The interval (in seconds) between polling
+                attempts. 0 means continuous polling.
+            delete_after_processing (bool): Whether to automatically delete messages
+            after successful processing.
         """
         self.queue_service = queue_service
         self.handler = handler
@@ -56,48 +61,53 @@ class MessageProcessor:
             message (Dict[str, Any]): The message to process.
         """
         chat_id = None
-        receipt_handle = message.get('receipt_handle')
+        receipt_handle = message.get("receipt_handle")
 
         try:
             # Extract the message body
-            body = message.get('body', {})
-            
+            body = message.get("body", {})
+
             if not isinstance(body, dict):
                 try:
                     body = json.loads(body)
                 except json.JSONDecodeError:
-                    logger.error(f"Failed to parse message body as JSON: {body}")
+                    logger.error("Failed to parse message body as JSON")
                     return
-             # Extract chat_id early
-            chat_id = body.get('chat_id', 'unknown')
+            # Extract chat_id early
+            chat_id = body.get("chat_id", "unknown")
             logger.info(f"Processing message for chat_id: {chat_id}")
 
             # Process the message using the handler
             await self.handler(body)
 
         except Exception as e:
-            chat_id = body.get('chat_id', 'unknown') if 'body' in locals() else 'unknown'
-            logger.exception(f"Error processing message for chat_id {chat_id}: {str(e)}")
-        
+            chat_id = (
+                body.get("chat_id", "unknown") if "body" in locals() else "unknown"
+            )
+            logger.exception(
+                f"Error processing message for chat_id {chat_id}: {type(e).__name__}"
+            )
+
         finally:
             logger.info(f"Entering finally block for chat_id: {chat_id}")
             # ALWAYS delete the message from the queue, regardless of success or failure
             if self.delete_after_processing and receipt_handle:
-                logger.info(f"Attempting to delete message with receipt_handle: {receipt_handle[:20]}...")
+                logger.info(
+                    f"Attempting to delete message with receipt_handle: "
+                    f"{receipt_handle[:20]}..."
+                )
                 try:
-                    delete_response = await self.queue_service.delete_message(
-                        queue_url=self.queue_url,
-                        receipt_handle=receipt_handle
+                    await self.queue_service.delete_message(
+                        queue_url=self.queue_url, receipt_handle=receipt_handle
                     )
-                    if delete_response.get('ResponseMetadata', {}).get('HTTPStatusCode') == 200:
-                        logger.info(f"Message deleted from queue for chat_id: {chat_id}")
-                    else:
-                        logger.warning(f"Failed to delete message from queue for chat_id {chat_id}. Response: {delete_response}")
+                    logger.info(f"Message deleted from queue for chat_id: {chat_id}")
                 except Exception as delete_error:
-                    logger.error(f"Failed to delete message from queue for chat_id {chat_id}: {delete_error}")
+                    logger.error(
+                        f"Failed to delete message from queue for chat_id {chat_id}: "
+                        f"{delete_error}"
+                    )
             else:
                 logger.info(f"Skipping message deletion for chat_id: {chat_id}")
-
 
     async def poll_queue(self) -> None:
         """
@@ -108,20 +118,22 @@ class MessageProcessor:
                 queue_url=self.queue_url,
                 max_messages=self.max_messages,
                 wait_time_seconds=self.wait_time_seconds,
-                visibility_timeout=self.visibility_timeout
+                visibility_timeout=self.visibility_timeout,
             )
 
             if messages:
-                logger.info(f"Received {len(messages)} messages from queue {self.queue_url}")
+                logger.info(
+                    f"Received {len(messages)} messages from queue {self.queue_url}"
+                )
 
                 # Process each message
                 await asyncio.gather(
                     *[self.process_message(message) for message in messages],
-                    return_exceptions=True
+                    return_exceptions=True,
                 )
 
         except Exception as e:
-            logger.exception(f"Error polling queue {self.queue_url}: {str(e)}")
+            logger.exception(f"Error polling queue: {type(e).__name__}")
 
     async def run(self) -> None:
         """
@@ -142,7 +154,7 @@ class MessageProcessor:
                 logger.info("Message processor cancelled")
                 break
             except Exception as e:
-                logger.exception(f"Error in message processor: {str(e)}")
+                logger.exception(f"Error in message processor: {type(e).__name__}")
                 # Continue running even if there's an error
                 await asyncio.sleep(1)
 
