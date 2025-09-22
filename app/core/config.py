@@ -69,6 +69,10 @@ class QueueSettings(BaseModel):
 class ReferenceDocSettings(BaseModel):
     DISTANCE_THRESHOLD: float = Field(default=0.65)
 
+class ApiSettings(BaseModel):
+    X_API_KEY: str = Field(...)
+
+
 
 class LLMSettings(BaseModel):
     MAX_CONCURRENT_LLM_CALLS: int = Field(...)
@@ -94,6 +98,7 @@ class AppSettings(BaseSettings):
     SERVER: ServerSettings
     WEAVIATE: WeaviateSettings
     OPENAI: OpenAISettings
+    API: ApiSettings
     LANGSMITH: LangSmithSettings
     AWS: AWSSettings
     QUEUE: QueueSettings

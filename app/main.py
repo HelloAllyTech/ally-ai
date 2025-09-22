@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from app.api.v1.api import api_router
+from app.api import root
 from app.core.config import settings
 from app.core.constants import APISettings
 from app.core.vector_db.weaviate_client import WeaviateClient
@@ -38,7 +39,9 @@ app = FastAPI(
     middleware=get_middlewares(),
 )
 
-# Include routers
+# Include router
+
+app.include_router(root.router,prefix=APISettings.API_STR)
 app.include_router(api_router, prefix=APISettings.API_V1_STR)
 
 if __name__ == "__main__":

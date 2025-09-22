@@ -64,3 +64,5 @@ class SQSWorkerConstants:
 
 class APISettings:
     API_V1_STR: str = "/api/v1"
+    API_STR:str = "/api"
+    X_API_KEY_HEADER:str = "x-api-key"

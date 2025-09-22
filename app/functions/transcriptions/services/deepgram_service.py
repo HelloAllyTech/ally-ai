@@ -117,7 +117,7 @@ class DeepgramTranscriptionService:
                 utterances=True,
                 utt_split=0.8,  # Split utterances at 0.8 second pauses
                 paragraphs=False,
-                summarize=False,
+                summarize=False
             )
 
             logger.info("Sending request to Deepgram SDK")
