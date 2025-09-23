@@ -5,11 +5,15 @@ Test runner for Lifeline AI utility functions.
 import subprocess
 import sys
 
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def run_tests():
     """Run all utility function tests."""
-    print("🧪 Running Lifeline AI utility function tests...")
-    print("=" * 60)
+    logger.info("🧪 Running Lifeline AI utility function tests...")
+    logger.info("=" * 60)
 
     try:
         # Run pytest for all test files in utils directory
@@ -18,15 +22,15 @@ def run_tests():
             check=True,
         )
 
-        print("\n✅ All tests passed!")
+        logger.info("\n✅ All tests passed!")
         return 0
 
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Tests failed with exit code {e.returncode}")
+        logger.info(f"\n❌ Tests failed with exit code {e.returncode}")
         return e.returncode
     except FileNotFoundError:
-        print("❌ Poetry not found. Please install poetry first.")
-        print(
+        logger.info("❌ Poetry not found. Please install poetry first.")
+        logger.info(
             "   Install with: curl -sSL https://install.python-poetry.org | python3 -"
         )
         return 1
@@ -34,8 +38,8 @@ def run_tests():
 
 def run_with_coverage():
     """Run tests with coverage report."""
-    print("🧪 Running tests with coverage...")
-    print("=" * 60)
+    logger.info("🧪 Running tests with coverage...")
+    logger.info("=" * 60)
 
     try:
         # Run pytest with coverage
@@ -53,15 +57,15 @@ def run_with_coverage():
             check=True,
         )
 
-        print("\n✅ All tests passed with coverage!")
-        print("📊 Coverage report generated in htmlcov/")
+        logger.info("\n✅ All tests passed with coverage!")
+        logger.info("📊 Coverage report generated in htmlcov/")
         return 0
 
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Tests failed with exit code {e.returncode}")
+        logger.info(f"\n❌ Tests failed with exit code {e.returncode}")
         return e.returncode
     except FileNotFoundError:
-        print("❌ Poetry not found. Please install poetry first.")
+        logger.info("❌ Poetry not found. Please install poetry first.")
         return 1
 
 
@@ -70,9 +74,9 @@ if __name__ == "__main__":
         if sys.argv[1] == "coverage":
             sys.exit(run_with_coverage())
         else:
-            print("Usage: python run_tests.py [coverage]")
-            print("  no args: run all utility tests")
-            print("  coverage: run tests with coverage report")
+            logger.info("Usage: python run_tests.py [coverage]")
+            logger.info("  no args: run all utility tests")
+            logger.info("  coverage: run tests with coverage report")
             sys.exit(1)
     else:
         sys.exit(run_tests())
