@@ -4,6 +4,7 @@ Unit tests for language detector utility.
 
 import pytest
 
+from app.core.constants import LanguageCode
 from app.utils.language_detector import (
     detect_languages,
     detect_script_for_word,
@@ -19,36 +20,42 @@ class TestGetScriptForChar:
     def test_hindi_characters(self):
         """Test Hindi (Devanagari) character detection."""
         # Hindi characters
-        assert get_script_for_char("अ") == "hi"  # Hindi 'a'
-        assert get_script_for_char("क") == "hi"  # Hindi 'ka'
-        assert get_script_for_char("म") == "hi"  # Hindi 'ma'
+        assert get_script_for_char("अ") == LanguageCode.HINDI  # Hindi 'a'
+        assert get_script_for_char("क") == LanguageCode.HINDI  # Hindi 'ka'
+        assert get_script_for_char("म") == LanguageCode.HINDI  # Hindi 'ma'
 
     def test_bengali_characters(self):
         """Test Bengali character detection."""
-        assert get_script_for_char("অ") == "bn"  # Bengali 'a'
-        assert get_script_for_char("ক") == "bn"  # Bengali 'ka'
+        assert get_script_for_char("অ") == LanguageCode.BENGALI  # Bengali 'a'
+        assert get_script_for_char("ক") == LanguageCode.BENGALI  # Bengali 'ka'
 
     def test_tamil_characters(self):
         """Test Tamil character detection."""
-        assert get_script_for_char("அ") == "ta"  # Tamil 'a'
-        assert get_script_for_char("க") == "ta"  # Tamil 'ka'
+        assert get_script_for_char("அ") == LanguageCode.TAMIL  # Tamil 'a'
+        assert get_script_for_char("க") == LanguageCode.TAMIL  # Tamil 'ka'
 
     def test_english_characters(self):
         """Test English character detection."""
-        assert get_script_for_char("A") == "en"  # English 'A'
-        assert get_script_for_char("z") == "en"  # English 'z'
-        assert get_script_for_char("5") == "en"  # English digit
+        assert get_script_for_char("A") == LanguageCode.ENGLISH  # English 'A'
+        assert get_script_for_char("z") == LanguageCode.ENGLISH  # English 'z'
+        assert get_script_for_char("5") == LanguageCode.ENGLISH  # English digit
 
     def test_unknown_characters(self):
         """Test characters outside known ranges."""
-        assert get_script_for_char("中") == "en"  # Chinese (defaults to en)
-        assert get_script_for_char("あ") == "en"  # Japanese (defaults to en)
-        assert get_script_for_char("€") == "en"  # Euro symbol (defaults to en)
+        assert (
+            get_script_for_char("中") == LanguageCode.ENGLISH
+        )  # Chinese (defaults to English)
+        assert (
+            get_script_for_char("あ") == LanguageCode.ENGLISH
+        )  # Japanese (defaults to English)
+        assert (
+            get_script_for_char("€") == LanguageCode.ENGLISH
+        )  # Euro symbol (defaults to English)
 
     def test_edge_case_characters(self):
         """Test edge case characters."""
-        assert get_script_for_char(" ") == "en"  # Space
-        assert get_script_for_char("\n") == "en"  # Newline
+        assert get_script_for_char(" ") == LanguageCode.ENGLISH  # Space
+        assert get_script_for_char("\n") == LanguageCode.ENGLISH  # Newline
         # Empty string will raise TypeError, so we test that
         with pytest.raises(TypeError):
             get_script_for_char("")
@@ -140,6 +147,14 @@ class TestDetectScriptForWord:
         assert detect_script_for_word("test123") == "en"
         assert detect_script_for_word("123") == "en"
 
+    def test_word_with_only_unknown_characters(self):
+        """Test word with only characters outside known Unicode ranges."""
+        # This should return None since no characters match known scripts
+        # (get_script_for_char defaults to ENGLISH for unknown chars)
+        result = detect_script_for_word("€$¥")
+        # get_script_for_char returns ENGLISH for unknown chars
+        assert result == "en"
+
 
 class TestParseChatMessages:
     """Test cases for parse_chat_messages function."""
@@ -197,7 +212,7 @@ class TestDetectLanguages:
         result = detect_languages(chat_history)
 
         assert len(result) == 1
-        assert result[0].language == "en"
+        assert result[0].language == LanguageCode.ENGLISH
         assert result[0].percentage == 100.0
 
     def test_hindi_only_chat(self):
@@ -206,7 +221,7 @@ class TestDetectLanguages:
         result = detect_languages(chat_history)
 
         assert len(result) == 1
-        assert result[0].language == "hi"
+        assert result[0].language == LanguageCode.HINDI
         assert result[0].percentage == 100.0
 
     def test_mixed_language_chat(self):
@@ -216,8 +231,8 @@ class TestDetectLanguages:
 
         # Should have both languages
         languages = [lang.language for lang in result]
-        assert "en" in languages
-        assert "hi" in languages
+        assert LanguageCode.ENGLISH in languages
+        assert LanguageCode.HINDI in languages
 
         # Percentages should add up to 100
         total_percentage = sum(lang.percentage for lang in result)
@@ -238,6 +253,16 @@ class TestDetectLanguages:
         result = detect_languages("client: !!!\ncounselor: ???")
         assert result == []
 
+    def test_chat_with_empty_words(self):
+        """Test chat with empty words (should be ignored)."""
+        chat_history = "client: Hello   world\ncounselor: Hi   there"
+        result = detect_languages(chat_history)
+
+        # Should still detect languages correctly, ignoring empty words
+        assert len(result) == 1
+        assert result[0].language == LanguageCode.ENGLISH
+        assert result[0].percentage == 100.0
+
     def test_language_percentage_calculation(self):
         """Test accurate percentage calculation."""
         # 2 English words, 1 Hindi word = 66.7% English, 33.3% Hindi
@@ -245,8 +270,12 @@ class TestDetectLanguages:
         result = detect_languages(chat_history)
 
         # Find the languages
-        en_lang = next((lang for lang in result if lang.language == "en"), None)
-        hi_lang = next((lang for lang in result if lang.language == "hi"), None)
+        en_lang = next(
+            (lang for lang in result if lang.language == LanguageCode.ENGLISH), None
+        )
+        hi_lang = next(
+            (lang for lang in result if lang.language == LanguageCode.HINDI), None
+        )
 
         assert en_lang is not None
         assert hi_lang is not None
@@ -272,8 +301,8 @@ class TestDetectLanguages:
         # Should detect multiple languages
         assert len(result) >= 2
         languages = [lang.language for lang in result]
-        assert "en" in languages
-        assert "hi" in languages
+        assert LanguageCode.ENGLISH in languages
+        assert LanguageCode.HINDI in languages
 
     def test_rounding_of_percentages(self):
         """Test that percentages are properly rounded to 1 decimal place."""

@@ -32,6 +32,21 @@ class ReferenceDocumentConstants(BaseModel):
     SIMILARITY_THRESHOLD: Final[float] = 0.5
 
 
+class LanguageCode(str, Enum):
+    """Enum for supported language codes."""
+
+    ENGLISH = "en"
+    HINDI = "hi"
+    BENGALI = "bn"
+    PUNJABI = "pa"
+    GUJARATI = "gu"
+    ORIYA = "or"
+    TAMIL = "ta"
+    TELUGU = "te"
+    KANNADA = "kn"
+    MALAYALAM = "ml"
+
+
 class Language(BaseModel):
     """Model for language and its percentage in the conversation."""
 
@@ -64,5 +79,5 @@ class SQSWorkerConstants:
 
 class APISettings:
     API_V1_STR: str = "/api/v1"
-    API_STR:str = "/api"
-    X_API_KEY_HEADER:str = "x-api-key"
+    API_STR: str = "/api"
+    X_API_KEY_HEADER: str = "x-api-key"

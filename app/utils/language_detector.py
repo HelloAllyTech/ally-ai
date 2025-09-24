@@ -2,24 +2,27 @@ import re
 from collections import defaultdict
 from typing import List
 
-from app.core.constants import Language
+from app.core.constants import Language, LanguageCode
 
 # Step 1: Unicode block mapping
 UNICODE_SCRIPT_RANGES = {
-    "hi": [0x0900, 0x097F],  # Hindi (Devanagari script range, also includes Marathi)
-    "bn": [0x0980, 0x09FF],  # Bengali script range
-    "pa": [0x0A00, 0x0A7F],  # Punjabi
-    "gu": [0x0A80, 0x0AFF],  # Gujarati script range
-    "or": [0x0B00, 0x0B7F],  # Oriya (Odia) script range
-    "ta": [0x0B80, 0x0BFF],  # Tamil script range
-    "te": [0x0C00, 0x0C7F],  # Telugu script range
-    "kn": [0x0C80, 0x0CFF],  # Kannada script range
-    "ml": [0x0D00, 0x0D7F],  # Malayalam script range
-    "en": [0x0041, 0x007A],  # English (Basic Latin script range)
+    LanguageCode.HINDI: [
+        0x0900,
+        0x097F,
+    ],  # Hindi (Devanagari script range, also includes Marathi)
+    LanguageCode.BENGALI: [0x0980, 0x09FF],  # Bengali script range
+    LanguageCode.PUNJABI: [0x0A00, 0x0A7F],  # Punjabi
+    LanguageCode.GUJARATI: [0x0A80, 0x0AFF],  # Gujarati script range
+    LanguageCode.ORIYA: [0x0B00, 0x0B7F],  # Oriya (Odia) script range
+    LanguageCode.TAMIL: [0x0B80, 0x0BFF],  # Tamil script range
+    LanguageCode.TELUGU: [0x0C00, 0x0C7F],  # Telugu script range
+    LanguageCode.KANNADA: [0x0C80, 0x0CFF],  # Kannada script range
+    LanguageCode.MALAYALAM: [0x0D00, 0x0D7F],  # Malayalam script range
+    LanguageCode.ENGLISH: [0x0041, 0x007A],  # English (Basic Latin script range)
 }
 
 
-def get_script_for_char(char: str) -> str:
+def get_script_for_char(char: str) -> LanguageCode:
     """
     Determine the script for a single character using Unicode ranges.
 
@@ -27,13 +30,13 @@ def get_script_for_char(char: str) -> str:
         char: A single character
 
     Returns:
-        The script name (e.g., 'Hindi', 'Malayalam', etc.)
+        The language code enum value
     """
     code_point = ord(char)
     for script, (start, end) in UNICODE_SCRIPT_RANGES.items():
         if start <= code_point <= end:
             return script
-    return "en"  # Default to 'en''
+    return LanguageCode.ENGLISH  # Default to English
 
 
 def preprocess_text(text: str) -> List[str]:
@@ -60,10 +63,12 @@ def detect_script_for_word(word: str) -> str:
     Returns:
         The most common script in the word
     """
+
     script_counter = defaultdict(int)
     for char in word:
         script = get_script_for_char(char)
         script_counter[script] += 1
+
     return (
         max(script_counter.items(), key=lambda x: x[1])[0]
         if script_counter
