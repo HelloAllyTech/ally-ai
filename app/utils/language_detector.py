@@ -53,7 +53,7 @@ def preprocess_text(text: str) -> List[str]:
     return text.split()
 
 
-def detect_script_for_word(word: str) -> str:
+def detect_script_for_word(word: str) -> LanguageCode:
     """
     Detect script for a word based on majority of characters.
 
@@ -72,7 +72,7 @@ def detect_script_for_word(word: str) -> str:
     return (
         max(script_counter.items(), key=lambda x: x[1])[0]
         if script_counter
-        else "English"
+        else LanguageCode.ENGLISH
     )
 
 

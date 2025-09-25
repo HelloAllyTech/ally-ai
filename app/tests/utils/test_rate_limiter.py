@@ -91,13 +91,13 @@ class TestTokenBucketRateLimiter:
 
         # Mock time to simulate passage of time
         with patch("time.time") as mock_time:
-            # Start at time 0
-            mock_time.return_value = 0
+            # Set up mock to return time progression
+            # First call: initial time check (6 seconds after last refill)
+            # Second call: time after waiting (if needed)
+            mock_time.side_effect = [6, 6]
             limiter.last_refill = 0
 
             # Simulate 6 seconds passing (should refill 1 token: 10/60 * 6 = 1)
-            mock_time.return_value = 6
-
             await limiter.acquire()
             # Should consume the refilled token (allow for precision)
             assert abs(limiter.tokens) < 0.01
@@ -109,13 +109,14 @@ class TestTokenBucketRateLimiter:
 
         # Mock time to simulate long passage of time
         with patch("time.time") as mock_time:
-            mock_time.return_value = 0
+            # Set up mock to return time progression
+            # First call: initial time check (120 seconds after last refill)
+            # Second call: time after waiting (if needed)
+            mock_time.side_effect = [120, 120]
             limiter.last_refill = 0
             limiter.tokens = 0
 
             # Simulate 120 seconds passing (should refill 10 tokens, but capped at 5)
-            mock_time.return_value = 120
-
             await limiter.acquire()
             assert limiter.tokens == 4  # 5 - 1 = 4 (capped at max)
 
@@ -144,25 +145,25 @@ class TestTokenBucketRateLimiter:
         """Test that wait time is calculated correctly when tokens are insufficient."""
         limiter = TokenBucketRateLimiter(max_requests=10, window_seconds=60)
 
-        # Exhaust all tokens
-        for _ in range(10):
-            await limiter.acquire()
-
-        # Mock time to control refill rate
-        with patch("time.time") as mock_time:
-            mock_time.return_value = 0
+        # Mock both time and asyncio.sleep to control the test
+        with patch("time.time") as mock_time, patch("asyncio.sleep") as mock_sleep:
+            # Set up mock to return increasing time values
+            # First call: initial time check (0) - no refill since last_refill = 0
+            # Second call: time after waiting (6 seconds later)
+            mock_time.side_effect = [0, 6]
             limiter.last_refill = 0
-            limiter.tokens = 0.5  # Half a token available
+            limiter.tokens = 0.0  # No tokens available
 
-            # Next acquisition should wait for 0.5 tokens
-            # Wait time = (1 - 0.5) / (10/60) = 0.5 / (1/6) = 3 seconds
-            start_time = time.time()
-            mock_time.return_value = start_time
-
+            # Next acquisition should wait for 1 token
+            # Wait time = (1 - 0) / (10/60) = 1 / (1/6) = 6 seconds
             await limiter.acquire()
 
-            # Should have waited approximately 3 seconds
+            # Should have waited and consumed the token
             assert limiter.tokens == 0
+            # Verify that time.time() was called once (initial check)
+            assert mock_time.call_count == 1
+            # Verify that asyncio.sleep was called with the correct wait time
+            mock_sleep.assert_called_once_with(6.0)
 
     @pytest.mark.asyncio
     async def test_edge_case_zero_tokens_needed(self):

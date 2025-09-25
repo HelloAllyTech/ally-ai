@@ -116,14 +116,14 @@ class TestDetectScriptForWord:
 
     def test_english_word(self):
         """Test English word detection."""
-        assert detect_script_for_word("hello") == "en"
-        assert detect_script_for_word("WORLD") == "en"
-        assert detect_script_for_word("Test123") == "en"
+        assert detect_script_for_word("hello") == LanguageCode.ENGLISH
+        assert detect_script_for_word("WORLD") == LanguageCode.ENGLISH
+        assert detect_script_for_word("Test123") == LanguageCode.ENGLISH
 
     def test_hindi_word(self):
         """Test Hindi word detection."""
-        assert detect_script_for_word("नमस्ते") == "hi"
-        assert detect_script_for_word("हिंदी") == "hi"
+        assert detect_script_for_word("नमस्ते") == LanguageCode.HINDI
+        assert detect_script_for_word("हिंदी") == LanguageCode.HINDI
 
     def test_mixed_script_word(self):
         """Test word with mixed scripts (should return majority)."""
@@ -131,21 +131,21 @@ class TestDetectScriptForWord:
         word = "helloनमस्ते"
         result = detect_script_for_word(word)
         # Should return the script with majority characters
-        assert result in ["hi", "en"]
+        assert result in [LanguageCode.HINDI, LanguageCode.ENGLISH]
 
     def test_empty_word(self):
         """Test empty word."""
-        assert detect_script_for_word("") == "English"
+        assert detect_script_for_word("") == LanguageCode.ENGLISH
 
     def test_single_character(self):
         """Test single character word."""
-        assert detect_script_for_word("a") == "en"
-        assert detect_script_for_word("अ") == "hi"
+        assert detect_script_for_word("a") == LanguageCode.ENGLISH
+        assert detect_script_for_word("अ") == LanguageCode.HINDI
 
     def test_word_with_numbers(self):
         """Test word with numbers."""
-        assert detect_script_for_word("test123") == "en"
-        assert detect_script_for_word("123") == "en"
+        assert detect_script_for_word("test123") == LanguageCode.ENGLISH
+        assert detect_script_for_word("123") == LanguageCode.ENGLISH
 
     def test_word_with_only_unknown_characters(self):
         """Test word with only characters outside known Unicode ranges."""
@@ -153,7 +153,7 @@ class TestDetectScriptForWord:
         # (get_script_for_char defaults to ENGLISH for unknown chars)
         result = detect_script_for_word("€$¥")
         # get_script_for_char returns ENGLISH for unknown chars
-        assert result == "en"
+        assert result == LanguageCode.ENGLISH
 
 
 class TestParseChatMessages:
