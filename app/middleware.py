@@ -62,11 +62,11 @@ def get_middlewares() -> List[Middleware]:
         # CORS middleware that should only be called from other services
         Middleware(
             CORSMiddleware,
-           #AuthMiddleware, uncomment when BE implements auth logic in api call
             allow_origins=[],  # Empty list = reject all origins
             allow_credentials=False,  # Disable credentials
             allow_methods=[],  # Empty list = reject all methods
             allow_headers=[],  # Empty list = reject all headers
         ),
+        Middleware(AuthMiddleware)
     ]
     return middlewares
