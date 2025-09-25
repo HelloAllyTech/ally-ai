@@ -45,7 +45,6 @@ class TestInitializeOpenAIClients:
         # Verify embedding client was called with EmbeddingConstants.MODEL
         mock_embedding_client.create_client.assert_called_once()
         # The actual model value is imported from EmbeddingConstants.MODEL
-        # The actual model value is imported from EmbeddingConstants.MODEL
 
     @patch("app.utils.startup.OpenAIEmbeddingClient")
     @patch("app.utils.startup.OpenAITextGenerationClient")
