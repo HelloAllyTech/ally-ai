@@ -11,11 +11,11 @@ from app.core.config import settings
 from app.core.constants import APISettings
 from app.utils.logger import logger, trace_id_var
 
+
 class AuthMiddleware(BaseHTTPMiddleware):
     """Middleware for checking X-API-Key in request headers."""
 
     async def dispatch(self, request: Request, call_next):
-
 
         # Only protect /api/v1 routes
         if request.url.path.startswith(APISettings.API_V1_STR):
@@ -67,6 +67,7 @@ def get_middlewares() -> List[Middleware]:
             allow_methods=[],  # Empty list = reject all methods
             allow_headers=[],  # Empty list = reject all headers
         ),
-        Middleware(AuthMiddleware)
+        # ,Middleware(AuthMiddleware)
+        # Note: Currently AI Service is accessible only for the services in the VPC, adding this as a security best practice
     ]
     return middlewares
