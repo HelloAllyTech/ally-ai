@@ -2,12 +2,11 @@
 """
 Test runner for Lifeline AI utility functions.
 """
+import logging
 import subprocess
 import sys
 
-from app.utils.logger import get_logger
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def run_tests():
