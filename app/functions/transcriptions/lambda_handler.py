@@ -20,6 +20,9 @@ from core.message_models import (
 from services import DeepgramTranscriptionService, OpenAITranscriptionService
 from utils.logger import get_logger
 
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, log_sync, phi_logger
+
 logger = get_logger(__name__)
 
 
@@ -106,6 +109,21 @@ async def process_transcription_request(
         chat_id = request.chat_id
 
         logger.info(f"Processing transcription request for chat_id: {chat_id}")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_ACCESSED,
+                chat_id=request.chat_id,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": f"Processing transcription request for chat_id: {chat_id}",  # noqa: E501
+                    "chat_id": chat_id,
+                    "audio_url": request.audio_url,
+                    "sample_rate": request.sample_rate,
+                    "component": "LambdaHandler",
+                    "method": "process_transcription_request",
+                },
+            )
+        )
 
         # Process transcription
         _, segments_text = await transcription_service.transcribe_audio_from_url(
@@ -139,8 +157,41 @@ async def process_transcription_request(
         logger.info(
             f"Successfully deleted message from requests queue for chat_id: {chat_id}"
         )
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_DELETED,
+                chat_id=chat_id,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": f"Successfully deleted message from requests queue for chat_id: {chat_id}",  # noqa: E501
+                    "chat_id": chat_id,
+                    "receipt_handle": f"{receipt_handle[:20]}...",
+                    "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
+                    "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                    "component": "LambdaHandler",
+                    "method": "process_transcription_request",
+                },
+            )
+        )
 
         logger.info(f"Successfully processed chat_id: {chat_id}")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_MODIFIED,
+                chat_id=chat_id,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": f"Successfully processed chat_id: {chat_id}",
+                    "chat_id": chat_id,
+                    "segments_text_length": len(segments_text),
+                    "timestamp": int(time.time() * 1000),
+                    "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
+                    "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                    "component": "LambdaHandler",
+                    "method": "process_transcription_request",
+                },
+            )
+        )
 
         return {"status": "success", "chat_id": chat_id}
 
@@ -148,6 +199,22 @@ async def process_transcription_request(
         chat_id = request_data.get("chat_id", "unknown")
         logger.exception(
             f"Error processing transcription request: {chat_id} {type(e).__name__}"
+        )
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=chat_id,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": f"Error processing transcription request: {chat_id} {type(e).__name__}",  # noqa: E501
+                    "chat_id": chat_id,
+                    "exception_type": type(e).__name__,
+                    "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
+                    "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                    "component": "LambdaHandler",
+                    "method": "process_transcription_request",
+                },
+            )
         )
         return {
             "status": "error",
@@ -186,6 +253,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         chat_id = message_body.get("chat_id", "unknown")
         receipt_handle = record["receiptHandle"]  # Get receipt handle for deletion
         logger.info(f"Processing message: {chat_id}")
+        log_sync(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_ACCESSED,
+                chat_id=chat_id,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": f"Processing message: {chat_id}",
+                    "chat_id": chat_id,
+                    "receipt_handle": f"{receipt_handle[:20]}...",
+                    "records_count": len(records),
+                    "component": "LambdaHandler",
+                    "method": "lambda_handler",
+                },
+            )
+        )
 
         # Process the transcription request
         result = asyncio.run(
@@ -193,11 +275,38 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
         logger.info(f"Message processed successfully: {chat_id}")
+        log_sync(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_MODIFIED,
+                chat_id=chat_id,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": f"Message processed successfully: {chat_id}",
+                    "chat_id": chat_id,
+                    "result_status": result.get("status", "unknown"),
+                    "component": "LambdaHandler",
+                    "method": "lambda_handler",
+                },
+            )
+        )
 
         return {"statusCode": 200, "body": json.dumps(result)}
 
     except Exception as e:
         logger.exception(f"Lambda function error: {type(e).__name__}")
+        log_sync(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=chat_id if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": f"Lambda function error: {type(e).__name__}",
+                    "exception_type": type(e).__name__,
+                    "component": "LambdaHandler",
+                    "method": "lambda_handler",
+                },
+            )
+        )
         return {
             "statusCode": 500,
             "body": json.dumps({"status": "error", "error": "Internal server error"}),
