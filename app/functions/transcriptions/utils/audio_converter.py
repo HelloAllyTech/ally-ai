@@ -379,83 +379,83 @@ async def split_audio_into_segments(
                     "-y",
                     segment_path,
                 ]
-        else:
-            # For other formats, copy the codec (faster, preserves quality)
-            ffmpeg_cmd = [
-                "ffmpeg",
-                "-i",
-                file_path,
-                "-ss",
-                str(start_time),
-                "-t",
-                str(end_time - start_time),
-                "-c",
-                "copy",  # Copy without re-encoding (much faster)
-                "-y",
-                segment_path,
-            ]
+            else:
+                # For other formats, copy the codec (faster, preserves quality)
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-i",
+                    file_path,
+                    "-ss",
+                    str(start_time),
+                    "-t",
+                    str(end_time - start_time),
+                    "-c",
+                    "copy",  # Copy without re-encoding (much faster)
+                    "-y",
+                    segment_path,
+                ]
 
-        process = await asyncio.create_subprocess_exec(
-            *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+            process = await asyncio.create_subprocess_exec(
+                *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
 
-        stdout, stderr = await process.communicate()
+            stdout, stderr = await process.communicate()
 
-        if process.returncode != 0:
-            logger.error(f"FFmpeg segmentation failed for segment {i}")
+            if process.returncode != 0:
+                logger.error(f"FFmpeg segmentation failed for segment {i}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=str(chat_id) if chat_id else None,
+                        audit_id=None,  # Will be set by external service,
+                        details={
+                            "error": f"FFmpeg segmentation failed for segment {i}",
+                            "file_path": file_path,
+                            "segment_index": i,
+                            "segment_path": segment_path,
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "ffmpeg_returncode": process.returncode,
+                            "stderr": stderr.decode("utf-8") if stderr else None,
+                            "component": "AudioConverter",
+                            "method": "split_audio_into_segments",
+                        },
+                    )
+                )
+                raise subprocess.CalledProcessError(
+                    process.returncode,
+                    "ffmpeg",
+                    f"FFmpeg segmentation failed for segment {i}",
+                )
+
+            # Verify segment file size
+            segment_size_mb = await asyncio.to_thread(os.path.getsize, segment_path) / (
+                1024 * 1024
+            )
+            logger.info(
+                f"Created segment {i} "
+                f"({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)"
+            )
             await phi_logger.log(
                 PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
+                    event_type=PHIEvents.DATA_MODIFIED,
                     chat_id=str(chat_id) if chat_id else None,
                     audit_id=None,  # Will be set by external service,
                     details={
-                        "error": f"FFmpeg segmentation failed for segment {i}",
+                        "message": f"Created segment {i} ({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)",  # noqa: E501
                         "file_path": file_path,
                         "segment_index": i,
                         "segment_path": segment_path,
+                        "segment_size_mb": segment_size_mb,
                         "start_time": start_time,
                         "end_time": end_time,
-                        "ffmpeg_returncode": process.returncode,
-                        "stderr": stderr.decode("utf-8") if stderr else None,
                         "component": "AudioConverter",
                         "method": "split_audio_into_segments",
                     },
                 )
             )
-            raise subprocess.CalledProcessError(
-                process.returncode,
-                "ffmpeg",
-                f"FFmpeg segmentation failed for segment {i}",
-            )
 
-        # Verify segment file size
-        segment_size_mb = await asyncio.to_thread(os.path.getsize, segment_path) / (
-            1024 * 1024
-        )
-        logger.info(
-            f"Created segment {i} "
-            f"({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)"
-        )
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": f"Created segment {i} ({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)",  # noqa: E501
-                    "file_path": file_path,
-                    "segment_index": i,
-                    "segment_path": segment_path,
-                    "segment_size_mb": segment_size_mb,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "component": "AudioConverter",
-                    "method": "split_audio_into_segments",
-                },
-            )
-        )
-
-        segment_paths.append(segment_path)
+            segment_paths.append(segment_path)
 
         logger.info(f"Successfully created {len(segment_paths)} audio segments")
         await phi_logger.log(
@@ -494,7 +494,6 @@ async def split_audio_into_segments(
             )
         )
         raise
-
 
 async def get_audio_duration(file_path: str, chat_id: int = None) -> float:
     """Get audio duration in seconds using FFprobe"""
