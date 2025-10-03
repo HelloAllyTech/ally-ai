@@ -9,10 +9,10 @@ from typing import Any, Dict, Optional, Union
 import boto3
 from botocore.exceptions import ClientError
 
-from app.functions.transcriptions.core.config import settings
-from app.functions.transcriptions.utils.execution_manager import ExecutionManager
-from app.functions.transcriptions.utils.logger import get_logger
-from app.functions.transcriptions.utils.phi_events import PHIEvents
+from core.config import settings
+from utils.execution_manager import ExecutionManager
+from utils.logger import get_logger
+from utils.phi_events import PHIEvents
 
 logger = get_logger(__name__)
 

@@ -20,8 +20,8 @@ from core.message_models import (
 from services import DeepgramTranscriptionService, OpenAITranscriptionService
 from utils.logger import get_logger
 
-from app.functions.transcriptions.utils.phi_events import PHIEvents
-from app.functions.transcriptions.utils.phi_logger import (
+from utils.phi_events import PHIEvents
+from utils.phi_logger import (
     PHILogEvent,
     log_sync,
     phi_logger,
