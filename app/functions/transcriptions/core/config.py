@@ -24,10 +24,10 @@ class Settings(BaseSettings):
     # Transcription Provider
     TRANSCRIPTION_PROVIDER: str = Field(default="openai")
 
-    HIPAA_AUDIT_ENABLED: bool = Field(False)
-    HIPAA_AUDIT_LOG_GROUP_NAME: str = Field(...)
-    HIPAA_AUDIT_LOG_STREAM_NAME: str = Field(...)
-    HIPAA_AUDIT_ENABLE_CONSOLE_LOGS: bool = Field(False)
+    HIPAA_AUDIT_ENABLED: bool = Field(default=False)
+    HIPAA_AUDIT_LOG_GROUP_NAME: str = Field(default="")
+    HIPAA_AUDIT_LOG_STREAM_NAME: str = Field(default="")
+    HIPAA_AUDIT_ENABLE_CONSOLE_LOGS: bool = Field(default=False)
 
 
 settings = Settings()

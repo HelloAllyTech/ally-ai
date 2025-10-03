@@ -7,7 +7,7 @@ import asyncio
 import os
 from typing import Tuple
 
-from deepgram import DeepgramClient, FileSource, PrerecordedOptions
+from deepgram import BufferSource, DeepgramClient, PrerecordedOptions
 from deepgram.clients.listen.v1.rest import Results
 
 from app.functions.transcriptions.core.config import settings
@@ -158,10 +158,8 @@ class DeepgramTranscriptionService:
             with open(wav_file_path, "rb") as audio_file:
                 buffer_data = audio_file.read()
 
-            # Create file source
-            payload: FileSource = {
-                "buffer": buffer_data,
-            }
+            # Create buffer source
+            payload = BufferSource(buffer=buffer_data)
 
             # Configure Deepgram options - disable diarization since we'll use
             # OpenAI for that

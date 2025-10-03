@@ -2,6 +2,8 @@ import asyncio
 import json
 from typing import Any, Dict, List, Optional
 
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, phi_logger
 from app.core.queue.message_models import (
     MessageType,
     TranscribeAndSummarizeResponseMessage,
@@ -12,8 +14,6 @@ from app.core.storage.s3_service import S3Service
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
 )
-from app.core.phi_logger import phi_logger, PHILogEvent
-from app.core.phi_events import PHIEvents
 from app.schemas.common import ChatMessage
 from app.utils.logger import get_logger
 
@@ -63,20 +63,22 @@ class TranscriptionHandler:
         try:
             chat_id = message_data.get("chat_id", "unknown")
             logger.info(f"Processing transcription request for chat_id: {chat_id}")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=chat_id,
-                audit_id=None,  # Will be set by caller
-                details={
-                    "message": f"Processing transcription request for chat_id: {chat_id}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "process_request",
-                    "request_queue_url": self.request_queue_url,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_ACCESSED,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by caller
+                    details={
+                        "message": f"Processing transcription request for chat_id: {chat_id}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "process_request",
+                        "request_queue_url": self.request_queue_url,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
 
             # Parse the request message
             request = TranscriptionResultMessage(**message_data)
@@ -89,38 +91,42 @@ class TranscriptionHandler:
                     f"Transcription processing completed successfully for chat_id: "
                     f"{chat_id}"
                 )
-                await phi_logger.log(PHILogEvent(
-                    event_type=PHIEvents.DATA_MODIFIED,
-                    chat_id=chat_id,
-                    audit_id=None,  # Will be set by caller
-                    details={
-                        "message": f"Transcription processing completed successfully for chat_id: {chat_id}",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "process_request",
-                        "status": "success",
-                        "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
-                        "bucket_name": self.bucket_name
-                    }
-                ))
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.DATA_MODIFIED,
+                        chat_id=chat_id,
+                        audit_id=None,  # Will be set by caller
+                        details={
+                            "message": f"Transcription processing completed successfully for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "component": "TranscriptionHandler",
+                            "method": "process_request",
+                            "status": "success",
+                            "request_queue_url": self.request_queue_url,
+                            "result_queue_url": self.result_queue_url,
+                            "bucket_name": self.bucket_name,
+                        },
+                    )
+                )
             else:
                 logger.error(f"Transcription processing failed for chat_id: {chat_id}")
-                await phi_logger.log(PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=chat_id,
-                    audit_id=None,  # Will be set by caller
-                    details={
-                        "error": f"Transcription processing failed for chat_id: {chat_id}",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "process_request",
-                        "status": "failed",
-                        "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
-                        "bucket_name": self.bucket_name
-                    }
-                ))
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=chat_id,
+                        audit_id=None,  # Will be set by caller
+                        details={
+                            "error": f"Transcription processing failed for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "component": "TranscriptionHandler",
+                            "method": "process_request",
+                            "status": "failed",
+                            "request_queue_url": self.request_queue_url,
+                            "result_queue_url": self.result_queue_url,
+                            "bucket_name": self.bucket_name,
+                        },
+                    )
+                )
                 # Send error response
                 await self._send_error_response(chat_id, "Processing failed")
 
@@ -130,21 +136,23 @@ class TranscriptionHandler:
                 f"Error processing transcription request for chat_id {chat_id}: "
                 f"{type(e).__name__}"
             )
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=chat_id,
-                audit_id=None,
-                details={
-                    "error": f"Error processing transcription request for chat_id {chat_id}: {type(e).__name__}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "process_request",
-                    "exception_type": type(e).__name__,
-                    "request_queue_url": self.request_queue_url,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,
+                    details={
+                        "error": f"Error processing transcription request for chat_id {chat_id}: {type(e).__name__}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "process_request",
+                        "exception_type": type(e).__name__,
+                        "request_queue_url": self.request_queue_url,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
 
@@ -164,21 +172,25 @@ class TranscriptionHandler:
             segments_text = request.segments_text
 
             logger.info(f"Processing diarization and summary for chat_id: {chat_id}")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=str(chat_id),
-                audit_id=None,  # Will be set by caller
-                details={
-                    "message": f"Processing diarization and summary for chat_id: {chat_id}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "_process_transcription",
-                    "segments_text_length": len(segments_text) if segments_text else 0,
-                    "request_queue_url": self.request_queue_url,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=str(chat_id),
+                    audit_id=None,  # Will be set by caller
+                    details={
+                        "message": f"Processing diarization and summary for chat_id: {chat_id}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "_process_transcription",
+                        "segments_text_length": (
+                            len(segments_text) if segments_text else 0
+                        ),
+                        "request_queue_url": self.request_queue_url,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
 
             # Do diarization
             diarization_result = (
@@ -216,44 +228,49 @@ class TranscriptionHandler:
             )
 
             logger.info(f"Diarization and summary completed for chat_id {chat_id}")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=chat_id,
-                audit_id=None,
-                details={
-                    "message": f"Diarization and summary completed for chat_id {chat_id}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "_process_transcription",
-                    "messages_count": len(messages),
-                    "transcription_data_length": len(transcription_data),
-                    "request_queue_url": self.request_queue_url,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=chat_id,
+                    audit_id=None,
+                    details={
+                        "message": f"Diarization and summary completed for chat_id {chat_id}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "_process_transcription",
+                        "messages_count": len(messages),
+                        "transcription_data_length": len(transcription_data),
+                        "request_queue_url": self.request_queue_url,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
             return True
 
         except Exception as e:
+            chat_id = getattr(request, "chat_id", "unknown")
             logger.error(
-                f"Error in diarization/summary for chat_id {request.chat_id}: "
+                f"Error in diarization/summary for chat_id {chat_id}: "
                 f"{type(e).__name__}"
             )
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=chat_id,
-                audit_id=None,
-                details={
-                    "error": f"Error in diarization/summary for chat_id {request.chat_id}: {type(e).__name__}",
-                    "chat_id": request.chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "_process_transcription",
-                    "exception_type": type(e).__name__,
-                    "request_queue_url": self.request_queue_url,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,
+                    details={
+                        "error": f"Error in diarization/summary for chat_id {chat_id}: {type(e).__name__}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "_process_transcription",
+                        "exception_type": type(e).__name__,
+                        "request_queue_url": self.request_queue_url,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
             return False
 
     async def _generate_summary(
@@ -281,22 +298,24 @@ class TranscriptionHandler:
             logger.error(
                 f"Error generating summary for chat_id {chat_id}: {type(e).__name__}"
             )
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=str(chat_id),
-                audit_id=None,  # Will be set by caller
-                details={
-                    "error": f"Error generating summary for chat_id {chat_id}: {type(e).__name__}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "_generate_summary",
-                    "exception_type": type(e).__name__,
-                    "messages_count": len(messages),
-                    "request_queue_url": self.request_queue_url,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=str(chat_id),
+                    audit_id=None,  # Will be set by caller
+                    details={
+                        "error": f"Error generating summary for chat_id {chat_id}: {type(e).__name__}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "_generate_summary",
+                        "exception_type": type(e).__name__,
+                        "messages_count": len(messages),
+                        "request_queue_url": self.request_queue_url,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
             raise Exception("Summary generation failed")
@@ -352,22 +371,24 @@ class TranscriptionHandler:
                 logger.error(
                     f"Failed to generate presigned URLs for chat_id: {chat_id}"
                 )
-                await phi_logger.log(PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id),
-                    audit_id=None,
-                    details={
-                        "error": f"Failed to generate presigned URLs for chat_id: {chat_id}",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_queue",
-                        "bucket_object_key": bucket_object_key,
-                        "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
-                        "download_url_generated": bool(download_presigned_url),
-                        "delete_url_generated": bool(delete_presigned_url)
-                    }
-                ))
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=str(chat_id),
+                        audit_id=None,
+                        details={
+                            "error": f"Failed to generate presigned URLs for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "component": "TranscriptionHandler",
+                            "method": "send_combined_result_to_queue",
+                            "bucket_object_key": bucket_object_key,
+                            "bucket_name": self.bucket_name,
+                            "result_queue_url": self.result_queue_url,
+                            "download_url_generated": bool(download_presigned_url),
+                            "delete_url_generated": bool(delete_presigned_url),
+                        },
+                    )
+                )
                 raise Exception("Failed to generate presigned URLs")
 
             # Create message with presigned URLs
@@ -385,78 +406,86 @@ class TranscriptionHandler:
             )
 
             logger.info(f"Sent presigned URLs to queue for chat_id: {chat_id}")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=str(chat_id),
-                audit_id=None,
-                details={
-                    "message": f"Sent presigned URLs to queue for chat_id: {chat_id}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "send_combined_result_to_queue",
-                    "bucket_object_key": bucket_object_key,
-                    "bucket_name": self.bucket_name,
-                    "result_queue_url": self.result_queue_url,
-                    "download_url_length": len(download_presigned_url),
-                    "delete_url_length": len(delete_presigned_url),
-                    "transcription_count": len(transcription),
-                    "summary_keys": list(summary.keys()) if summary else []
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=str(chat_id),
+                    audit_id=None,
+                    details={
+                        "message": f"Sent presigned URLs to queue for chat_id: {chat_id}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "send_combined_result_to_queue",
+                        "bucket_object_key": bucket_object_key,
+                        "bucket_name": self.bucket_name,
+                        "result_queue_url": self.result_queue_url,
+                        "download_url_length": len(download_presigned_url),
+                        "delete_url_length": len(delete_presigned_url),
+                        "transcription_count": len(transcription),
+                        "summary_keys": list(summary.keys()) if summary else [],
+                    },
+                )
+            )
             logger.info(f"  - Download URL: {download_presigned_url[:50]}...")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=str(chat_id),
-                audit_id=None,
-                details={
-                    "message": f"  - Download URL: {download_presigned_url[:50]}...",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "send_combined_result_to_queue",
-                    "url_type": "download",
-                    "url_preview": download_presigned_url[:50] + "...",
-                    "bucket_name": self.bucket_name,
-                    "result_queue_url": self.result_queue_url
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_ACCESSED,
+                    chat_id=str(chat_id),
+                    audit_id=None,
+                    details={
+                        "message": f"  - Download URL: {download_presigned_url[:50]}...",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "send_combined_result_to_queue",
+                        "url_type": "download",
+                        "url_preview": download_presigned_url[:50] + "...",
+                        "bucket_name": self.bucket_name,
+                        "result_queue_url": self.result_queue_url,
+                    },
+                )
+            )
             logger.info(f"  - Delete URL: {delete_presigned_url[:50]}...")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=str(chat_id),
-                audit_id=None,
-                details={
-                    "message": f"  - Delete URL: {delete_presigned_url[:50]}...",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "send_combined_result_to_queue",
-                    "url_type": "delete",
-                    "url_preview": delete_presigned_url[:50] + "...",
-                    "bucket_name": self.bucket_name,
-                    "result_queue_url": self.result_queue_url
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_ACCESSED,
+                    chat_id=str(chat_id),
+                    audit_id=None,
+                    details={
+                        "message": f"  - Delete URL: {delete_presigned_url[:50]}...",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "send_combined_result_to_queue",
+                        "url_type": "delete",
+                        "url_preview": delete_presigned_url[:50] + "...",
+                        "bucket_name": self.bucket_name,
+                        "result_queue_url": self.result_queue_url,
+                    },
+                )
+            )
 
         except Exception as e:
             logger.error(
                 f"Error sending combined result to queue for chat_id {chat_id}: "
                 f"{type(e).__name__}"
             )
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=str(chat_id),
-                audit_id=None,
-                details={
-                    "error": f"Error sending combined result to queue for chat_id {chat_id}: {type(e).__name__}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "send_combined_result_to_queue",
-                    "exception_type": type(e).__name__,
-                    "bucket_name": self.bucket_name,
-                    "result_queue_url": self.result_queue_url,
-                    "transcription_count": len(transcription),
-                    "summary_keys": list(summary.keys()) if summary else []
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=str(chat_id),
+                    audit_id=None,
+                    details={
+                        "error": f"Error sending combined result to queue for chat_id {chat_id}: {type(e).__name__}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "send_combined_result_to_queue",
+                        "exception_type": type(e).__name__,
+                        "bucket_name": self.bucket_name,
+                        "result_queue_url": self.result_queue_url,
+                        "transcription_count": len(transcription),
+                        "summary_keys": list(summary.keys()) if summary else [],
+                    },
+                )
+            )
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
 
@@ -478,38 +507,42 @@ class TranscriptionHandler:
             )
 
             logger.info(f"Error response sent for chat_id: {chat_id}")
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=str(chat_id),
-                audit_id=None,
-                details={
-                    "message": f"Error response sent for chat_id: {chat_id}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "_send_error_response",
-                    "error_message": error_message,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=str(chat_id),
+                    audit_id=None,
+                    details={
+                        "message": f"Error response sent for chat_id: {chat_id}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "_send_error_response",
+                        "error_message": error_message,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
 
         except Exception as e:
             logger.error(
                 f"Failed to send error response for chat_id {chat_id}: "
                 f"{type(e).__name__}"
             )
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=str(chat_id),
-                audit_id=None,
-                details={
-                    "error": f"Failed to send error response for chat_id {chat_id}: {type(e).__name__}",
-                    "chat_id": chat_id,
-                    "component": "TranscriptionHandler",
-                    "method": "_send_error_response",
-                    "exception_type": type(e).__name__,
-                    "error_message": error_message,
-                    "result_queue_url": self.result_queue_url,
-                    "bucket_name": self.bucket_name
-                }
-            ))
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=str(chat_id),
+                    audit_id=None,
+                    details={
+                        "error": f"Failed to send error response for chat_id {chat_id}: {type(e).__name__}",
+                        "chat_id": chat_id,
+                        "component": "TranscriptionHandler",
+                        "method": "_send_error_response",
+                        "exception_type": type(e).__name__,
+                        "error_message": error_message,
+                        "result_queue_url": self.result_queue_url,
+                        "bucket_name": self.bucket_name,
+                    },
+                )
+            )
