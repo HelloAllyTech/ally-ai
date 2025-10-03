@@ -7,9 +7,9 @@ from typing import List
 
 import httpx
 
-from app.core.phi_events import PHIEvents
-from app.core.phi_logger import PHILogEvent, phi_logger
 from app.functions.transcriptions.utils.logger import get_logger
+from app.functions.transcriptions.utils.phi_events import PHIEvents
+from app.functions.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
 
 logger = get_logger(__name__)
 

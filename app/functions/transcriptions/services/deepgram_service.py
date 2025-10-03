@@ -10,8 +10,6 @@ from typing import Tuple
 from deepgram import DeepgramClient, FileSource, PrerecordedOptions
 from deepgram.clients.listen.v1.rest import Results
 
-from app.core.phi_events import PHIEvents
-from app.core.phi_logger import PHILogEvent, phi_logger
 from app.functions.transcriptions.core.config import settings
 from app.functions.transcriptions.utils.audio_converter import (
     convert_and_segment_audio_async,
@@ -19,6 +17,8 @@ from app.functions.transcriptions.utils.audio_converter import (
 )
 from app.functions.transcriptions.utils.exceptions import TranscriptionFailedException
 from app.functions.transcriptions.utils.logger import get_logger
+from app.functions.transcriptions.utils.phi_events import PHIEvents
+from app.functions.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
 
 logger = get_logger(__name__)
 
