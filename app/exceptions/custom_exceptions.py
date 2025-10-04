@@ -244,13 +244,13 @@ class CoreAPIFailedException(BaseCustomException):
 
 
 class CounselorTrainingAnalysisFailedException(BaseCustomException):
-   """
-   Raised when counselor training analysis generation fails.
-   """
+    """
+    Raised when counselor training analysis generation fails.
+    """
 
-   def __init__(
-       self,
-       message="Failed to generate counselor training analysis",
-       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-   ) -> None:
-       super().__init__(message, status_code)
+    def __init__(
+        self,
+        message="Failed to generate counselor training analysis",
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ) -> None:
+        super().__init__(message, status_code)

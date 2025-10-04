@@ -413,11 +413,15 @@ class CounselorMessageAnalysis(BaseModel):
         " listening signals like 'hmm', 'I see', etc."
     )
 
+
 class SimulationAnalysis(BaseModel):
     """Structured output model for simulation summary analysis."""
+
     improvements: List[str] = Field(
-        description="Specific, actionable areas that need improvement during the simulation"
+        description="Specific, actionable areas that need improvement "
+        "during the simulation"
     )
     positives: List[str] = Field(
-        description="Strengths and positive aspects demonstrated during the simulation by the counselor"
+        description="Strengths and positive aspects demonstrated "
+        "during the simulation by the counselor"
     )
