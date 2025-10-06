@@ -84,7 +84,7 @@ class AppSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=[".env", "./.env", "../.env"],
-        extra="forbid",  # fail on extra vars
+        extra="ignore",  # ignore extra vars
         env_nested_delimiter="__",
     )
 

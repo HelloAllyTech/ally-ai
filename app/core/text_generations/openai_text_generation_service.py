@@ -18,14 +18,16 @@ from app.core.text_generations.prompts import (
     DYNAMIC_SUMMARY_PROMPT,
     IDENTIFY_USER_PROMPT,
     NUDGE_PROMPT,
+    SIMULATION_ANALYSIS_PROMPT,
     SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT, SIMULATION_ANALYSIS_PROMPT,
+    TAG_POSITIVITY_RATING_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
+    SimulationAnalysis,
     StructuredDiarization,
     StructuredIdentifyUsers,
-    StructuredSummaryNote, SimulationAnalysis,
+    StructuredSummaryNote,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -830,10 +832,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return totals
 
     async def generate_simulation_summary(
-            self,
-            chat_history: List[ChatMessage],
-            goal: str,
-            **kwargs
+        self, chat_history: List[ChatMessage], goal: str, **kwargs
     ) -> Dict[str, List[str]]:
         """
         Generate simulation summary analyzing chat history against a goal.
@@ -854,15 +853,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Generating simulation summary using OpenAI")
 
         # Convert chat history to string format
-        chat_history_str = "\n".join([f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)])
+        chat_history_str = "\n".join(
+            [f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)]
+        )
 
         try:
             response = cast(
                 SimulationAnalysis,
                 await self._invoke_llm(
                     SIMULATION_ANALYSIS_PROMPT.format(
-                        goal=goal,
-                        chat_history=chat_history_str
+                        goal=goal, chat_history=chat_history_str
                     ),
                     SimulationAnalysis,
                     **kwargs,
@@ -873,9 +873,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             return {
                 "improvements": response.improvements,
-                "positives": response.positives
+                "positives": response.positives,
             }
 
         except LLMInvocationFailedException as e:
             logger.exception("Failed to generate simulation summary")
-            raise LLMInvocationFailedException("Failed to generate simulation summary") from e
+            raise LLMInvocationFailedException(
+                "Failed to generate simulation summary"
+            ) from e

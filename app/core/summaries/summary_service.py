@@ -3,8 +3,10 @@ from typing import List, Optional, Union
 from app.core.text_generations.base import BaseTextGenerationService
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
+    CounselorTrainingAnalysisFailedException,
+    LLMInvocationFailedException,
     SummarizationFailedException,
-    SummaryNoteFailedException, LLMInvocationFailedException, CounselorTrainingAnalysisFailedException,
+    SummaryNoteFailedException,
 )
 from app.schemas.common import ChatMessage
 from app.schemas.summary import (
@@ -104,23 +106,25 @@ class SummaryService:
                 "Failed to get positivity ratings for tags. Please try again later."
             ) from e
 
-    async def generate_simulation_summary(self,chat_history: List[ChatMessage],goal:str):
+    async def generate_simulation_summary(
+        self, chat_history: List[ChatMessage], goal: str
+    ):
         """
-         Generate counselor training simulation analysis from chat history and goal.
+        Generate counselor training simulation analysis from chat history and goal.
 
-         Parameters:
-             chat_history (List[str]): The conversation between AI client and counselor
-             as a list of string messages.
-             goal (str): The specific training objective to evaluate against.
+        Parameters:
+            chat_history (List[str]): The conversation between AI client and counselor
+            as a list of string messages.
+            goal (str): The specific training objective to evaluate against.
 
-         Returns:
-             Dict[str, List[str]]: Dictionary containing:
-                 - "improvements": Array of areas needing development
-                 - "positives": Array of demonstrated strengths
+        Returns:
+            Dict[str, List[str]]: Dictionary containing:
+                - "improvements": Array of areas needing development
+                - "positives": Array of demonstrated strengths
 
-         Raises:
-             CounselorTrainingAnalysisFailedException: If analysis generation fails.
-         """
+        Raises:
+            CounselorTrainingAnalysisFailedException: If analysis generation fails.
+        """
         try:
             # Generate the counselor training analysis
             return await self.text_generation_service.generate_simulation_summary(
@@ -129,5 +133,6 @@ class SummaryService:
         except LLMInvocationFailedException as e:
             logger.error(f"Failed to generate counselor training analysis: {str(e)}")
             raise CounselorTrainingAnalysisFailedException(
-                "Failed to generate counselor training analysis. Please try again later."
+                "Failed to generate counselor training analysis. "
+                "Please try again later."
             ) from e

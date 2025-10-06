@@ -1,0 +1,1 @@
+"""Embedding service tests package."""

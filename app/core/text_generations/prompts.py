@@ -38,17 +38,19 @@ NUDGE_PROMPT = PromptTemplate(
 SUMMARY_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
-                You're an assistant that creates session notes for mental health organizations.
+                You're an assistant that creates session notes for mental health
+                organizations.
                 Analyze the chat history and extract All available information
                 for each field in the output schema.
                 Avoid leaving fields as null/empty when information
                 is present in the conversation.
-                For the session summary, provide a detailed summary between 300 and 500 words.
+                For the session summary, provide a detailed summary between 300
+                and 500 words.
                 Responses shorter than 300 words are invalid.
 
                 IMPORTANT RULES:
-                - If the chat history is completely empty or contains no meaningful content,
-                  return EXACTLY an empty JSON Object
+                - If the chat history is completely empty or contains no meaningful
+                  content, return EXACTLY an empty JSON Object
 
                 Chat history:
                 ```
@@ -231,8 +233,10 @@ DIARIZATION_PROMPT = PromptTemplate(
 COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
-        You are an extraction engine which is extracting sentences into 3 categories from a client counselor chat. 
-        Your ONLY job is to copy exact substrings from the counselor’s message into the correct categories.
+        You are an extraction engine which is extracting sentences into 3
+        categories from a client counselor chat.
+        Your ONLY job is to copy exact substrings from the counselor's message
+        into the correct categories.
         Never rephrase. Never invent. Only copy from given sentence.
 
         Return ONLY a JSON object like this:
@@ -243,27 +247,31 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
         }}
 
         Rules:
-        - reflective: Copy exact counselor questions that mirror client’s own words/feelings as inquiry.
-        - open_ended: Copy exact counselor questions that START with 
+        - reflective: Copy exact counselor questions that mirror client's own
+          words/feelings as inquiry.
+        - open_ended: Copy exact counselor questions that START with
           How, What, Why, When, Where, Tell me, Describe, Explain.
           These must invite elaboration, not yes/no.
-          - !IMPORTANT EXCLUDE yes/no patterns (Do, Did, Are, Were, Will, Would, Can, Could, Should, Have, Has, Is, Was, Does).
-        - back_channel: Copy exact short supportive acknowledgments (e.g., "Hmm", "I see", "That sounds hard").
+          - !IMPORTANT EXCLUDE yes/no patterns (Do, Did, Are, Were, Will,
+          Would, Can, Could, Should, Have, Has, Is, Was, Does).
+        - back_channel: Copy exact short supportive acknowledgments
+          (e.g., "Hmm", "I see", "That sounds hard").
         - If nothing fits, return an empty array [].
 
 
         Counselor Message: {message}
-        """),
+        """
+    ),
     input_variables=["message"],
 )
 
 SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
-   template=textwrap.dedent(
-       """
-       You are a clinical supervisor analyzing a counselor training simulation 
+    template=textwrap.dedent(
+        """
+       You are a clinical supervisor analyzing a counselor training simulation
        where an AI client interacts with a counselor-in-training.
 
-       Evaluate the counselor's performance against the training goal and 
+       Evaluate the counselor's performance against the training goal and
        return ONLY a JSON object with two array fields.
 
        Important rules:
@@ -286,13 +294,13 @@ SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
        • Goal alignment and skill demonstration
 
        Return only valid JSON with these fields:
-       - "improvements" → Array of specific areas needing development 
+       - "improvements" → Array of specific areas needing development
          with conversation examples
-       - "positives" → Array of demonstrated strengths and effective 
+       - "positives" → Array of demonstrated strengths and effective
          techniques with examples
 
        Return only valid JSON.
        """
-   ),
-   input_variables=["goal", "chat_history"],
+    ),
+    input_variables=["goal", "chat_history"],
 )

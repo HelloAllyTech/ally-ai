@@ -32,6 +32,21 @@ class ReferenceDocumentConstants(BaseModel):
     SIMILARITY_THRESHOLD: Final[float] = 0.5
 
 
+class LanguageCode(str, Enum):
+    """Language codes for supported languages."""
+
+    ENGLISH = "en"
+    HINDI = "hi"
+    BENGALI = "bn"
+    PUNJABI = "pa"
+    GUJARATI = "gu"
+    ORIYA = "or"
+    TAMIL = "ta"
+    TELUGU = "te"
+    KANNADA = "kn"
+    MALAYALAM = "ml"
+
+
 class Language(BaseModel):
     """Model for language and its percentage in the conversation."""
 

@@ -14,7 +14,7 @@ class ChatMessage(BaseModel):
         None, description="End time of the message in seconds (relative position)"
     )
 
-    class Config:
+    class ConfigDict:
         json_schema_extra = {
             "example": {
                 "role": "counselor",
