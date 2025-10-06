@@ -26,14 +26,13 @@ class AgeRange(str, Enum):
     SIXTY_FIVE_PLUS = "65+"
 
 
-class ReferenceDocumentConstants(BaseModel):
+class ReferenceDocumentConstants:
     """Model for reference document."""
-
     SIMILARITY_THRESHOLD: Final[float] = 0.5
 
 
 class LanguageCode(str, Enum):
-    """Language codes for supported languages."""
+    """Enum for supported language codes."""
 
     ENGLISH = "en"
     HINDI = "hi"
@@ -79,3 +78,5 @@ class SQSWorkerConstants:
 
 class APISettings:
     API_V1_STR: str = "/api/v1"
+    API_STR: str = "/api"
+    X_API_KEY_HEADER: str = "x-api-key"

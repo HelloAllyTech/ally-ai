@@ -69,7 +69,7 @@ class TestSummaryService:
         # Assert
         assert result == expected_response
         mock_text_generation_service.generate_summary_notes.assert_called_once_with(
-            sample_chat_messages, None
+            sample_chat_messages, None, chat_id=None
         )
 
     @pytest.mark.asyncio
@@ -91,13 +91,13 @@ class TestSummaryService:
 
         # Execute
         result = await summary_service.generate_summary_and_tags(
-            sample_chat_messages, keys
+            sample_chat_messages, None, keys
         )
 
         # Assert
         assert result == expected_response
         mock_text_generation_service.generate_summary_notes.assert_called_once_with(
-            sample_chat_messages, keys
+            sample_chat_messages, keys, chat_id=None
         )
 
     @pytest.mark.asyncio
@@ -131,7 +131,9 @@ class TestSummaryService:
 
         # Assert
         assert result == enhanced_content
-        mock_text_generation_service.enhance_content.assert_called_once_with(content)
+        mock_text_generation_service.enhance_content.assert_called_once_with(
+            content, chat_id=None
+        )
 
     @pytest.mark.asyncio
     async def test_enhance_content_failed(
@@ -175,7 +177,7 @@ class TestSummaryService:
         ]
         assert result == expected_tags
         mock_text_generation_service.get_tag_positivity_ratings.assert_called_once_with(
-            tags
+            tags, chat_id=None
         )
 
     @pytest.mark.asyncio
@@ -192,7 +194,7 @@ class TestSummaryService:
         # Assert
         assert result == []
         mock_text_generation_service.get_tag_positivity_ratings.assert_called_once_with(
-            []
+            [], chat_id=None
         )
 
     @pytest.mark.asyncio
@@ -236,7 +238,7 @@ class TestSummaryService:
         assert result == expected_response
         (
             mock_text_generation_service.generate_simulation_summary.assert_called_once_with(  # noqa: E501
-                sample_chat_messages, goal
+                sample_chat_messages, goal, chat_id=None
             )
         )
 
@@ -278,6 +280,6 @@ class TestSummaryService:
         assert result == expected_response
         (
             mock_text_generation_service.generate_simulation_summary.assert_called_once_with(  # noqa: E501
-                [], goal
+                [], goal, chat_id=None
             )
         )

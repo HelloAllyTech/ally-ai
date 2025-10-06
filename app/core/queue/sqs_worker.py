@@ -85,13 +85,14 @@ async def main():
     finally:
         # Critical: Close the SQS client to shut down its ThreadPoolExecutor
         logger.info("Cleaning up SQS client...")
-        SQSQueueClient.close_client()
+        await SQSQueueClient.close_client()
         logger.info("SQS client cleanup completed")
 
 
-if __name__ == "__main__":
+async def run_worker():
+    """Async wrapper for the main worker function."""
     try:
-        asyncio.run(main())
+        await main()
     except KeyboardInterrupt:
         logger.info("Worker stopped")
     except Exception as e:
@@ -99,3 +100,7 @@ if __name__ == "__main__":
         raise
     finally:
         logger.info("Worker exited")
+
+
+if __name__ == "__main__":
+    asyncio.run(run_worker())

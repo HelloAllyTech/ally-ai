@@ -3,7 +3,10 @@ from fastapi.params import Depends
 
 from app.core.conversations.conversation_service import ConversationService
 from app.core.dependencies import get_conversation_service
-from app.exceptions.custom_exceptions import ConversationAnalysisFailedException
+from app.exceptions.custom_exceptions import (
+    ConversationAnalysisFailedException,
+    ConversationIdentifyFailedException,
+)
 from app.schemas.conversation import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -54,4 +57,17 @@ async def identify(
     """
     Identifies the users who did the conversation from the conversation history.
     """
-    return await conversation_service.identify(request.chat_history)
+    try:
+        return await conversation_service.identify(request.chat_history)
+
+    except ConversationIdentifyFailedException:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Conversation identify failed",
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
+        )

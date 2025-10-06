@@ -52,7 +52,7 @@ class TestSQSWorker:
                 return "queue-client"
 
             @classmethod
-            def close_client(cls):
+            async def close_client(cls):
                 cls.closed = True
 
         class FakeQueueService:
