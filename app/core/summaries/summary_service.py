@@ -301,7 +301,6 @@ class SummaryService:
             CounselorTrainingAnalysisFailedException: If analysis generation fails.
         """
         start_time = time.time()
-
         try:
             # Log start of simulation analysis
             await phi_logger.log(PHILogEvent(
