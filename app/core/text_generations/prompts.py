@@ -44,12 +44,13 @@ SUMMARY_PROMPT = PromptTemplate(
                 for each field in the output schema.
                 Avoid leaving fields as null/empty when information
                 is present in the conversation.
-                For the session summary, provide a detailed summary between
-                300 and 500 words.
+                For the session summary, provide a detailed summary between 300
+                and 500 words.
                 Responses shorter than 300 words are invalid.
+
                 IMPORTANT RULES:
-                - If the chat history is completely empty or contains no
-                  meaningful content, return EXACTLY an empty JSON Object
+                - If the chat history is completely empty or contains no meaningful
+                  content, return EXACTLY an empty JSON Object
 
                 Chat history:
                 ```
@@ -229,44 +230,12 @@ DIARIZATION_PROMPT = PromptTemplate(
 )
 
 
-# COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
-#     template=textwrap.dedent(
-#         """
-#         You are an extraction engine which is extracting sentences
-#         into 3 categories from a client counselor chat.
-#         Your ONLY job is to copy exact substrings from the counselor's
-#         message into the correct categories.
-#         Never rephrase. Never invent. Only copy from given sentence.
-
-#         Return ONLY a JSON object like this:
-#         {{
-#           "reflective": [ "..." ],
-#           "open_ended": [ "..." ],
-#           "back_channel": [ "..." ]
-#         }}
-
-#         Rules:
-#         - reflective: Copy exact counselor questions that mirror
-#           client's own words/feelings as inquiry.
-#         - open_ended: Copy exact counselor questions that START with
-#           How, What, Why, When, Where, Tell me, Describe, Explain.
-#           These must invite elaboration, not yes/no.
-#           - !IMPORTANT EXCLUDE yes/no patterns (Do, Did, Are, Were,
-#             Will, Would, Can, Could, Should, Have, Has, Is, Was, Does).
-#         - back_channel: Copy exact short supportive acknowledgments
-#           (e.g., "Hmm", "I see", "That sounds hard").
-#         - If nothing fits, return an empty array [].
-
-
-#         Counselor Message: {message}
-#         """),
-#     input_variables=["message"],
-# )
 COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
         You are a specialized extraction engine for analyzing therapeutic
-        counselor communication. Analyze the counselor's message and extract
+        counselor communication. Analyze the counselor's message
+        and extract
         specific types of therapeutic techniques.
 
         CRITICAL: Extract EXACT substrings only. Never modify, paraphrase,

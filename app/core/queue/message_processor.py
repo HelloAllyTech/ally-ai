@@ -95,29 +95,30 @@ class MessageProcessor:
                         )
                     )
 
-            # Extract chat_id if body is already a dict
+            # Proceed only if body is a valid dict; otherwise skip handler
             if isinstance(body, dict):
+                # Extract chat_id from valid body
                 chat_id = body.get("chat_id", "unknown")
-            logger.info(f"Processing message for chat_id: {chat_id}")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_ACCESSED,
-                    chat_id=chat_id,
-                    audit_id=None,  # Will be set by external service
-                    details={
-                        "message": f"Processing message for chat_id: {chat_id}",
-                        "chat_id": chat_id,
-                        "message_id": message.get("message_id", "unknown"),
-                        "receipt_handle": (
-                            receipt_handle[:20] + "..." if receipt_handle else None
-                        ),
-                        "queue_url": self.queue_url,
-                    },
+                logger.info(f"Processing message for chat_id: {chat_id}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.DATA_ACCESSED,
+                        chat_id=chat_id,
+                        audit_id=None,  # Will be set by external service
+                        details={
+                            "message": f"Processing message for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "message_id": message.get("message_id", "unknown"),
+                            "receipt_handle": (
+                                receipt_handle[:20] + "..." if receipt_handle else None
+                            ),
+                            "queue_url": self.queue_url,
+                        },
+                    )
                 )
-            )
 
-            # Process the message using the handler
-            await self.handler(body)
+                # Process the message using the handler
+                await self.handler(body)
 
         except Exception as e:
             chat_id = (

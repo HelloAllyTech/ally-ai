@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 
 def run_tests():
-    """Run all utility function tests."""
-    logger.info("🧪 Running Lifeline AI utility function tests...")
+    """Run all tests (utils and API)."""
+    logger.info("🧪 Running Lifeline AI tests...")
     logger.info("=" * 60)
 
     try:
-        # Run pytest for all test files in utils directory
+        # Run pytest for all test files
         subprocess.run(
-            ["poetry", "run", "pytest", "app/tests/utils/", "-v", "--tb=short"],
+            ["poetry", "run", "pytest", "tests/", "-v", "--tb=short"],
             check=True,
         )
 
@@ -47,7 +47,7 @@ def run_with_coverage():
                 "poetry",
                 "run",
                 "pytest",
-                "app/tests/utils/",
+                "tests/",
                 "--cov=app",
                 "--cov-report=html",
                 "--cov-report=term-missing",
@@ -74,7 +74,7 @@ if __name__ == "__main__":
             sys.exit(run_with_coverage())
         else:
             logger.info("Usage: python run_tests.py [coverage]")
-            logger.info("  no args: run all utility tests")
+            logger.info("  no args: run all tests (utils and API)")
             logger.info("  coverage: run tests with coverage report")
             sys.exit(1)
     else:

@@ -26,9 +26,8 @@ class AgeRange(str, Enum):
     SIXTY_FIVE_PLUS = "65+"
 
 
-class ReferenceDocumentConstants(BaseModel):
+class ReferenceDocumentConstants:
     """Model for reference document."""
-
     SIMILARITY_THRESHOLD: Final[float] = 0.5
 
 

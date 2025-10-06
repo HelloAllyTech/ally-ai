@@ -20,7 +20,6 @@ WEAVIATE__CONCURRENT_REQUESTS=1000
 OPENAI__API_KEY=<openai-key>
 OPENAI__ORGANIZATION_ID=<openai-org-id>
 
-
 LANGSMITH__TRACING=true
 LANGSMITH__ENDPOINT=https://api.smith.langchain.com
 LANGSMITH__API_KEY=<langsmith-key>
@@ -44,3 +43,7 @@ HIPAA_AUDIT__ENABLED=false
 HIPAA_AUDIT__LOG_GROUP_NAME=<log_group_name>
 HIPAA_AUDIT__LOG_STREAM_NAME=<log_stream_name>
 HIPAA_AUDIT__ENABLE_CONSOLE_LOGS=false
+
+API__X_API_KEY=<x-api-key>
+
+LLM__MAX_CONCURRENT_LLM_CALLS=<max-concurrent-llm-calls>

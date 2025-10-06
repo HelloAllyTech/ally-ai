@@ -4,8 +4,10 @@ import time
 from app.core.text_generations.base import BaseTextGenerationService
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
+    CounselorTrainingAnalysisFailedException,
+    LLMInvocationFailedException,
     SummarizationFailedException,
-    SummaryNoteFailedException, LLMInvocationFailedException, CounselorTrainingAnalysisFailedException,
+    SummaryNoteFailedException,
 )
 from app.schemas.common import ChatMessage
 from app.schemas.summary import (
@@ -45,7 +47,7 @@ class SummaryService:
             Exception: If summary generation fails.
         """
         start_time = time.time()
-        
+
         try:
             # Log start of summary generation
             await phi_logger.log(PHILogEvent(
@@ -62,15 +64,15 @@ class SummaryService:
                     "keys_count": len(keys) if keys else 0
                 }
             ))
-            
+
             # Generate the summary note
             result = await self.text_generation_service.generate_summary_notes(
                 chat_history, keys, chat_id=chat_id
             )
-            
+
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log successful completion
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -88,12 +90,12 @@ class SummaryService:
                     "result_type": type(result).__name__
                 }
             ))
-            
+
             return result
-            
+
         except SummaryNoteFailedException as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log error
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -110,7 +112,7 @@ class SummaryService:
                     "keys_provided": keys is not None
                 }
             ))
-            
+
             logger.error(f"Failed to generate summary: {type(e).__name__}")
             raise SummarizationFailedException(
                 "Failed to generate the summary. Please try again later."
@@ -133,7 +135,7 @@ class SummaryService:
             ContentEnhancementFailedException: If content enhancement fails.
         """
         start_time = time.time()
-        
+
         try:
             # Log start of content enhancement
             await phi_logger.log(PHILogEvent(
@@ -147,14 +149,14 @@ class SummaryService:
                     "content_length": len(content)
                 }
             ))
-            
+
             enhanced_content = await self.text_generation_service.enhance_content(
                 content, chat_id=chat_id
             )
-            
+
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log successful completion
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -169,12 +171,12 @@ class SummaryService:
                     "processing_time_ms": processing_time_ms
                 }
             ))
-            
+
             return enhanced_content
-            
+
         except ContentEnhancementFailedException as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log error
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -189,7 +191,7 @@ class SummaryService:
                     "processing_time_ms": processing_time_ms
                 }
             ))
-            
+
             raise SummarizationFailedException(
                 "Failed to enhance content. Please try again later."
             ) from e
@@ -211,7 +213,7 @@ class SummaryService:
             SummarizationFailedException: If the positivity rating generation fails.
         """
         start_time = time.time()
-        
+
         try:
             # Log start of tag positivity rating
             await phi_logger.log(PHILogEvent(
@@ -225,7 +227,7 @@ class SummaryService:
                     "tags_count": len(tags)
                 }
             ))
-            
+
             tag_ratings = await self.text_generation_service.get_tag_positivity_ratings(
                 tags, chat_id=chat_id
             )
@@ -235,10 +237,10 @@ class SummaryService:
                 Tag(tag=item["tag"], positivity_rating=item["positivity_rating"])
                 for item in tag_ratings
             ]
-            
+
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log successful completion
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -253,12 +255,12 @@ class SummaryService:
                     "processing_time_ms": processing_time_ms
                 }
             ))
-            
+
             return result
 
         except Exception as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log error
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -273,7 +275,7 @@ class SummaryService:
                     "processing_time_ms": processing_time_ms
                 }
             ))
-            
+
             raise SummarizationFailedException(
                 "Failed to get positivity ratings for tags. Please try again later."
             ) from e
@@ -282,24 +284,24 @@ class SummaryService:
         self, chat_history: List[ChatMessage], goal: str, chat_id: Optional[str] = None
     ):
         """
-         Generate counselor training simulation analysis from chat history and goal.
+        Generate counselor training simulation analysis from chat history and goal.
 
-         Parameters:
-             chat_history (List[str]): The conversation between AI client and counselor
+        Parameters:
+            chat_history (List[str]): The conversation between AI client and counselor
             chat_id (Optional[str]): The chat ID for PHI logging.
-             as a list of string messages.
-             goal (str): The specific training objective to evaluate against.
+            as a list of string messages.
+            goal (str): The specific training objective to evaluate against.
 
-         Returns:
-             Dict[str, List[str]]: Dictionary containing:
-                 - "improvements": Array of areas needing development
-                 - "positives": Array of demonstrated strengths
+        Returns:
+            Dict[str, List[str]]: Dictionary containing:
+                - "improvements": Array of areas needing development
+                - "positives": Array of demonstrated strengths
 
-         Raises:
-             CounselorTrainingAnalysisFailedException: If analysis generation fails.
-         """
+        Raises:
+            CounselorTrainingAnalysisFailedException: If analysis generation fails.
+        """
         start_time = time.time()
-        
+
         try:
             # Log start of simulation analysis
             await phi_logger.log(PHILogEvent(
@@ -314,15 +316,15 @@ class SummaryService:
                     "goal_length": len(goal)
                 }
             ))
-            
+
             # Generate the counselor training analysis
             result = await self.text_generation_service.generate_simulation_summary(
                 chat_history, goal, chat_id=chat_id
             )
-            
+
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log successful completion
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -338,12 +340,12 @@ class SummaryService:
                     "result_keys": list(result.keys()) if isinstance(result, dict) else []
                 }
             ))
-            
+
             return result
-            
+
         except LLMInvocationFailedException as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log error
             await phi_logger.log(PHILogEvent(
                 chat_id=str(chat_id) if chat_id else None,
@@ -359,8 +361,9 @@ class SummaryService:
                     "processing_time_ms": processing_time_ms
                 }
             ))
-            
+
             logger.error(f"Failed to generate counselor training analysis: {str(e)}")
             raise CounselorTrainingAnalysisFailedException(
-                "Failed to generate counselor training analysis. Please try again later."
+                "Failed to generate counselor training analysis. "
+                "Please try again later."
             ) from e

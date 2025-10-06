@@ -3,7 +3,7 @@ import ipaddress
 import json
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Union
 
 import boto3
@@ -146,7 +146,7 @@ class PHILoggerService:
 
             is_valid_ip = ip != "Unknown" and self._is_valid_ip(ip)
             location = self._get_geo_location(ip) if is_valid_ip else "Unknown"
-            logged_at = event.logged_at if event.logged_at else datetime.utcnow()
+            logged_at = event.logged_at if event.logged_at else datetime.now(timezone.utc)
 
             phi_log_dto = {
                 "event_type": str(event.event_type),

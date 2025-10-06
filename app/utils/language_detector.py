@@ -32,6 +32,9 @@ def get_script_for_char(char: str) -> LanguageCode:
     Returns:
         The language code enum value
     """
+    if not char:  # Handle empty string
+        return LanguageCode.ENGLISH
+
     code_point = ord(char)
     for script, (start, end) in UNICODE_SCRIPT_RANGES.items():
         if start <= code_point <= end:
@@ -61,14 +64,17 @@ def detect_script_for_word(word: str) -> LanguageCode:
         word: Input word
 
     Returns:
-        The most common script in the word
+        The most common language code in the word, or English if word is empty
     """
+    if not word:  # Handle empty string
+        return LanguageCode.ENGLISH
 
     script_counter = defaultdict(int)
     for char in word:
         script = get_script_for_char(char)
         script_counter[script] += 1
 
+    # Return the most common script, or English if no characters were processed
     return (
         max(script_counter.items(), key=lambda x: x[1])[0]
         if script_counter
@@ -129,7 +135,9 @@ def detect_languages(chat_history: str) -> List[Language]:
     for script, count in script_counter.items():
         if total_words > 0:
             percentage = (count / total_words) * 100
-            result.append(Language(language=script, percentage=round(percentage, 1)))
+            result.append(
+                Language(language=script.value, percentage=round(percentage, 1))
+            )
 
     # Sort by percentage in descending order
     return sorted(result, key=lambda x: x.percentage, reverse=True)

@@ -2,8 +2,6 @@
 Unit tests for language detector utility.
 """
 
-import pytest
-
 from app.core.constants import LanguageCode
 from app.utils.language_detector import (
     detect_languages,
@@ -56,9 +54,8 @@ class TestGetScriptForChar:
         """Test edge case characters."""
         assert get_script_for_char(" ") == LanguageCode.ENGLISH  # Space
         assert get_script_for_char("\n") == LanguageCode.ENGLISH  # Newline
-        # Empty string will raise TypeError, so we test that
-        with pytest.raises(TypeError):
-            get_script_for_char("")
+        # Empty string should return English (handled by detect_script_for_word)
+        assert get_script_for_char("") == LanguageCode.ENGLISH
 
 
 class TestPreprocessText:
@@ -212,7 +209,7 @@ class TestDetectLanguages:
         result = detect_languages(chat_history)
 
         assert len(result) == 1
-        assert result[0].language == LanguageCode.ENGLISH
+        assert result[0].language == LanguageCode.ENGLISH.value
         assert result[0].percentage == 100.0
 
     def test_hindi_only_chat(self):
@@ -221,7 +218,7 @@ class TestDetectLanguages:
         result = detect_languages(chat_history)
 
         assert len(result) == 1
-        assert result[0].language == LanguageCode.HINDI
+        assert result[0].language == LanguageCode.HINDI.value
         assert result[0].percentage == 100.0
 
     def test_mixed_language_chat(self):
@@ -231,8 +228,8 @@ class TestDetectLanguages:
 
         # Should have both languages
         languages = [lang.language for lang in result]
-        assert LanguageCode.ENGLISH in languages
-        assert LanguageCode.HINDI in languages
+        assert LanguageCode.ENGLISH.value in languages
+        assert LanguageCode.HINDI.value in languages
 
         # Percentages should add up to 100
         total_percentage = sum(lang.percentage for lang in result)
@@ -260,7 +257,7 @@ class TestDetectLanguages:
 
         # Should still detect languages correctly, ignoring empty words
         assert len(result) == 1
-        assert result[0].language == LanguageCode.ENGLISH
+        assert result[0].language == LanguageCode.ENGLISH.value
         assert result[0].percentage == 100.0
 
     def test_language_percentage_calculation(self):
@@ -271,10 +268,11 @@ class TestDetectLanguages:
 
         # Find the languages
         en_lang = next(
-            (lang for lang in result if lang.language == LanguageCode.ENGLISH), None
+            (lang for lang in result if lang.language == LanguageCode.ENGLISH.value),
+            None,
         )
         hi_lang = next(
-            (lang for lang in result if lang.language == LanguageCode.HINDI), None
+            (lang for lang in result if lang.language == LanguageCode.HINDI.value), None
         )
 
         assert en_lang is not None
@@ -301,8 +299,8 @@ class TestDetectLanguages:
         # Should detect multiple languages
         assert len(result) >= 2
         languages = [lang.language for lang in result]
-        assert LanguageCode.ENGLISH in languages
-        assert LanguageCode.HINDI in languages
+        assert LanguageCode.ENGLISH.value in languages
+        assert LanguageCode.HINDI.value in languages
 
     def test_rounding_of_percentages(self):
         """Test that percentages are properly rounded to 1 decimal place."""

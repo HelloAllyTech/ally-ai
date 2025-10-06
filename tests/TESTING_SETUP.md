@@ -2,12 +2,12 @@
 
 ## 🎯 Overview
 
-Comprehensive testing setup for utility functions in the Lifeline AI application. All tests are organized in a clean, maintainable structure within the `app/tests/` directory.
+Comprehensive testing setup for utility functions in the Lifeline AI application. All tests are organized in a clean, maintainable structure within the `tests/` directory.
 
 ## 📁 Structure
 
 ```
-app/tests/
+tests/
 ├── __init__.py              # Test package initialization
 ├── conftest.py              # Pytest configuration and shared fixtures
 ├── run_tests.py             # Test runner script
@@ -78,25 +78,25 @@ app/tests/
 poetry install --with dev
 
 # 2. Run all utility tests
-python app/tests/run_tests.py
+python tests/run_tests.py
 
 # 3. Run with coverage
-python app/tests/run_tests.py coverage
+python tests/run_tests.py coverage
 ```
 
 ### Direct pytest Usage
 ```bash
 # Run all utility tests
-poetry run pytest app/tests/utils/ -v
+poetry run pytest tests/utils/ -v
 
 # Run specific test file
-poetry run pytest app/tests/utils/test_affirmation_counter.py -v
+poetry run pytest tests/utils/test_affirmation_counter.py -v
 
 # Run tests for specific utility
-poetry run pytest app/tests/utils/test_*_calculator.py -v
+poetry run pytest tests/utils/test_*_calculator.py -v
 
 # Run with coverage
-poetry run pytest app/tests/utils/ --cov=app --cov-report=html
+poetry run pytest tests/utils/ --cov=app --cov-report=html
 ```
 
 ## 🔧 Configuration
@@ -109,7 +109,7 @@ Tests run with a complete test environment configuration that includes:
 - Isolated test data
 
 ### Pytest Configuration
-- **Location**: `app/tests/pytest.ini`
+- **Location**: `tests/pytest.ini`
 - **Async Support**: Enabled with `asyncio_mode = auto`
 - **Verbose Output**: Enabled by default
 - **Test Discovery**: Automatically finds `test_*.py` files
@@ -162,10 +162,10 @@ Tests run with a complete test environment configuration that includes:
 ### Debug Mode
 ```bash
 # Run with debug output
-poetry run pytest app/tests/ -v -s --tb=long
+poetry run pytest tests/ -v -s --tb=long
 
 # Run single test
-poetry run pytest app/tests/test_utils.py::TestAffirmationCounter::test_count_affirmations_empty_list -v
+poetry run pytest tests/test_utils.py::TestAffirmationCounter::test_count_affirmations_empty_list -v
 ```
 
 ## 📈 Next Steps

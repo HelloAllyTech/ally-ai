@@ -3,6 +3,7 @@ Pytest configuration and shared fixtures for utility function tests.
 """
 
 import os
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -11,7 +12,6 @@ os.environ.update(
     {
         "ENV__ENV": "TEST",
         "LOG__LEVEL": "DEBUG",
-        "API__X_API_KEY": "test-api-key",
         "WEAVIATE__HTTP_HOST": "localhost",
         "WEAVIATE__HTTP_PORT": "8080",
         "WEAVIATE__HTTP_SECURE": "false",
@@ -36,11 +36,18 @@ os.environ.update(
         "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL": (
             "http://localhost:4566/response-queue"
         ),
-        "LLM__MAX_CONCURRENT_LLM_CALLS": "10",
+        "LLM__MAX_CONCURRENT_LLM_CALLS": "100",
+        "API__X_API_KEY": "test-x-api-key",
         "SLACK_ALERTS__ENABLED": "false",
         "SLACK_ALERTS__API_TOKEN": "test-token",
         "SLACK_ALERTS__CHANNEL_ID": "test-channel",
         "SLACK_ALERTS__LOG_LEVEL": "WARNING",
+        "SERVER__HOST": "localhost",
+        "SERVER__PORT": "8000",
+        "HIPAA_AUDIT__ENABLED": "false",
+        "HIPAA_AUDIT__LOG_GROUP_NAME": "test-log-group",
+        "HIPAA_AUDIT__LOG_STREAM_NAME": "test-log-stream",
+        "HIPAA_AUDIT__ENABLE_CONSOLE_LOGS": "false",
     }
 )
 
@@ -81,3 +88,39 @@ def sample_client_messages():
         {"role": "client", "content": "I'm feeling much better now."},
         {"role": "client", "content": "I'm really happy today!"},
     ]
+
+
+# API Test Fixtures
+@pytest.fixture(autouse=True)
+def mock_openai_clients():
+    """Mock OpenAI clients for API tests."""
+    with (
+        patch(
+            "app.core.dependencies.get_openai_text_generation_client"
+        ) as mock_text_client,
+        patch(
+            "app.core.dependencies.get_openai_embedding_client"
+        ) as mock_embedding_client,
+    ):
+
+        # Mock text generation client
+        mock_text_client_instance = AsyncMock()
+        mock_text_client.return_value = mock_text_client_instance
+
+        # Mock embedding client
+        mock_embedding_client_instance = AsyncMock()
+        mock_embedding_client.return_value = mock_embedding_client_instance
+
+        yield {
+            "text_client": mock_text_client_instance,
+            "embedding_client": mock_embedding_client_instance,
+        }
+
+
+@pytest.fixture(autouse=True)
+def mock_weaviate_client():
+    """Mock Weaviate client for API tests."""
+    with patch("app.core.dependencies.get_weaviate_client") as mock_client:
+        mock_client_instance = AsyncMock()
+        mock_client.return_value = mock_client_instance
+        yield mock_client_instance
