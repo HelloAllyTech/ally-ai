@@ -70,8 +70,20 @@ class ReferenceDocSettings(BaseModel):
     DISTANCE_THRESHOLD: float = Field(default=0.65)
 
 
+class ApiSettings(BaseModel):
+
+    X_API_KEY: str = Field(...)
+
+
 class LLMSettings(BaseModel):
     MAX_CONCURRENT_LLM_CALLS: int = Field(...)
+
+
+class HipaaAuditSettings(BaseModel):
+    ENABLED: bool = Field(False)
+    LOG_GROUP_NAME: str = Field(...)
+    LOG_STREAM_NAME: str = Field(...)
+    ENABLE_CONSOLE_LOGS: bool = Field(False)
 
 
 # --------------------
@@ -94,11 +106,13 @@ class AppSettings(BaseSettings):
     SERVER: ServerSettings
     WEAVIATE: WeaviateSettings
     OPENAI: OpenAISettings
+    API: ApiSettings
     LANGSMITH: LangSmithSettings
     AWS: AWSSettings
     QUEUE: QueueSettings
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = 0.65
     LLM: LLMSettings
+    HIPAA_AUDIT: HipaaAuditSettings
 
     def model_post_init(self, __context=None) -> None:
         """

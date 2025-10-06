@@ -33,6 +33,19 @@ class ConversationAnalysisFailedException(BaseCustomException):
         super().__init__(message, status_code)
 
 
+class ConversationIdentifyFailedException(BaseCustomException):
+    """
+    Raised when conversation identify fails.
+    """
+
+    def __init__(
+        self,
+        message="Conversation identify failed",
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ) -> None:
+        super().__init__(message, status_code)
+
+
 class SummarizationFailedException(BaseCustomException):
     """
     Raised when summarization fails.

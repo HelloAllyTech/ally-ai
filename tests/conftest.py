@@ -36,13 +36,18 @@ os.environ.update(
         "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL": (
             "http://localhost:4566/response-queue"
         ),
-        "LLM__MAX_CONCURRENT_LLM_CALLS": "10",
+        "LLM__MAX_CONCURRENT_LLM_CALLS": "100",
+        "API__X_API_KEY": "test-x-api-key",
         "SLACK_ALERTS__ENABLED": "false",
         "SLACK_ALERTS__API_TOKEN": "test-token",
         "SLACK_ALERTS__CHANNEL_ID": "test-channel",
         "SLACK_ALERTS__LOG_LEVEL": "WARNING",
         "SERVER__HOST": "localhost",
         "SERVER__PORT": "8000",
+        "HIPAA_AUDIT__ENABLED": "false",
+        "HIPAA_AUDIT__LOG_GROUP_NAME": "test-log-group",
+        "HIPAA_AUDIT__LOG_STREAM_NAME": "test-log-stream",
+        "HIPAA_AUDIT__ENABLE_CONSOLE_LOGS": "false",
     }
 )
 

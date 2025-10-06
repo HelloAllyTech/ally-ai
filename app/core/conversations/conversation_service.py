@@ -4,6 +4,8 @@ from app.core.text_generations.base import BaseTextGenerationService
 from app.core.vector_db.base import VectorDB
 from app.exceptions.custom_exceptions import (
     ConversationAnalysisFailedException,
+    ConversationIdentifyFailedException,
+    IdentifyUserFailedException,
     NudgeGenerationFailedException,
     VectorDBFetchFailedException,
 )
@@ -103,4 +105,10 @@ class ConversationService:
         """
         Identifies the users who did the conversation from the conversation history.
         """
-        return await self.text_generation_service.identify_user(chat_history)
+        try:
+            return await self.text_generation_service.identify_user(chat_history)
+
+        except IdentifyUserFailedException as e:
+            raise ConversationIdentifyFailedException(
+                "Failed to identify users. Please try again later."
+            ) from e
