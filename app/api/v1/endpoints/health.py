@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-
 from app.schemas.health import HealthCheckResponse
 from app.utils.logger import get_logger
 
@@ -12,6 +11,9 @@ async def health_check():
     """
     Health check endpoint to verify if the service is running.
     """
-    health_logger.debug("Health check endpoint was called.")
+    health_logger.warning(
+        "DEPRECATED: /api/v1/health was called. "
+        "Please migrate to /api/health."
+    )
 
     return HealthCheckResponse(status="ok")

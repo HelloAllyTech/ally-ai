@@ -117,3 +117,25 @@ class BaseTextGenerationService[ModelT](ABC):
                  if the analysis fails.
         """
         pass
+
+    @abstractmethod
+    async def generate_simulation_summary(
+        self, chat_history: List[ChatMessage], goal: str, **kwargs
+    ) -> Dict[str, List[str]]:
+        """
+        Generate simulation summary analyzing chat history against a goal.
+
+        Analyzes conversation performance to identify improvement areas and positives.
+
+        Parameters:
+            chat_history (List[str]): List of chat messages/exchanges
+            goal (str): The objective or goal to analyze against
+            **kwargs: Additional arguments for LLM invocation
+
+        Returns:
+            Dict[str, List[str]]: Dictionary with 'improvements' and 'positives' arrays
+
+        Raises:
+            LLMInvocationFailedException: If LLM invocation fails
+        """
+        pass

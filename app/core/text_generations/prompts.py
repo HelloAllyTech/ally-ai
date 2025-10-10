@@ -38,19 +38,25 @@ NUDGE_PROMPT = PromptTemplate(
 SUMMARY_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
-        You're an assistant that creates session notes for mental health organizations.
-        Analyze the chat history and extract All available information
-        for each field in the output schema.
-        Avoid leaving fields as null/empty when information
-        is present in the conversation.
-        For the session summary, please provide a summary of the session,
-        which has 250 to 500 words.
+                You're an assistant that creates session notes for mental health
+                organizations.
+                Analyze the chat history and extract All available information
+                for each field in the output schema.
+                Avoid leaving fields as null/empty when information
+                is present in the conversation.
+                For the session summary, provide a detailed summary between 300
+                and 500 words.
+                Responses shorter than 300 words are invalid.
 
-        Chat history:
-        ```
-        {chat_history}
-        ```
-    """
+                IMPORTANT RULES:
+                - If the chat history is completely empty or contains no meaningful
+                  content, return EXACTLY an empty JSON Object
+
+                Chat history:
+                ```
+                {chat_history}
+                ```
+            """
     ),
     input_variables=["chat_history"],
 )
@@ -227,40 +233,104 @@ DIARIZATION_PROMPT = PromptTemplate(
 COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
-        You are analyzing counselor communication.
+        You are a specialized extraction engine for analyzing therapeutic
+        counselor communication. Analyze the counselor's message
+        and extract
+        specific types of therapeutic techniques.
 
-        Read the counselor's message below and
-        return ONLY a JSON object with three array fields.
+        CRITICAL: Extract EXACT substrings only. Never modify, paraphrase,
+        or interpret the text. Copy the counselor's exact words that match
+        each category.
 
-        Important rules:
-        - Only include text that EXACTLY appears in the counselor's message.
-        - Do NOT rephrase, expand, or invent new sentences.
-        - If nothing matches a category, return an empty array [].
+        Return ONLY this JSON structure:
+        {{
+          "reflective": [ "exact quoted text" ],
+          "open_ended": [ "exact quoted text" ],
+          "back_channel": [ "exact quoted text" ]
+        }}
 
-        Categories:
-        - "reflective" → An array of reflective
-         questions that reframe or mirror what the client
-          has expressed (their feelings, thoughts,
-           or experiences) back to them as a question.
+        DETAILED CATEGORY DEFINITIONS:
 
-        - "open_ended" → An array of open-ended
-         questions that encourage elaboration and cannot be
-          answered with yes/no, but do not
-           directly mirror the client’s content.
+        1. REFLECTIVE QUESTIONS (Mirroring/Paraphrasing):
+           - Questions that reflect back the client's words, feelings, or
+             experiences
+           - Common patterns:
+             * "So you're [feeling/thinking/saying]...?"
+             * "It sounds like you're [experiencing/going through]...?"
+             * "You mentioned that [client's words]...?"
+             * "I hear that [client's experience]...?"
+             * "It seems like [client's situation]...?"
+           - Examples: "So you're feeling overwhelmed?",
+             "It sounds like work is really stressful for you?"
 
-        - "back_channel" → An array of brief
-         supportive or attentive signals that show listening,
-         such as short cues ("hmm", "I see")
-          or concise empathetic statements that don’t seek
-          new information.
+        2. OPEN-ENDED QUESTIONS (Exploratory):
+           - Questions that invite detailed, narrative responses
+           - Start with: What, How, Why, When, Where, Tell me, Describe,
+             Explain, Share, Walk me through, Help me understand
+           - Must encourage elaboration and deeper exploration
+           - STRICTLY EXCLUDE: Do/Did, Are/Were, Will/Would, Can/Could,
+             Should, Have/Has, Is/Was, Does, Have you, Did you
+           - Examples: "What does that feel like for you?",
+             "How has this been impacting your daily life?",
+             "Tell me more about that experience"
 
-        Counselor Message:
-        ```
-        {message}
-        ```
+        3. BACK-CHANNEL CUES (Active Listening):
+           - Brief, supportive responses that show engagement and encourage
+             continuation
+           - Short acknowledgments that don't ask questions
+           - Examples: "I see", "I understand", "That makes sense", "Go on",
+             "Mmm-hmm", "I hear you", "That sounds difficult", "I can imagine"
 
-        Return only valid JSON.
-    """
+        EXTRACTION RULES:
+        - Copy EXACT text only - preserve original wording, punctuation,
+          and capitalization
+        - If text fits multiple categories, include it in ALL relevant categories
+        - If no text matches a category, return empty array []
+        - Be conservative - only include clear, unambiguous matches
+        - Focus on therapeutic technique, not content analysis
+
+        Counselor Message: {message}
+        """
     ),
     input_variables=["message"],
+)
+
+SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
+    template=textwrap.dedent(
+        """
+       You are a clinical supervisor analyzing a counselor training simulation
+       where an AI client interacts with a counselor-in-training.
+
+       Evaluate the counselor's performance against the training goal and
+       return ONLY a JSON object with two array fields.
+
+       Important rules:
+       - Provide specific, actionable feedback points
+       - Reference exact examples from the conversation
+       - Focus on clinical competencies and therapeutic techniques
+       - Each point should be concise but substantive
+
+       Training Goal: {goal}
+
+       Conversation Transcript:
+       {chat_history}
+
+       Analyze the counselor's:
+       • Therapeutic rapport building and engagement
+       • Active listening and reflective techniques
+       • Empathy expression and validation
+       • Question formulation and timing
+       • Professional boundaries and crisis response
+       • Goal alignment and skill demonstration
+
+       Return only valid JSON with these fields:
+       - "improvements" → Array of specific areas needing development
+         with conversation examples
+       - "positives" → Array of demonstrated strengths and effective
+         techniques with examples
+
+       Return only valid JSON.
+       """
+    ),
+    input_variables=["goal", "chat_history"],
 )

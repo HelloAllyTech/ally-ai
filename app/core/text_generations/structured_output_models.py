@@ -412,3 +412,16 @@ class CounselorMessageAnalysis(BaseModel):
         description="Array of back-channel cues - brief active"
         " listening signals like 'hmm', 'I see', etc."
     )
+
+
+class SimulationAnalysis(BaseModel):
+    """Structured output model for simulation summary analysis."""
+
+    improvements: List[str] = Field(
+        description="Specific, actionable areas that need improvement "
+        "during the simulation"
+    )
+    positives: List[str] = Field(
+        description="Strengths and positive aspects demonstrated "
+        "during the simulation by the counselor"
+    )
