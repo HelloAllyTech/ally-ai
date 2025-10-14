@@ -39,8 +39,9 @@ class TestMigrationManager:
 
         manager = MigrationManager(client=mock_client)
 
-        # Should not raise exception
-        await manager.ensure_migrations_collection()
+        # Should return True when collection exists
+        result = await manager.ensure_migrations_collection()
+        assert result is True
 
     @pytest.mark.asyncio
     async def test_ensure_migrations_collection_not_exists(self):
@@ -53,8 +54,9 @@ class TestMigrationManager:
 
         manager = MigrationManager(client=mock_client)
 
-        with pytest.raises(Exception, match="MigrationHistory collection.*not found"):
-            await manager.ensure_migrations_collection()
+        # Should return False when collection doesn't exist
+        result = await manager.ensure_migrations_collection()
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_ensure_migrations_collection_exception(self):
@@ -66,8 +68,9 @@ class TestMigrationManager:
 
         manager = MigrationManager(client=mock_client)
 
-        with pytest.raises(Exception, match="Connection error"):
-            await manager.ensure_migrations_collection()
+        # Should return False when exception occurs (for first-time setup)
+        result = await manager.ensure_migrations_collection()
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_get_applied_migrations_success(self):

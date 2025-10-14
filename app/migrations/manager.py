@@ -41,25 +41,26 @@ class MigrationManager:
             ]
 
             if collection_name not in existing_collections:
-                logger.warning(
-                    f"MigrationHistory collection '{collection_name}' does not exist!"
+                logger.info(
+                    f"MigrationHistory collection '{collection_name}' does not exist. "
+                    "This is expected for first-time setup."
                 )
-                logger.warning(
-                    "Please run migration 000 to create the MigrationHistory "
-                    "collection first."
+                logger.info(
+                    "Migration 000 will create the MigrationHistory collection."
                 )
-                raise Exception(
-                    f"MigrationHistory collection '{collection_name}' not found. "
-                    "Run migration 000 first."
-                )
+                # Don't raise an exception - allow the first migration to run
+                return False
             else:
                 logger.info("Migration history collection already exists")
+                return True
 
         except Exception as e:
             logger.error(
                 f"MigrationHistory collection check failed: {type(e).__name__}"
             )
-            raise
+            # For first-time setup, allow migrations to run even if we can't check
+            logger.info("Allowing migrations to run for first-time setup")
+            return False
 
     async def get_applied_migrations(self) -> List[str]:
         """Get list of applied migration versions from Weaviate"""
