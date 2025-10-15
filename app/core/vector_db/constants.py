@@ -10,8 +10,8 @@ class VectorDBCollectionNames:
     """Collection names for Weaviate vector database"""
 
     MIGRATION_HISTORY = "MigrationHistory"
-    CONVERSATIONS = "Conversations"
-    REFERENCE_DOCUMENTS = "ReferenceDocuments"
+    CONVERSATIONS = "Conversation"
+    REFERENCE_DOCUMENTS = "ReferenceDocument"
 
 
 class MigrationHistoryProperties:
