@@ -6,7 +6,6 @@ import tempfile
 from typing import List
 
 import httpx
-
 from utils.logger import get_logger
 from utils.phi_events import PHIEvents
 from utils.phi_logger import PHILogEvent, phi_logger
@@ -30,19 +29,6 @@ async def download_file_to_temp_and_get_details(
     """
     try:
         logger.info("Downloading audio file")
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": "Downloading audio file",
-                    "audio_url": audio_url,
-                    "component": "AudioConverter",
-                    "method": "download_file_to_temp_and_get_details",
-                },
-            )
-        )
         # Download the file first with a generic extension
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(audio_url)
@@ -54,21 +40,6 @@ async def download_file_to_temp_and_get_details(
             temp_input.close()
 
             logger.info(f"Downloaded audio file ({len(response.content)} bytes)")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_MODIFIED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": f"Downloaded audio file ({len(response.content)} bytes)",  # noqa: E501
-                        "audio_url": audio_url,
-                        "file_size_bytes": len(response.content),
-                        "temp_file_path": temp_input.name,
-                        "component": "AudioConverter",
-                        "method": "download_file_to_temp_and_get_details",
-                    },
-                )
-            )
 
             # Now identify the actual format
             actual_extension = await identify_audio_format(temp_input.name, chat_id)
@@ -99,41 +70,10 @@ async def download_file_to_temp_and_get_details(
                 logger.warning(
                     f"Failed to rename file, using original: {type(e).__name__}"
                 )
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.SYSTEM_ERROR,
-                        chat_id=str(chat_id) if chat_id else None,
-                        audit_id=None,  # Will be set by external service,
-                        details={
-                            "error": f"Failed to rename file, using original: {type(e).__name__}",  # noqa: E501
-                            "audio_url": audio_url,
-                            "detected_extension": actual_extension,
-                            "original_path": temp_input.name,
-                            "correct_path": correct_path,
-                            "exception_type": type(e).__name__,
-                            "component": "AudioConverter",
-                            "method": "download_file_to_temp_and_get_details",
-                        },
-                    )
-                )
                 return temp_input.name, actual_extension
 
     except Exception as e:
         logger.error(f"Error downloading audio: {type(e).__name__}")
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "error": f"Error downloading audio: {type(e).__name__}",
-                    "audio_url": audio_url,
-                    "exception_type": type(e).__name__,
-                    "component": "AudioConverter",
-                    "method": "download_file_to_temp_and_get_details",
-                },
-            )
-        )
         raise
 
 
@@ -178,43 +118,9 @@ async def convert_and_segment_audio_async(
             1024 * 1024
         )
         logger.info(f"file size: {file_size_mb:.2f} MB")
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": f"file size: {file_size_mb:.2f} MB",
-                    "audio_url": audio_url,
-                    "file_path": file_path,
-                    "file_size_mb": file_size_mb,
-                    "detected_extension": detected_extension,
-                    "sample_rate": sample_rate,
-                    "max_segment_size_mb": max_segment_size_mb,
-                    "component": "AudioConverter",
-                    "method": "convert_and_segment_audio_async",
-                },
-            )
-        )
 
         if file_size_mb <= max_segment_size_mb:
             logger.info("File size is within limit, no segmentation needed")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_ACCESSED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": "File size is within limit, no segmentation needed",
-                        "audio_url": audio_url,
-                        "file_path": file_path,
-                        "file_size_mb": file_size_mb,
-                        "max_segment_size_mb": max_segment_size_mb,
-                        "component": "AudioConverter",
-                        "method": "convert_and_segment_audio_async",
-                    },
-                )
-            )
             return [file_path]
 
         # Get audio duration to calculate segment duration
@@ -248,24 +154,6 @@ async def convert_and_segment_audio_async(
             f"Audio duration: {duration:.2f}s, will split into {num_segments} "
             f"segments of ~{segment_duration:.2f}s each"
         )
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": f"Audio duration: {duration:.2f}s, will split into {num_segments} segments of ~{segment_duration:.2f}s each",  # noqa: E501
-                    "audio_url": audio_url,
-                    "file_path": file_path,
-                    "duration": duration,
-                    "num_segments": num_segments,
-                    "segment_duration": segment_duration,
-                    "bytes_per_second": bytes_per_second,
-                    "component": "AudioConverter",
-                    "method": "convert_and_segment_audio_async",
-                },
-            )
-        )
 
         # Split audio into segments
         segment_paths = await split_audio_into_segments(
@@ -276,37 +164,8 @@ async def convert_and_segment_audio_async(
         try:
             await asyncio.to_thread(os.remove, file_path)
             logger.info("Cleaned up original file")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_DELETED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": "Cleaned up original file",
-                        "audio_url": audio_url,
-                        "file_path": file_path,
-                        "component": "AudioConverter",
-                        "method": "convert_and_segment_audio_async",
-                    },
-                )
-            )
         except OSError as e:
             logger.warning(f"Failed to cleanup original file: {type(e).__name__}")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "error": f"Failed to cleanup original file: {type(e).__name__}",
-                        "audio_url": audio_url,
-                        "file_path": file_path,
-                        "exception_type": type(e).__name__,
-                        "component": "AudioConverter",
-                        "method": "convert_and_segment_audio_async",
-                    },
-                )
-            )
 
         return segment_paths
 
@@ -396,7 +255,9 @@ async def split_audio_into_segments(
                 ]
 
             process = await asyncio.create_subprocess_exec(
-                *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                *ffmpeg_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
             stdout, stderr = await process.communicate()
@@ -494,6 +355,7 @@ async def split_audio_into_segments(
             )
         )
         raise
+
 
 async def get_audio_duration(file_path: str, chat_id: int = None) -> float:
     """Get audio duration in seconds using FFprobe"""

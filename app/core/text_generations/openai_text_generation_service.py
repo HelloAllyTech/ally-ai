@@ -1,6 +1,6 @@
-import time
 import asyncio
 import json
+import time
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import openai
@@ -11,6 +11,8 @@ from pydantic import create_model
 
 from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, phi_logger
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.prompts import (
     CONTENT_ENHANCE_PROMPT,
@@ -52,8 +54,6 @@ from app.utils.counselor_interruption_calculator import (
 )
 from app.utils.language_detector import detect_languages
 from app.utils.logger import get_logger
-from app.core.phi_logger import phi_logger, PHILogEvent
-from app.core.phi_events import PHIEvents
 from app.utils.rate_limiter import rate_limiter
 from app.utils.reflective_listening_calculator import calculate_reflective_listening
 from app.utils.silence_calculator import calculate_silence_by_counselor
@@ -331,27 +331,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         start_time = time.time()
-        
+
         try:
-            # Log start of summary generation
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=chat_id,
-                audit_id=None,  # Will be set by external service
-                details={
-                    "message": "Starting summary generation using OpenAI",
-                    "component": "OpenAITextGenerationService",
-                    "method": "generate_summary_notes",
-                    "chat_history_count": len(chat_history),
-                    "summary_type": "dynamic" if keys else "structured",
-                    "keys_provided": keys is not None,
-                    "keys_count": len(keys) if keys else 0
-                }
-            ))
-            
             logger.info("Generating summary notes using OpenAI")
             chat_history_str = self._chat_history_to_str(chat_history)
-            
+
             if keys:
                 result = await self._generate_dynamic_summary(
                     chat_history, chat_history_str, keys, **kwargs
@@ -360,50 +344,49 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 result = await self._generate_structured_summary(
                     chat_history, chat_history_str, **kwargs
                 )
-            
+
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log successful completion
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=chat_id,
-                audit_id=None,  # Will be set by external service
-                details={
-                    "message": "Summary generation completed successfully using OpenAI",
-                    "component": "OpenAITextGenerationService",
-                    "method": "generate_summary_notes",
-                    "chat_history_count": len(chat_history),
-                    "summary_type": "dynamic" if keys else "structured",
-                    "processing_time_ms": processing_time_ms,
-                    "keys_provided": keys is not None,
-                    "keys_count": len(keys) if keys else 0,
-                    "result_type": type(result).__name__
-                }
-            ))
-            
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service
+                    details={
+                        "message": "Summary generation completed using OpenAI",
+                        "component": "OpenAITextGenerationService",
+                        "processing_time_ms": processing_time_ms,
+                        "result_type": type(result).__name__,
+                    },
+                )
+            )
+
             return result
-            
+
         except Exception as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
-            
+
             # Log error
-            await phi_logger.log(PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=chat_id,
-                audit_id=None,  # Will be set by external service
-                details={
-                    "error": f"Failed to generate summary: {type(e).__name__}",
-                    "component": "OpenAITextGenerationService",
-                    "method": "generate_summary_notes",
-                    "exception_type": type(e).__name__,
-                    "chat_history_count": len(chat_history),
-                    "processing_time_ms": processing_time_ms,
-                    "summary_type": "dynamic" if keys else "structured",
-                    "keys_provided": keys is not None
-                }
-            ))
-            
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service
+                    details={
+                        "error": f"Failed to generate summary: {type(e).__name__}",
+                        "component": "OpenAITextGenerationService",
+                        "method": "generate_summary_notes",
+                        "exception_type": type(e).__name__,
+                        "chat_history_count": len(chat_history),
+                        "processing_time_ms": processing_time_ms,
+                        "summary_type": "dynamic" if keys else "structured",
+                        "keys_provided": keys is not None,
+                    },
+                )
+            )
+
             logger.exception(f"Failed to generate summary: {type(e).__name__}")
             raise SummaryNoteFailedException("Failed to generate summary") from e
 
