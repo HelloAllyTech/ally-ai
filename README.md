@@ -4,7 +4,7 @@
 
 ## 📋 Table of Contents
 
-- [Features](#-features)
+- [Overview](#-overview)
 - [Prerequisites](#-prerequisites)
 - [Quick Start](#-quick-start)
 - [Development Setup](#-development-setup)
@@ -15,7 +15,7 @@
 - [Project Structure](#-project-structure)
 - [Contributing](#-contributing)
 
-## ✨ Features
+## ✨ Overview
 
 - **AI-Powered Counseling Support**: Intelligent insights and analysis for mental health professionals
 - **FastAPI Backend**: High-performance, async API with automatic documentation
