@@ -26,7 +26,9 @@ class TestTranscriptionHandler:
         return AsyncMock()
 
     @pytest.fixture
-    def handler(self, mock_queue_service, mock_storage_service, mock_text_generation_service):
+    def handler(
+        self, mock_queue_service, mock_storage_service, mock_text_generation_service
+    ):
         return TranscriptionHandler(
             queue_service=mock_queue_service,
             request_queue_url="http://localhost:4566/test-queue",
@@ -95,19 +97,31 @@ class TestTranscriptionHandler:
 
     # ---------------- _process_transcription ----------------
     @pytest.mark.asyncio
-    async def test__process_transcription_happy_path(self, handler, mock_text_generation_service: AsyncMock, mock_storage_service: AsyncMock, mock_queue_service: AsyncMock):
+    async def test__process_transcription_happy_path(
+        self,
+        handler,
+        mock_text_generation_service: AsyncMock,
+        mock_storage_service: AsyncMock,
+        mock_queue_service: AsyncMock,
+    ):
         # Arrange diarization result with lowercase roles to verify uppercasing
         diarized_messages = [
             SimpleNamespace(role="client", content="hi", start_time=0, end_time=1),
-            SimpleNamespace(role="counselor", content="hello", start_time=1, end_time=2),
+            SimpleNamespace(
+                role="counselor", content="hello", start_time=1, end_time=2
+            ),
         ]
-        mock_text_generation_service.diarize_from_transcription.return_value = SimpleNamespace(messages=diarized_messages)
+        mock_text_generation_service.diarize_from_transcription.return_value = (
+            SimpleNamespace(messages=diarized_messages)
+        )
 
         fake_summary = {"summary": "ok"}
         handler._generate_summary = AsyncMock(return_value=fake_summary)
         handler.send_combined_result_to_queue = AsyncMock()
 
-        request = SimpleNamespace(chat_id=111, segments_text="00:00-00:01 hi\n00:01-00:02 hello")
+        request = SimpleNamespace(
+            chat_id=111, segments_text="00:00-00:01 hi\n00:01-00:02 hello"
+        )
 
         # Act
         ok = await handler._process_transcription(request)
@@ -117,15 +131,24 @@ class TestTranscriptionHandler:
         mock_text_generation_service.diarize_from_transcription.assert_awaited_once()
         handler._generate_summary.assert_awaited_once()
         # Validate roles uppercased in messages passed to _generate_summary
-        passed_messages = handler._generate_summary.await_args.kwargs.get("messages") or handler._generate_summary.await_args.args[0]
+        passed_messages = (
+            handler._generate_summary.await_args.kwargs.get("messages")
+            or handler._generate_summary.await_args.args[0]
+        )
         assert passed_messages[0].role == "CLIENT"
         assert passed_messages[1].role == "COUNSELOR"
-        handler.send_combined_result_to_queue.assert_awaited_once_with(111, [m.model_dump() for m in passed_messages], fake_summary)
+        handler.send_combined_result_to_queue.assert_awaited_once_with(
+            111, [m.model_dump() for m in passed_messages], fake_summary
+        )
 
     @pytest.mark.asyncio
-    async def test__process_transcription_handles_exception(self, handler, mock_text_generation_service: AsyncMock):
+    async def test__process_transcription_handles_exception(
+        self, handler, mock_text_generation_service: AsyncMock
+    ):
         # Arrange
-        mock_text_generation_service.diarize_from_transcription.side_effect = RuntimeError("oops")
+        mock_text_generation_service.diarize_from_transcription.side_effect = (
+            RuntimeError("oops")
+        )
         request = SimpleNamespace(chat_id=222, segments_text="...")
 
         # Act
@@ -136,7 +159,9 @@ class TestTranscriptionHandler:
 
     # ---------------- _generate_summary ----------------
     @pytest.mark.asyncio
-    async def test__generate_summary_success(self, handler, mock_text_generation_service: AsyncMock):
+    async def test__generate_summary_success(
+        self, handler, mock_text_generation_service: AsyncMock
+    ):
         # Arrange
         messages = []
         mock_text_generation_service.generate_summary_notes.return_value = {"x": 1}
@@ -149,9 +174,13 @@ class TestTranscriptionHandler:
         mock_text_generation_service.generate_summary_notes.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test__generate_summary_failure_sends_error_and_raises(self, handler, mock_text_generation_service: AsyncMock):
+    async def test__generate_summary_failure_sends_error_and_raises(
+        self, handler, mock_text_generation_service: AsyncMock
+    ):
         # Arrange
-        mock_text_generation_service.generate_summary_notes.side_effect = RuntimeError("fail")
+        mock_text_generation_service.generate_summary_notes.side_effect = RuntimeError(
+            "fail"
+        )
         handler._send_error_response = AsyncMock()
 
         # Act
@@ -163,14 +192,20 @@ class TestTranscriptionHandler:
 
     # ---------------- send_combined_result_to_queue ----------------
     @pytest.mark.asyncio
-    async def test_send_combined_result_to_queue_success(self, handler, mock_storage_service: AsyncMock, mock_queue_service: AsyncMock):
+    async def test_send_combined_result_to_queue_success(
+        self, handler, mock_storage_service: AsyncMock, mock_queue_service: AsyncMock
+    ):
         # Arrange
         chat_id = 555
         transcription = [{"role": "CLIENT", "content": "hi"}]
         summary = {"summary": "great"}
 
-        mock_storage_service.generate_presigned_download_url.return_value = "https://dl/url"
-        mock_storage_service.generate_presigned_delete_url.return_value = "https://del/url"
+        mock_storage_service.generate_presigned_download_url.return_value = (
+            "https://dl/url"
+        )
+        mock_storage_service.generate_presigned_delete_url.return_value = (
+            "https://del/url"
+        )
 
         # Act
         await handler.send_combined_result_to_queue(chat_id, transcription, summary)
@@ -191,10 +226,14 @@ class TestTranscriptionHandler:
         assert body["delete_presigned_url"].startswith("https://del/")
 
     @pytest.mark.asyncio
-    async def test_send_combined_result_to_queue_missing_presigned_triggers_error(self, handler, mock_storage_service: AsyncMock):
+    async def test_send_combined_result_to_queue_missing_presigned_triggers_error(
+        self, handler, mock_storage_service: AsyncMock
+    ):
         # Arrange
         mock_storage_service.generate_presigned_download_url.return_value = None
-        mock_storage_service.generate_presigned_delete_url.return_value = "https://del/url"
+        mock_storage_service.generate_presigned_delete_url.return_value = (
+            "https://del/url"
+        )
         handler._send_error_response = AsyncMock()
 
         # Act
@@ -205,7 +244,9 @@ class TestTranscriptionHandler:
 
     # ---------------- _send_error_response ----------------
     @pytest.mark.asyncio
-    async def test_send_error_response_pushes_message(self, handler, mock_queue_service: AsyncMock):
+    async def test_send_error_response_pushes_message(
+        self, handler, mock_queue_service: AsyncMock
+    ):
         # Act
         await handler._send_error_response(chat_id=777, error_message="bad news")
 

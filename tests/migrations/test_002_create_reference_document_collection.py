@@ -282,7 +282,7 @@ class TestMigration002:
         # Verify the collection name constant is used
         call_args = mock_client.collections.create.call_args
         assert call_args[1]["name"] == VectorDBCollectionNames.REFERENCE_DOCUMENTS
-        assert call_args[1]["name"] == "ReferenceDocuments"  # Verify the actual value
+        assert call_args[1]["name"] == "ReferenceDocument"  # Verify the actual value
 
     @pytest.mark.asyncio
     async def test_down_collection_name_constant_usage(self):
@@ -301,7 +301,7 @@ class TestMigration002:
             VectorDBCollectionNames.REFERENCE_DOCUMENTS
         )
         mock_client.collections.delete.assert_called_once_with(
-            "ReferenceDocuments"
+            "ReferenceDocument"
         )  # Verify the actual value
 
     @pytest.mark.asyncio
@@ -322,13 +322,15 @@ class TestMigration002:
 
         # Should be a list of properties
         assert isinstance(properties, list)
-        assert len(properties) == 3  # heading, content, created_at
+        assert len(properties) == 5  # heading, content, category, tags, tenant_id
 
         # Verify property names
         property_names = [prop.name for prop in properties]
         assert "heading" in property_names
         assert "content" in property_names
-        assert "created_at" in property_names
+        assert "category" in property_names
+        assert "tags" in property_names
+        assert "tenant_id" in property_names
 
     @pytest.mark.asyncio
     async def test_down_successful_deletion_message(self):

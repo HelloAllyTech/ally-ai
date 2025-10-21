@@ -151,7 +151,7 @@ class MessageProcessor:
                             chat_id=chat_id,
                             audit_id=None,  # Will be set by external service
                             details={
-                                "error": f"Failed to delete message from queue: {str(delete_error)}",
+                                "error": f"Failed to delete message from queue: {str(delete_error)}",  # noqa: E501
                                 "chat_id": chat_id,
                                 "message_id": message.get("message_id", "unknown"),
                                 "queue_url": self.queue_url,

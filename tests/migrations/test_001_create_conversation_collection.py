@@ -276,7 +276,7 @@ class TestMigration001:
         # Verify the collection name constant is used
         call_args = mock_client.collections.create.call_args
         assert call_args[1]["name"] == VectorDBCollectionNames.CONVERSATIONS
-        assert call_args[1]["name"] == "Conversations"  # Verify the actual value
+        assert call_args[1]["name"] == "Conversation"  # Verify the actual value
 
     @pytest.mark.asyncio
     async def test_down_collection_name_constant_usage(self):
@@ -295,5 +295,5 @@ class TestMigration001:
             VectorDBCollectionNames.CONVERSATIONS
         )
         mock_client.collections.delete.assert_called_once_with(
-            "Conversations"
+            "Conversation"
         )  # Verify the actual value

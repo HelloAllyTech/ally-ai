@@ -3,6 +3,7 @@ Tests for reference document endpoints.
 """
 
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from app.exceptions.custom_exceptions import (

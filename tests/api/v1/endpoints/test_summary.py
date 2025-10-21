@@ -3,7 +3,9 @@ Tests for summary endpoints.
 """
 
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
+
 from app.schemas.summary import DynamicSummaryNoteResponse, Tag
 from tests.api.v1.endpoints.base import BaseAPITest
 

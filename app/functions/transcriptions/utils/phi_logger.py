@@ -8,7 +8,6 @@ from typing import Any, Dict, Optional, Union
 
 import boto3
 from botocore.exceptions import ClientError
-
 from core.config import settings
 from utils.execution_manager import ExecutionManager
 from utils.logger import get_logger
@@ -141,7 +140,9 @@ class PHILoggerService:
 
             is_valid_ip = ip != "Unknown" and self._is_valid_ip(ip)
             location = self._get_geo_location(ip) if is_valid_ip else "Unknown"
-            logged_at = event.logged_at if event.logged_at else datetime.now(timezone.utc)
+            logged_at = (
+                event.logged_at if event.logged_at else datetime.now(timezone.utc)
+            )
 
             phi_log_dto = {
                 "event_type": str(event.event_type),

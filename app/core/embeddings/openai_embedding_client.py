@@ -18,7 +18,7 @@ class OpenAIEmbeddingClient:
         Returns:
             OpenAIEmbeddings: The OpenAI embedding client.
         """
-        global _openai_embedding_client
+        global _openai_embedding_client  # noqa: F824
 
         if not _openai_embedding_client:
             logger.error(
@@ -40,7 +40,7 @@ class OpenAIEmbeddingClient:
         Parameters:
             model (str): The name of the model to use.
         """
-        global _openai_embedding_client
+        global _openai_embedding_client  # noqa: F824
 
         if not _openai_embedding_client:
             logger.info(f"Creating a new OpenAI embedding client with model {model}...")

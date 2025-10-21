@@ -13,7 +13,7 @@ _weaviate_client = None
 class WeaviateClient:
     @staticmethod
     def get_client() -> WeaviateAsyncClient:
-        global _weaviate_client
+        global _weaviate_client  # noqa: F824
 
         if not _weaviate_client:
             logger.error(
@@ -27,7 +27,7 @@ class WeaviateClient:
 
     @staticmethod
     def create_client() -> None:
-        global _weaviate_client
+        global _weaviate_client  # noqa: F824
 
         if not _weaviate_client:
             logger.info("Creating a new Weaviate client...")

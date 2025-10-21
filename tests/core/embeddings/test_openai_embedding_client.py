@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 import app.core.embeddings.openai_embedding_client as client_module
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 
