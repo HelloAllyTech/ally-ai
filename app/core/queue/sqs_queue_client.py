@@ -28,7 +28,7 @@ class SQSQueueClient:
         Raises:
             Exception: If the client has not been created yet.
         """
-        global _sqs_client  # noqa: F824
+        global _sqs_client
 
         if not _sqs_client:
             logger.error(
@@ -45,7 +45,7 @@ class SQSQueueClient:
         """
         Create the singleton instance of the SQS client if it doesn't exist.
         """
-        global _sqs_client  # noqa: F824
+        global _sqs_client
 
         if not _sqs_client:
             logger.info("Creating a new SQS client...")
@@ -80,8 +80,7 @@ class SQSQueueClient:
         """
         Close and cleanup the SQS client.
         """
-        global _sqs_client  # noqa: F824
-
+        global _sqs_client
         if _sqs_client:
             logger.info("Closing SQS client...")
             try:

@@ -18,7 +18,7 @@ class OpenAITextGenerationClient:
         Returns:
             ChatOpenAI: The OpenAI chat client.
         """
-        global _openai_chat_client  # noqa: F824
+        global _openai_chat_client
 
         if not _openai_chat_client:
             logger.error(
@@ -38,7 +38,7 @@ class OpenAITextGenerationClient:
         Parameters:
             model_name (str): The name of the model to use.
         """
-        global _openai_chat_client  # noqa: F824
+        global _openai_chat_client
 
         if not _openai_chat_client:
             logger.info(f"Creating a new OpenAI chat client with model {model_name}...")
