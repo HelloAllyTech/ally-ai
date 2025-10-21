@@ -33,4 +33,4 @@ COPY . .
 EXPOSE 8000
 
 # Run migrations first, then start the application
-CMD ["bash", "-c", "poetry run python scripts/migrate.py all && poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
+CMD ["bash", "-c", "poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
