@@ -383,7 +383,7 @@ class TestReferenceDocumentService:
 
         # Assert
         assert result["documents"][0]["id"] == "doc1"
-        assert result["total"] == 1  # noqa: E501
+        assert result["total"] == 1
         assert result["limit"] == 10  # default limit
         mock_vector_db.search_documents.assert_called_once()
 

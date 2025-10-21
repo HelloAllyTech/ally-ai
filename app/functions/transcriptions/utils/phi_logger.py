@@ -76,14 +76,14 @@ class PHILoggerService:
                 not self.cloudwatch_client
                 or not self.log_group_name
                 or not self.log_stream_name
-            ):  # noqa: E501
+            ):
                 return
 
             # Create log group if it doesn't exist
             try:
                 self.cloudwatch_client.create_log_group(
                     logGroupName=self.log_group_name
-                )  # noqa: E501
+                )
                 logger.info(f"Created log group: {self.log_group_name}")
             except ClientError as e:
                 if e.response["Error"]["Code"] == "ResourceAlreadyExistsException":
@@ -125,18 +125,18 @@ class PHILoggerService:
                 request.get("headers", {}).get("user-agent", "Unknown")
                 if request
                 else "Unknown"
-            )  # noqa: E501
+            )
             http_method = request.get("method", "WebSocket") if request else "WebSocket"
             endpoint = (
                 request.get("original_url", "WebSocket Connection")
                 if request
                 else "WebSocket Connection"
-            )  # noqa: E501
+            )
             request_id = (
                 request.get("headers", {}).get("x-request-id", "Unknown")
                 if request
                 else "Unknown"
-            )  # noqa: E501
+            )
 
             is_valid_ip = ip != "Unknown" and self._is_valid_ip(ip)
             location = self._get_geo_location(ip) if is_valid_ip else "Unknown"
@@ -172,7 +172,7 @@ class PHILoggerService:
                 not self.cloudwatch_client
                 or not self.log_group_name
                 or not self.log_stream_name
-            ):  # noqa: E501
+            ):
                 return
             log_event = {
                 "timestamp": int(time.time() * 1000),
