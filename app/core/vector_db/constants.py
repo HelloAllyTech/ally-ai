@@ -96,11 +96,21 @@ class ReferenceDocumentProperties:
         name="content", data_type=wvc.DataType.TEXT, description="Document content"
     )
 
-    CREATED_AT = wvc.Property(
-        name="created_at", data_type=wvc.DataType.DATE, description="Creation timestamp"
+    CATEGORY = wvc.Property(
+        name="category", data_type=wvc.DataType.TEXT, description="Document category"
+    )
+
+    TAGS = wvc.Property(
+        name="tags", data_type=wvc.DataType.TEXT_ARRAY, description="Document tags"
+    )
+
+    TENANT_ID = wvc.Property(
+        name="tenant_id",
+        data_type=wvc.DataType.TEXT,
+        description="Tenant ID associated with the document",
     )
 
     @classmethod
     def get_all_properties(cls):
         """Get all properties for the ReferenceDocument collection"""
-        return [cls.HEADING, cls.CONTENT, cls.CREATED_AT]
+        return [cls.HEADING, cls.CONTENT, cls.CATEGORY, cls.TAGS, cls.TENANT_ID]
