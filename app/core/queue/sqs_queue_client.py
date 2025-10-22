@@ -81,7 +81,6 @@ class SQSQueueClient:
         Close and cleanup the SQS client.
         """
         global _sqs_client
-
         if _sqs_client:
             logger.info("Closing SQS client...")
             try:

@@ -2,6 +2,8 @@ import asyncio
 import json
 from typing import Any, Awaitable, Callable, Dict
 
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, phi_logger
 from app.core.queue.sqs_queue_service import SQSQueueService
 from app.utils.logger import get_logger
 
@@ -67,18 +69,40 @@ class MessageProcessor:
             # Extract the message body
             body = message.get("body", {})
 
+            # Extract chat_id early, before any processing
             if not isinstance(body, dict):
                 try:
                     body = json.loads(body)
                 except json.JSONDecodeError:
+                    # Set chat_id to unknown if JSON parsing fails
+                    chat_id = "unknown"
                     logger.error("Failed to parse message body as JSON")
-                    return
-            # Extract chat_id early
-            chat_id = body.get("chat_id", "unknown")
-            logger.info(f"Processing message for chat_id: {chat_id}")
+                    await phi_logger.log(
+                        PHILogEvent(
+                            event_type=PHIEvents.SYSTEM_ERROR,
+                            chat_id=chat_id,
+                            audit_id=None,  # Will be set by external service
+                            details={
+                                "error": "Failed to parse message body as JSON",
+                                "message_id": message.get("message_id", "unknown"),
+                                "receipt_handle": (
+                                    receipt_handle[:20] + "..."
+                                    if receipt_handle
+                                    else None
+                                ),
+                                "queue_url": self.queue_url,
+                            },
+                        )
+                    )
 
-            # Process the message using the handler
-            await self.handler(body)
+            # Proceed only if body is a valid dict; otherwise skip handler
+            if isinstance(body, dict):
+                # Extract chat_id from valid body
+                chat_id = body.get("chat_id", "unknown")
+                logger.info(f"Processing message for chat_id: {chat_id}")
+
+                # Process the message using the handler
+                await self.handler(body)
 
         except Exception as e:
             chat_id = (
@@ -87,15 +111,30 @@ class MessageProcessor:
             logger.exception(
                 f"Error processing message for chat_id {chat_id}: {type(e).__name__}"
             )
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service
+                    details={
+                        "error": (
+                            f"Error processing message for chat_id {chat_id}: "
+                            f"{type(e).__name__}"
+                        ),
+                        "chat_id": chat_id,
+                        "exception_type": type(e).__name__,
+                        "message_id": message.get("message_id", "unknown"),
+                        "receipt_handle": (
+                            receipt_handle[:20] + "..." if receipt_handle else None
+                        ),
+                        "queue_url": self.queue_url,
+                    },
+                )
+            )
 
         finally:
-            logger.info(f"Entering finally block for chat_id: {chat_id}")
             # ALWAYS delete the message from the queue, regardless of success or failure
             if self.delete_after_processing and receipt_handle:
-                logger.info(
-                    f"Attempting to delete message with receipt_handle: "
-                    f"{receipt_handle[:20]}..."
-                )
                 try:
                     await self.queue_service.delete_message(
                         queue_url=self.queue_url, receipt_handle=receipt_handle
@@ -106,8 +145,19 @@ class MessageProcessor:
                         f"Failed to delete message from queue for chat_id {chat_id}: "
                         f"{delete_error}"
                     )
-            else:
-                logger.info(f"Skipping message deletion for chat_id: {chat_id}")
+                    await phi_logger.log(
+                        PHILogEvent(
+                            event_type=PHIEvents.SYSTEM_ERROR,
+                            chat_id=chat_id,
+                            audit_id=None,  # Will be set by external service
+                            details={
+                                "error": f"Failed to delete message from queue: {str(delete_error)}",  # noqa: E501
+                                "chat_id": chat_id,
+                                "message_id": message.get("message_id", "unknown"),
+                                "queue_url": self.queue_url,
+                            },
+                        )
+                    )
 
     async def poll_queue(self) -> None:
         """
@@ -134,6 +184,21 @@ class MessageProcessor:
 
         except Exception as e:
             logger.exception(f"Error polling queue: {type(e).__name__}")
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=None,  # No specific chat for polling errors
+                    audit_id=None,  # Will be set by external service
+                    details={
+                        "error": f"Error polling queue: {type(e).__name__}",
+                        "exception_type": type(e).__name__,
+                        "queue_url": self.queue_url,
+                        "max_messages": self.max_messages,
+                        "wait_time_seconds": self.wait_time_seconds,
+                        "visibility_timeout": self.visibility_timeout,
+                    },
+                )
+            )
 
     async def run(self) -> None:
         """
@@ -155,6 +220,18 @@ class MessageProcessor:
                 break
             except Exception as e:
                 logger.exception(f"Error in message processor: {type(e).__name__}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=None,  # No specific chat for system errors
+                        audit_id=None,  # Will be set by external service
+                        details={
+                            "error": f"Error in message processor: {type(e).__name__}",
+                            "exception_type": type(e).__name__,
+                            "queue_url": self.queue_url,
+                        },
+                    )
+                )
                 # Continue running even if there's an error
                 await asyncio.sleep(1)
 

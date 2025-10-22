@@ -1,9 +1,12 @@
 import asyncio
+import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from botocore.client import BaseClient
 
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, phi_logger
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -98,10 +101,68 @@ class SQSQueueService:
 
             message_id = response.get("MessageId")
             logger.info(f"Message sent to queue {queue_url} with ID {message_id}")
+            # Extract chat_id from message body for PHI logging
+            chat_id = None
+            try:
+                if message_body:
+                    message_data = json.loads(message_body)
+                    chat_id = message_data.get("chat_id")
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "message": (
+                            f"Message sent to queue {queue_url} with ID {message_id}"
+                        ),
+                        "queue_url": queue_url,
+                        "message_id": message_id,
+                        "delay_seconds": delay_seconds,
+                        "message_attributes_count": (
+                            len(formatted_attributes) if formatted_attributes else 0
+                        ),
+                        "message_body_length": len(message_body),
+                        "component": "SQSQueueService",
+                        "method": "send_message",
+                    },
+                )
+            )
             return message_id
 
         except Exception as e:
             logger.exception(f"Error sending message to queue: {type(e).__name__}")
+            # Extract chat_id from message body for PHI logging
+            chat_id = None
+            try:
+                if message_body:
+                    message_data = json.loads(message_body)
+                    chat_id = message_data.get("chat_id")
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "error": f"Error sending message to queue: {type(e).__name__}",
+                        "queue_url": queue_url,
+                        "exception_type": type(e).__name__,
+                        "delay_seconds": delay_seconds,
+                        "message_attributes_count": (
+                            len(message_attributes) if message_attributes else 0
+                        ),
+                        "message_body_length": len(message_body),
+                        "component": "SQSQueueService",
+                        "method": "send_message",
+                    },
+                )
+            )
             raise
 
     async def receive_messages(
@@ -158,14 +219,65 @@ class SQSQueueService:
                     "message_attributes": message.get("MessageAttributes", {}),
                 }
                 processed_messages.append(processed_message)
+            chat_id = None
 
             if messages:
                 logger.info(f"Received {len(messages)} messages from queue {queue_url}")
+                # Extract chat_id from received messages for PHI logging
+                try:
+                    first_message = messages[0]
+                    if first_message.get("Body"):
+                        message_data = json.loads(first_message["Body"])
+                        chat_id = message_data.get("chat_id")
+                except (json.JSONDecodeError, AttributeError, IndexError) as e:
+                    logger.exception(
+                        f"Error receiving messages from queue: {type(e).__name__}"
+                    )
+
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_ACCESSED,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "message": f"Received {len(messages)} messages from queue {queue_url}",  # noqa: E501
+                        "queue_url": queue_url,
+                        "message_count": len(messages),
+                        "max_messages": max_messages,
+                        "wait_time_seconds": wait_time_seconds,
+                        "visibility_timeout": visibility_timeout,
+                        "message_attribute_names": message_attribute_names,
+                        "component": "SQSQueueService",
+                        "method": "receive_messages",
+                    },
+                )
+            )
 
             return processed_messages
 
         except Exception as e:
             logger.exception(f"Error receiving messages from queue: {type(e).__name__}")
+            # Extract chat_id from message body for PHI logging
+            chat_id = None
+
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "error": f"Error receiving messages from queue: {type(e).__name__}",  # noqa: E501
+                        "queue_url": queue_url,
+                        "exception_type": type(e).__name__,
+                        "max_messages": max_messages,
+                        "wait_time_seconds": wait_time_seconds,
+                        "visibility_timeout": visibility_timeout,
+                        "message_attribute_names": message_attribute_names,
+                        "component": "SQSQueueService",
+                        "method": "receive_messages",
+                    },
+                )
+            )
             raise
 
     async def delete_message(self, queue_url: str, receipt_handle: str) -> None:
@@ -190,8 +302,48 @@ class SQSQueueService:
                 f"Message with receipt handle {receipt_handle} deleted from queue "
                 f"{queue_url}"
             )
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_DELETED,
+                    chat_id=None,  # No message body available for chat_id extraction
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "message": f"Message with receipt handle {receipt_handle} deleted from queue {queue_url}",  # noqa: E501
+                        "queue_url": queue_url,
+                        "receipt_handle": (
+                            receipt_handle[:20] + "..."
+                            if len(receipt_handle) > 20
+                            else receipt_handle
+                        ),
+                        "component": "SQSQueueService",
+                        "method": "delete_message",
+                    },
+                )
+            )
             return response
 
         except Exception as e:
             logger.exception(f"Error deleting message from queue: {type(e).__name__}")
+            # Extract chat_id from message body for PHI logging
+            chat_id = None
+
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "error": f"Error deleting message from queue: {type(e).__name__}",  # noqa: E501
+                        "queue_url": queue_url,
+                        "receipt_handle": (
+                            receipt_handle[:20] + "..."
+                            if len(receipt_handle) > 20
+                            else receipt_handle
+                        ),
+                        "exception_type": type(e).__name__,
+                        "component": "SQSQueueService",
+                        "method": "delete_message",
+                    },
+                )
+            )
             raise

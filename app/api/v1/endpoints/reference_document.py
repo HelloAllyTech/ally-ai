@@ -82,6 +82,13 @@ async def create_reference_document(
             detail="Failed to create reference document. Please try again later.",
         )
 
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
+        )
+
 
 @router.put(
     "/{document_id}",
@@ -137,6 +144,13 @@ async def update_reference_document(
             detail="Failed to update reference document. Please try again later.",
         )
 
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
+        )
+
 
 @router.delete(
     "/{document_id}",
@@ -174,6 +188,13 @@ async def delete_reference_document(
             detail="Failed to delete reference document. Please try again later.",
         )
 
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
+        )
+
 
 @router.get(
     "/{document_id}",
@@ -201,6 +222,13 @@ async def get_reference_document(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Reference document with ID {document_id} not found",
+        )
+
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
         )
 
 
@@ -257,4 +285,11 @@ async def search_reference_documents(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to search reference documents. Please try again later.",
+        )
+
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
         )

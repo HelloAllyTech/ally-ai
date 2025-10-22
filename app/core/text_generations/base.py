@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Union
+
 from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
@@ -119,10 +120,7 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def generate_simulation_summary(
-            self,
-            chat_history: List[ChatMessage],
-            goal: str,
-            **kwargs
+        self, chat_history: List[ChatMessage], goal: str, **kwargs
     ) -> Dict[str, List[str]]:
         """
         Generate simulation summary analyzing chat history against a goal.

@@ -1,5 +1,5 @@
-import uuid
 import hmac
+import uuid
 from typing import List
 
 from fastapi import Request
@@ -7,6 +7,7 @@ from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+
 from app.core.config import settings
 from app.core.constants import APISettings
 from app.utils.logger import logger, trace_id_var
@@ -36,7 +37,7 @@ class LogRequestMiddleware(BaseHTTPMiddleware):
         trace_id = str(uuid.uuid4())
         trace_id_var.set(trace_id)
 
-        if request.url.path != "/api/v1/health":
+        if request.url.path != "/api/health":
             logger.info(
                 f"Incoming request {request.method} {request.url} (TraceID: {trace_id})"
             )
@@ -44,7 +45,7 @@ class LogRequestMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Trace-ID"] = trace_id  # Include Trace ID in the response
 
-        if request.url.path != "/api/v1/health":
+        if request.url.path != "/api/health":
             logger.info(
                 f"Completed request {request.method} {request.url} with status "
                 f"{response.status_code} (TraceID: {trace_id})"
@@ -67,7 +68,6 @@ def get_middlewares() -> List[Middleware]:
             allow_methods=[],  # Empty list = reject all methods
             allow_headers=[],  # Empty list = reject all headers
         ),
-        # ,Middleware(AuthMiddleware)
-        # Note: Currently AI Service is accessible only for the services in the VPC, adding this as a security best practice
+        Middleware(AuthMiddleware),
     ]
     return middlewares

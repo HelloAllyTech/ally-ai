@@ -12,11 +12,6 @@ class TextGenerationConstants:
     DEFAULT_MODEL: Final[str] = "gpt-4o-mini-2024-07-18"
 
 
-class VectorDBCollectionNames:
-    CONVERSATIONS: Final[str] = "Conversation"
-    REFERENCE_DOCUMENTS: Final[str] = "ReferenceDocument"
-
-
 class AgeRange(str, Enum):
     EIGHTEEN_TO_TWENTY_FOUR = "18-24"
     TWENTY_FIVE_TO_THIRTY_FOUR = "25-34"
@@ -26,10 +21,25 @@ class AgeRange(str, Enum):
     SIXTY_FIVE_PLUS = "65+"
 
 
-class ReferenceDocumentConstants(BaseModel):
+class ReferenceDocumentConstants:
     """Model for reference document."""
 
     SIMILARITY_THRESHOLD: Final[float] = 0.5
+
+
+class LanguageCode(str, Enum):
+    """Enum for supported language codes."""
+
+    ENGLISH = "en"
+    HINDI = "hi"
+    BENGALI = "bn"
+    PUNJABI = "pa"
+    GUJARATI = "gu"
+    ORIYA = "or"
+    TAMIL = "ta"
+    TELUGU = "te"
+    KANNADA = "kn"
+    MALAYALAM = "ml"
 
 
 class Language(BaseModel):
@@ -64,5 +74,5 @@ class SQSWorkerConstants:
 
 class APISettings:
     API_V1_STR: str = "/api/v1"
-    API_STR:str = "/api"
-    X_API_KEY_HEADER:str = "x-api-key"
+    API_STR: str = "/api"
+    X_API_KEY_HEADER: str = "x-api-key"

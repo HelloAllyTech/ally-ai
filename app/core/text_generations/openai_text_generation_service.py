@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
 import openai
@@ -10,6 +11,8 @@ from pydantic import create_model
 
 from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, phi_logger
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.prompts import (
     CONTENT_ENHANCE_PROMPT,
@@ -18,14 +21,16 @@ from app.core.text_generations.prompts import (
     DYNAMIC_SUMMARY_PROMPT,
     IDENTIFY_USER_PROMPT,
     NUDGE_PROMPT,
+    SIMULATION_ANALYSIS_PROMPT,
     SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT, SIMULATION_ANALYSIS_PROMPT,
+    TAG_POSITIVITY_RATING_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
+    SimulationAnalysis,
     StructuredDiarization,
     StructuredIdentifyUsers,
-    StructuredSummaryNote, SimulationAnalysis,
+    StructuredSummaryNote,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -217,14 +222,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Initialize the base class with the client
         super().__init__(client)
 
-    async def _invoke_llm[
-        T
-    ](
+    async def _invoke_llm(
         self,
-        messages: List[BaseMessage] | str,
-        output_class: Optional[Type[T]] = None,
+        messages: List[BaseMessage],
+        output_class: Optional[Type] = None,
         **kwargs,
-    ) -> (T | str):
+    ) -> Union[Any, str]:
         """
         Invoke the LLM asynchronously with optional structured output.
 
@@ -324,21 +327,66 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         self,
         chat_history: List[ChatMessage],
         keys: Optional[List[str]] = None,
+        chat_id: Optional[str] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
-        logger.info("Generating summary notes using OpenAI")
-        chat_history_str = self._chat_history_to_str(chat_history)
+        start_time = time.time()
+
         try:
+            logger.info("Generating summary notes using OpenAI")
+            chat_history_str = self._chat_history_to_str(chat_history)
 
             if keys:
-                return await self._generate_dynamic_summary(
+                result = await self._generate_dynamic_summary(
                     chat_history, chat_history_str, keys, **kwargs
                 )
             else:
-                return await self._generate_structured_summary(
+                result = await self._generate_structured_summary(
                     chat_history, chat_history_str, **kwargs
                 )
+
+            # Calculate processing time
+            processing_time_ms = int((time.time() - start_time) * 1000)
+
+            # Log successful completion
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service
+                    details={
+                        "message": "Summary generation completed using OpenAI",
+                        "component": "OpenAITextGenerationService",
+                        "processing_time_ms": processing_time_ms,
+                        "result_type": type(result).__name__,
+                    },
+                )
+            )
+
+            return result
+
         except Exception as e:
+            processing_time_ms = int((time.time() - start_time) * 1000)
+
+            # Log error
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service
+                    details={
+                        "error": f"Failed to generate summary: {type(e).__name__}",
+                        "component": "OpenAITextGenerationService",
+                        "method": "generate_summary_notes",
+                        "exception_type": type(e).__name__,
+                        "chat_history_count": len(chat_history),
+                        "processing_time_ms": processing_time_ms,
+                        "summary_type": "dynamic" if keys else "structured",
+                        "keys_provided": keys is not None,
+                    },
+                )
+            )
+
             logger.exception(f"Failed to generate summary: {type(e).__name__}")
             raise SummaryNoteFailedException("Failed to generate summary") from e
 
@@ -830,10 +878,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return totals
 
     async def generate_simulation_summary(
-            self,
-            chat_history: List[ChatMessage],
-            goal: str,
-            **kwargs
+        self, chat_history: List[ChatMessage], goal: str, **kwargs
     ) -> Dict[str, List[str]]:
         """
         Generate simulation summary analyzing chat history against a goal.
@@ -854,15 +899,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Generating simulation summary using OpenAI")
 
         # Convert chat history to string format
-        chat_history_str = "\n".join([f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)])
+        chat_history_str = "\n".join(
+            [f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)]
+        )
 
         try:
             response = cast(
                 SimulationAnalysis,
                 await self._invoke_llm(
                     SIMULATION_ANALYSIS_PROMPT.format(
-                        goal=goal,
-                        chat_history=chat_history_str
+                        goal=goal, chat_history=chat_history_str
                     ),
                     SimulationAnalysis,
                     **kwargs,
@@ -873,9 +919,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             return {
                 "improvements": response.improvements,
-                "positives": response.positives
+                "positives": response.positives,
             }
 
         except LLMInvocationFailedException as e:
             logger.exception("Failed to generate simulation summary")
-            raise LLMInvocationFailedException("Failed to generate simulation summary") from e
+            raise LLMInvocationFailedException(
+                "Failed to generate simulation summary"
+            ) from e
