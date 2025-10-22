@@ -2,175 +2,190 @@
 
 **Lifeline AI** is an advanced AI service designed to function as a copilot for mental health counselors. This project leverages FastAPI to deliver a robust and scalable API backend, integrating custom middleware and enhanced logging capabilities to ensure reliable performance and traceability. With environment-based configuration and containerization via Docker, Lifeline AI is built for seamless deployment and development. Managed with Poetry for dependency handling, the service provides intelligent insights and support tools to empower mental health professionals in their daily practice.
 
-## Getting Started
+## 📋 Table of Contents
 
-### Prerequisites
+- [Overview](#-overview)
+- [Prerequisites](#-prerequisites)
+- [Quick Start](#-quick-start)
+- [Development Setup](#-development-setup)
+- [Database Management](#-database-management)
+- [Code Quality & Testing](#-code-quality--testing)
+- [Docker Deployment](#-docker-deployment)
+- [API Documentation](#-api-documentation)
+- [Project Structure](#-project-structure)
+- [Contributing](#-contributing)
 
-- **Python 3.12** (or higher)
-- **Poetry** (for dependency management)
-- **Docker** (for containerization)
+## ✨ Overview
 
-### Local Development
+- **AI-Powered Counseling Support**: Intelligent insights and analysis for mental health professionals
+- **FastAPI Backend**: High-performance, async API with automatic documentation
+- **Vector Database Integration**: Weaviate for semantic search and conversation analysis
+- **Migration System**: Comprehensive database schema management with rollback capabilities
+- **Environment-Based Configuration**: Flexible deployment across different environments
+- **Docker Support**: Containerized deployment for consistent environments
+- **Code Quality Tools**: Pre-commit hooks, linting, and formatting
+- **HIPAA Compliance**: Secure handling of sensitive mental health data
 
+## 🔧 Prerequisites
 
-1. **Clone the Repository:**
+Before you begin, ensure you have the following installed:
+
+- **Python 3.12+** - [Download Python](https://www.python.org/downloads/)
+- **Poetry** - [Install Poetry](https://python-poetry.org/docs/#installation)
+- **Docker** - [Install Docker](https://docs.docker.com/get-docker/)
+- **Git** - [Install Git](https://git-scm.com/downloads)
+
+## 🚀 Quick Start
+
+### 1. Clone the Repository
+
 ```bash
 git clone git@github.com:KeyValueSoftwareSystems/lifeline-ai.git
+cd lifeline-ai
 ```
 
-2. **Install Dependencies with Poetry:**
+### 2. Install Dependencies
+
 ```bash
 poetry install
 ```
 
-3. **Run Database Migrations:**
-
-Before starting the application, you need to run the database migrations:
+### 3. Set Up Database
 
 ```bash
 # Run all pending migrations
 poetry run python scripts/migrate.py all
-
-# Or run migrations one by one
-poetry run python scripts/migrate.py up
 ```
 
-4. **Run the Application:**
-
-You can start the application in development mode using:
+### 4. Start the Application
 
 ```bash
 poetry run python app/main.py
 ```
 
-The application will start using Uvicorn on the host and port defined in your configuration (default: http://localhost:8000).
+The application will be available at:
+- **API**: http://localhost:8000
+- **Documentation**: http://localhost:8000/docs
 
-API Documentation:
+## 🛠️ Development Setup
 
-Once the application is running, you can access the automatically generated API documentation at:
-    Swagger UI: http://localhost:8000/docs
+### Environment Configuration
 
-### Docker
+Create a `.env` file in the project root with your configuration:
 
-This project includes a Dockerfile to build a containerized version of the application.
-
-Build the Docker Image:
 ```bash
-docker build -t my-fastapi-app .
+# Copy example environment file
+cp .env.example .env
+
+# Edit with your specific settings
+nano .env
 ```
-Run the Docker Container:
+
+### Database Setup
+
+#### Weaviate Connection
+
+For local development, you can use Docker Compose to run Weaviate:
+
 ```bash
-docker run -p 8000:8000 my-fastapi-app
+# Start Weaviate locally
+docker-compose up -d
+
+# Or connect to remote Weaviate via SSH tunnel
+ssh -L 8080:localhost:8080 -L 50051:localhost:50051 your-remote-server
 ```
-The application will be available at http://localhost:8000.
 
+#### Migration Management
 
-# Test Black formatting
-poetry run black --check app/
+```bash
+# Check migration status
+poetry run python scripts/migrate.py status
 
-# Test isort import sorting
-poetry run isort --check-only app/
+# View migration history
+poetry run python scripts/migrate.py history
 
-# Test flake8 linting (optional - many issues in your codebase)
-poetry run flake8 app/ --count --show-source --statistics
+# Test database connection
+poetry run python scripts/test_weaviate_connection.py
 
-# Run all hooks on all files
+# List reference documents
+poetry run python scripts/list_reference_documents.py
+```
+
+### Development Workflow
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run code formatting
+poetry run black app/
+poetry run isort app/
+
+# Run linting
+poetry run flake8 app/
+
+# Run all pre-commit hooks
 pre-commit run --all-files
+```
 
-# Run specific hook
-pre-commit run black --all-files
-pre-commit run isort --all-files
-
-# Any commit will automatically trigger hooks
-git add .
-git commit -m "your commit message"
-
-## Database Migrations
-
-Lifeline AI uses a manual migration system to manage Weaviate database schema changes. The migration system tracks applied migrations in the database itself and provides full rollback capabilities.
+## 🗄️ Database Management
 
 ### Migration System Overview
 
-- **Migration Files**: Located in `app/migrations/` directory
-- **File Naming**: `{number}-{description}.py` (e.g., `001-create-conversation-collection.py`)
-- **Database Tracking**: Migration history stored in Weaviate `MigrationHistory` collection
+Lifeline AI uses a comprehensive migration system to manage Weaviate database schema changes:
+
+- **Location**: `app/migrations/` directory
+- **Naming Convention**: `{number}-{description}.py` (e.g., `001-create-conversation-collection.py`)
+- **Tracking**: Migration history stored in Weaviate `MigrationHistory` collection
 - **Rollback Support**: Each migration has both `up` and `down` functions
 
 ### Migration Commands
 
-#### Generate a New Migration
+#### Generate New Migration
+
 ```bash
 # Create a new migration file
 poetry run python scripts/migrate.py generate "add-user-session-collection"
 ```
 
-This creates a file like `003-add-user-session-collection.py` with boilerplate code for `up` and `down` functions.
+This creates a file like `003-add-user-session-collection.py` with boilerplate code.
 
-#### Run Migrations
+#### Execute Migrations
+
 ```bash
-# Run the next pending migration up
+# Run the next pending migration
 poetry run python scripts/migrate.py up
-
-# Run the last applied migration down (rollback)
-poetry run python scripts/migrate.py down
 
 # Run all pending migrations
 poetry run python scripts/migrate.py all
+
+# Rollback last migration
+poetry run python scripts/migrate.py down
 ```
 
-#### Check Migration Status
+#### Monitor Migrations
+
 ```bash
-# Show current migration status
+# Check current status
 poetry run python scripts/migrate.py status
 
-# Show migration history from database
+# View detailed history
 poetry run python scripts/migrate.py history
 ```
 
-### Migration Best Practices
-
-1. **Always implement both `up` and `down` functions**
-2. **Test migrations thoroughly before applying to production**
-3. **Use descriptive migration names**
-4. **Keep migrations small and focused**
-5. **Never modify existing migration files after they've been applied**
-
 ### Migration Status Tracking
 
-The system tracks migration status in the Weaviate database:
+The system tracks migration status with visual indicators:
 
 - **completed**: ✅ Successfully applied
 - **failed**: ❌ Failed during execution
 - **running**: 🔄 Currently executing
 - **pending**: ⏳ Not yet started
 
-### Example Migration Workflow
-
-1. **Create a new migration:**
-   ```bash
-   poetry run python scripts/migrate.py generate "add-new-property-to-conversation"
-   ```
-
-2. **Edit the generated file** in `app/migrations/` to implement your changes
-
-3. **Run the migration:**
-   ```bash
-   poetry run python scripts/migrate.py up
-   ```
-
-4. **Check status:**
-   ```bash
-   poetry run python scripts/migrate.py status
-   ```
-
-5. **If needed, rollback:**
-   ```bash
-   poetry run python scripts/migrate.py down
-   ```
-
 ### Migration Examples
 
 #### Creating a New Collection
+
 ```python
 async def up(client):
     await client.collections.create(
@@ -185,7 +200,8 @@ async def down(client):
     await client.collections.delete("UserSession")
 ```
 
-#### Adding a Property to Existing Collection
+#### Adding Properties to Existing Collection
+
 ```python
 async def up(client):
     collection = client.collections.get("Conversation")
@@ -198,7 +214,182 @@ async def down(client):
     await collection.config.remove_property("new_field")
 ```
 
-This migration system provides full control over your Weaviate database schema evolution while maintaining HIPAA compliance and providing comprehensive tracking and rollback capabilities.
+### Migration Best Practices
 
-Note: If you need to "delete" a property, you must use the collection recreation approach as in current Weaviate versions, there is no delete_property API anymore..
-Alternatives - Ignore the property: Just stop writing or reading it. It will remain in storage but unused.
+1. **Always implement both `up` and `down` functions**
+2. **Test migrations thoroughly before applying to production**
+3. **Use descriptive migration names**
+4. **Keep migrations small and focused**
+5. **Never modify existing migration files after they've been applied**
+
+> **Note**: Weaviate doesn't support property deletion in current versions. To "delete" a property, either recreate the collection or simply stop using the property (it will remain in storage but unused).
+
+## 🧪 Code Quality & Testing
+
+### Pre-commit Hooks
+
+The project uses pre-commit hooks to ensure code quality:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run all hooks manually
+pre-commit run --all-files
+
+# Run specific hooks
+pre-commit run black --all-files
+pre-commit run isort --all-files
+pre-commit run flake8 --all-files
+```
+
+### Code Formatting & Linting
+
+```bash
+# Format code with Black
+poetry run black app/
+
+# Sort imports with isort
+poetry run isort app/
+
+# Lint with flake8
+poetry run flake8 app/ --count --show-source --statistics
+
+# Check formatting without changes
+poetry run black --check app/
+poetry run isort --check-only app/
+```
+
+### Testing
+
+```bash
+# Run all tests
+poetry run pytest
+
+# Run tests with coverage
+poetry run pytest --cov=app --cov-report=term-missing --cov-report=html
+
+# Run specific test file
+poetry run pytest tests/core/test_specific.py
+```
+
+## 🐳 Docker Deployment
+
+### Build Docker Image
+
+```bash
+# Build the application image
+docker build -t lifeline-ai .
+
+# Build with specific tag
+docker build -t lifeline-ai:v1.0.0 .
+```
+
+### Run Docker Container
+
+```bash
+# Run the container
+docker run -p 8000:8000 lifeline-ai
+
+# Run with environment variables
+docker run -p 8000:8000 -e ENVIRONMENT=production lifeline-ai
+
+# Run in detached mode
+docker run -d -p 8000:8000 --name lifeline-ai lifeline-ai
+```
+
+### Docker Compose
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+## 📚 API Documentation
+
+### Interactive Documentation
+
+Once the application is running, access the automatically generated API documentation:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI Schema**: http://localhost:8000/openapi.json
+
+## 📁 Project Structure
+
+```
+lifeline-ai/
+├── app/                          # Main application code
+│   ├── api/                      # API routes and endpoints
+│   ├── core/                     # Core business logic
+│   │   ├── conversations/        # Conversation analysis services
+│   │   ├── embeddings/           # Embedding services
+│   │   ├── text_generations/     # Text generation services
+│   │   ├── vector_db/            # Vector database services
+│   │   └── config.py             # Application configuration
+│   ├── migrations/               # Database migration files
+│   ├── schemas/                  # Pydantic models
+│   ├── utils/                    # Utility functions
+│   └── main.py                   # Application entry point
+├── scripts/                      # Utility scripts
+│   ├── migrate.py                # Migration management
+│   ├── list_reference_documents.py # Database exploration
+│   └── test_weaviate_connection.py # Connection testing
+├── tests/                        # Test files
+├── docker-compose.yml            # Docker Compose configuration
+├── Dockerfile                    # Docker image definition
+├── pyproject.toml                # Poetry configuration
+└── README.md                     # This file
+```
+
+## 🤝 Contributing
+
+### Development Workflow
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/your-feature-name`
+3. **Make your changes**
+4. **Run tests and linting**: `pre-commit run --all-files`
+5. **Commit your changes**: `git commit -m "Add your feature"`
+6. **Push to your fork**: `git push origin feature/your-feature-name`
+7. **Create a Pull Request**
+
+### Code Standards
+
+- Follow PEP 8 style guidelines
+- Use type hints for all functions
+- Write comprehensive docstrings
+- Include tests for new functionality
+- Ensure all pre-commit hooks pass
+
+### Reporting Issues
+
+When reporting issues, please include:
+
+- Python version
+- Operating system
+- Steps to reproduce
+- Expected vs actual behavior
+- Relevant error messages
+
+## 📄 License
+
+This project is proprietary software developed by KeyValue Software Systems.
+
+## 🆘 Support
+
+For support and questions:
+
+- Create an issue in the repository
+- Contact the development team
+- Check the API documentation at `/docs`
+
+---
+
+**Lifeline AI** - Empowering mental health professionals with AI-driven insights and support.
