@@ -70,8 +70,27 @@ class SummaryService:
                         "message": "Summary generation completed",
                         "component": "SummaryService",
                         "processing_time_ms": processing_time_ms,
-                        "summary_length": len(result.summary) if result.summary else 0,
-                        "tags_count": len(result.tags) if result.tags else 0,
+                        "summary_length": (
+                            len(result.session_summary)
+                            if hasattr(result, "session_summary")
+                            and result.session_summary
+                            else (
+                                len(result.fields.get("session_summary", ""))
+                                if hasattr(result, "fields")
+                                and result.fields.get("session_summary")
+                                else 0
+                            )
+                        ),
+                        "tags_count": (
+                            len(result.tags)
+                            if hasattr(result, "tags") and result.tags
+                            else (
+                                len(result.fields.get("tags", []))
+                                if hasattr(result, "fields")
+                                and result.fields.get("tags")
+                                else 0
+                            )
+                        ),
                     },
                 )
             )
@@ -229,7 +248,7 @@ class SummaryService:
                     audit_id=None,  # Will be set by caller
                     event_type=PHIEvents.SYSTEM_ERROR,
                     details={
-                        "error": f"Failed to get positivity ratings for tags: {type(e).__name__}",
+                        "error": f"Failed to get positivity ratings for tags: {type(e).__name__}",  # noqa: E501
                         "component": "SummaryService",
                         "method": "get_tag_positivity_ratings",
                         "exception_type": type(e).__name__,
@@ -302,7 +321,7 @@ class SummaryService:
                     audit_id=None,  # Will be set by caller
                     event_type=PHIEvents.SYSTEM_ERROR,
                     details={
-                        "error": f"Failed to generate counselor training analysis: {type(e).__name__}",
+                        "error": f"Failed to generate counselor training analysis: {type(e).__name__}",  # noqa: E501
                         "component": "SummaryService",
                         "method": "generate_simulation_summary",
                         "exception_type": type(e).__name__,

@@ -240,7 +240,7 @@ class SQSQueueService:
                     chat_id=chat_id,
                     audit_id=None,  # Will be set by external service,
                     details={
-                        "message": f"Received {len(messages)} messages from queue {queue_url}",
+                        "message": f"Received {len(messages)} messages from queue {queue_url}",  # noqa: E501
                         "queue_url": queue_url,
                         "message_count": len(messages),
                         "max_messages": max_messages,
@@ -266,7 +266,7 @@ class SQSQueueService:
                     chat_id=chat_id,
                     audit_id=None,  # Will be set by external service,
                     details={
-                        "error": f"Error receiving messages from queue: {type(e).__name__}",
+                        "error": f"Error receiving messages from queue: {type(e).__name__}",  # noqa: E501
                         "queue_url": queue_url,
                         "exception_type": type(e).__name__,
                         "max_messages": max_messages,
@@ -308,7 +308,7 @@ class SQSQueueService:
                     chat_id=None,  # No message body available for chat_id extraction
                     audit_id=None,  # Will be set by external service,
                     details={
-                        "message": f"Message with receipt handle {receipt_handle} deleted from queue {queue_url}",
+                        "message": f"Message with receipt handle {receipt_handle} deleted from queue {queue_url}",  # noqa: E501
                         "queue_url": queue_url,
                         "receipt_handle": (
                             receipt_handle[:20] + "..."
@@ -333,7 +333,7 @@ class SQSQueueService:
                     chat_id=chat_id,
                     audit_id=None,  # Will be set by external service,
                     details={
-                        "error": f"Error deleting message from queue: {type(e).__name__}",
+                        "error": f"Error deleting message from queue: {type(e).__name__}",  # noqa: E501
                         "queue_url": queue_url,
                         "receipt_handle": (
                             receipt_handle[:20] + "..."

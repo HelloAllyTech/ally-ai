@@ -149,7 +149,7 @@ class TestStructuredOutputModelToRest:
             structured_output_model_to_rest("unsupported_type")
 
     def test_structured_summary_note_full_conversion(self):
-        """Ensure full StructuredSummaryNote converts correctly to SummaryNoteAndTagsResponse."""
+        """Ensure full StructuredSummaryNote converts correctly to SummaryNoteAndTagsResponse."""  # noqa: E501
         sop = StructuredSummaryNote(
             call_id="CALL123",
             call_duration=1800,
@@ -225,7 +225,7 @@ class TestStructuredOutputModelToRest:
         assert resp.listening_share is None  # fixed to None in converter
 
     def test_structured_summary_note_handles_none_and_empty(self):
-        """Lists that are None should yield None, dominant_feelings None -> empty string."""
+        """Lists that are None should yield None, dominant_feelings None -> empty string."""  # noqa: E501
         sop = StructuredSummaryNote(
             call_id=None,
             call_duration=None,

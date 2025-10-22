@@ -6,9 +6,11 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from app.schemas.conversation import IdentifyResponse
 from app.schemas.summary import SummaryNoteAndTagsResponse, Tag
-from uuid import uuid4
+
+# from uuid import uuid4  # Unused import
 
 # Set test environment variables before importing anything
 os.environ.update(
@@ -164,9 +166,9 @@ def mock_openai_clients():
 
         # Mock the reference document service methods directly - set default return
         # values
-        from uuid import uuid4
+        import uuid
 
-        test_doc_id = str(uuid4())
+        test_doc_id = str(uuid.uuid4())
         mock_create_document.return_value = test_doc_id
         mock_update_document.return_value = None
         mock_delete_document.return_value = None

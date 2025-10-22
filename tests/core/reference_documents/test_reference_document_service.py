@@ -12,8 +12,10 @@ from app.exceptions.custom_exceptions import (
     DocumentAlreadyExistsException,
     DocumentNotFoundException,
     EmbeddingFailedException,
+    VectorDBDeleteFailedException,
     VectorDBInsertFailedException,
-    VectorDBSearchFailedException, VectorDBUpdateFailedException, VectorDBDeleteFailedException,
+    VectorDBSearchFailedException,
+    VectorDBUpdateFailedException,
 )
 
 
@@ -525,7 +527,7 @@ class TestReferenceDocumentService:
     async def test_get_document_generic_error_raises_not_found(
         self, reference_document_service, mock_vector_db
     ):
-        """Generic exceptions in vector DB get should map to DocumentNotFoundException."""
+        """Generic exceptions in vector DB get should map to DocumentNotFoundException."""  # noqa: E501
         document_id = "doc-4"
         mock_vector_db.get_document_by_id.side_effect = Exception("boom")
 
@@ -540,8 +542,20 @@ class TestReferenceDocumentService:
         query = "q"
         docs = {
             "documents": [
-                {"id": "2", "heading": "Bravo", "category": "x", "tags": [], "tenant_id": "t"},
-                {"id": "1", "heading": "Alpha", "category": "x", "tags": [], "tenant_id": "t"},
+                {
+                    "id": "2",
+                    "heading": "Bravo",
+                    "category": "x",
+                    "tags": [],
+                    "tenant_id": "t",
+                },
+                {
+                    "id": "1",
+                    "heading": "Alpha",
+                    "category": "x",
+                    "tags": [],
+                    "tenant_id": "t",
+                },
             ],
             "total": 2,
             "categories": ["x"],

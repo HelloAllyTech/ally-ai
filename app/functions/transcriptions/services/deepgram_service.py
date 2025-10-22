@@ -7,14 +7,10 @@ import asyncio
 import os
 from typing import Tuple
 
+from core.config import settings
 from deepgram import BufferSource, DeepgramClient, PrerecordedOptions
 from deepgram.clients.listen.v1.rest import Results
-
-from core.config import settings
-from utils.audio_converter import (
-    convert_and_segment_audio_async,
-    get_audio_duration,
-)
+from utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
 from utils.exceptions import TranscriptionFailedException
 from utils.logger import get_logger
 from utils.phi_events import PHIEvents

@@ -3,7 +3,9 @@ Tests for conversation endpoints.
 """
 
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
+
 from app.exceptions.custom_exceptions import ConversationAnalysisFailedException
 from app.schemas.conversation import IdentifyResponse
 from tests.api.v1.endpoints.base import BaseAPITest
