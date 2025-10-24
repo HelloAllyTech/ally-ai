@@ -37,7 +37,7 @@ class LogRequestMiddleware(BaseHTTPMiddleware):
         trace_id = str(uuid.uuid4())
         trace_id_var.set(trace_id)
 
-        if request.url.path != "/api/v1/health":
+        if request.url.path != "/api/health":
             logger.info(
                 f"Incoming request {request.method} {request.url} (TraceID: {trace_id})"
             )
@@ -45,7 +45,7 @@ class LogRequestMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Trace-ID"] = trace_id  # Include Trace ID in the response
 
-        if request.url.path != "/api/v1/health":
+        if request.url.path != "/api/health":
             logger.info(
                 f"Completed request {request.method} {request.url} with status "
                 f"{response.status_code} (TraceID: {trace_id})"
@@ -63,11 +63,11 @@ def get_middlewares() -> List[Middleware]:
         # CORS middleware that should only be called from other services
         Middleware(
             CORSMiddleware,
-            # AuthMiddleware, uncomment when BE implements auth logic in api call
             allow_origins=[],  # Empty list = reject all origins
             allow_credentials=False,  # Disable credentials
             allow_methods=[],  # Empty list = reject all methods
             allow_headers=[],  # Empty list = reject all headers
         ),
+        Middleware(AuthMiddleware),
     ]
     return middlewares

@@ -126,7 +126,7 @@ class TestMain:
     def test_health_endpoint_accessible(self):
         """Test that health endpoint is accessible."""
         client = TestClient(app)
-        response = client.get("/api/v1/health")
+        response = client.get("/api/health")
         assert response.status_code == 200
 
     @pytest.mark.asyncio

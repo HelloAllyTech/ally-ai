@@ -45,6 +45,7 @@ os.environ.update(
         "SLACK_ALERTS__API_TOKEN": "test-token",
         "SLACK_ALERTS__CHANNEL_ID": "test-channel",
         "SLACK_ALERTS__LOG_LEVEL": "WARNING",
+        "API__X_API_KEY": "test-api-key",
     }
 )
 
