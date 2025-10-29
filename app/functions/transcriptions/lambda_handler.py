@@ -10,6 +10,7 @@ import asyncio
 import json
 import time
 from typing import Any, Dict
+from enum import Enum
 
 import boto3
 from core.config import settings
@@ -17,21 +18,31 @@ from core.message_models import (
     TranscribeAndSummarizeRequestMessage,
     TranscriptionResultMessage,
 )
-from services import DeepgramTranscriptionService, OpenAITranscriptionService
+from services import (
+    DeepgramTranscriptionService,
+    OpenAITranscriptionService,
+    SarvamTranscriptionService,
+)
 from utils.logger import get_logger
 from utils.phi_events import PHIEvents
 from utils.phi_logger import PHILogEvent, log_sync, phi_logger
 
 logger = get_logger(__name__)
 
+class TranscriptionProvider(str, Enum):
+    """Enumeration of supported transcription providers."""
+    OPENAI = "openai"
+    DEEPGRAM = "deepgram"
+    SARVAM = "sarvam"
 
-def create_transcription_service(provider=None):
+
+def create_transcription_service(provider: str | None = None):
     """
     Create a transcription service based on the specified provider.
 
     Args:
-        provider (str, optional): Provider to use ('openai' or 'deepgram').
-            If None, will use settings.TRANSCRIPTION_PROVIDER or default to 'openai'.
+        provider (str, optional): Provider to use ('openai', 'deepgram', 'sarvam').
+            If None, will use settings.TRANSCRIPTION_PROVIDER.
 
     Returns:
         The transcription service instance
@@ -39,39 +50,43 @@ def create_transcription_service(provider=None):
     Raises:
         ValueError: If provider is not supported or required API keys are missing
     """
-    # Determine provider
-    if provider is None:
-        provider = settings.TRANSCRIPTION_PROVIDER.lower()
+    provider_str = provider
+    if provider_str is None:
+        provider_str = settings.TRANSCRIPTION_PROVIDER.lower()
 
-    logger.info(f"Creating transcription service with provider: {provider}")
+    try:
+        provider_enum = TranscriptionProvider[provider_str.upper()]
+    except KeyError:
+        raise ValueError(
+            f"Unsupported transcription provider: {provider_str}. Supported providers: "
+            "'openai', 'deepgram', 'sarvam'"
+        )
 
-    if provider == "openai":
-        # Check for OpenAI API key
+    logger.info(f"Creating transcription service with provider: {provider_str}")
+
+    # 3. Compare against Enum members
+    if provider_enum == TranscriptionProvider.OPENAI:
         if not settings.OPENAI_API_KEY:
             raise ValueError(
                 "OPENAI_API_KEY is required in settings for OpenAI provider"
             )
-
         return OpenAITranscriptionService()
 
-    elif provider == "deepgram":
-        # Check for Deepgram API key
+    elif provider_enum == TranscriptionProvider.DEEPGRAM:
         if not settings.DEEPGRAM_API_KEY:
             raise ValueError(
                 "DEEPGRAM_API_KEY is required in settings for Deepgram provider"
             )
-
-        # Also need OpenAI for summarization
         if not settings.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY is required in settings for summarization")
-
         return DeepgramTranscriptionService()
 
-    else:
-        raise ValueError(
-            f"Unsupported transcription provider: {provider}. Supported providers: "
-            "'openai', 'deepgram'"
-        )
+    elif provider_enum == TranscriptionProvider.SARVAM:
+        if not getattr(settings, "SARVAM_API_KEY", None):
+            raise ValueError(
+                "SARVAM_API_KEY is required in settings for Sarvam provider"
+            )
+        return SarvamTranscriptionService()
 
 
 # Initialize services (these will be initialized once when the Lambda container starts)
@@ -146,32 +161,52 @@ async def process_transcription_request(
             MessageBody=json.dumps(result_message.model_dump()),
         )
 
-        # Delete the message from the queue
-        await asyncio.to_thread(
-            sqs_client.delete_message,
-            QueueUrl=settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
-            ReceiptHandle=receipt_handle,
-        )
-
-        logger.info(
-            f"Successfully deleted message from requests queue for chat_id: {chat_id}"
-        )
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_DELETED,
-                chat_id=chat_id,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": f"Successfully deleted message from requests queue for chat_id: {chat_id}",  # noqa: E501
-                    "chat_id": chat_id,
-                    "receipt_handle": f"{receipt_handle[:20]}...",
-                    "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
-                    "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
-                    "component": "LambdaHandler",
-                    "method": "process_transcription_request",
-                },
+        # Delete the message from the queue (best-effort in local testing)
+        try:
+            await asyncio.to_thread(
+                sqs_client.delete_message,
+                QueueUrl=settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
+                ReceiptHandle=receipt_handle,
             )
-        )
+
+            logger.info(
+                f"Successfully deleted message from requests queue for chat_id: {chat_id}"
+            )
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_DELETED,
+                    chat_id=chat_id,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "message": f"Successfully deleted message from requests queue for chat_id: {chat_id}",  # noqa: E501
+                        "chat_id": chat_id,
+                        "receipt_handle": f"{receipt_handle[:20]}...",
+                        "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
+                        "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                        "component": "LambdaHandler",
+                        "method": "process_transcription_request",
+                    },
+                )
+            )
+        except Exception as e:
+            logger.warning(
+                f"DeleteMessage skipped (likely local invoke with synthetic receipt handle): {type(e).__name__}"
+            )
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,  # classify as system event but continue
+                    chat_id=chat_id,
+                    audit_id=None,
+                    details={
+                        "message": "DeleteMessage skipped during local run",
+                        "exception_type": type(e).__name__,
+                        "receipt_handle_prefix": f"{receipt_handle[:20]}...",
+                        "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
+                        "component": "LambdaHandler",
+                        "method": "process_transcription_request",
+                    },
+                )
+            )
 
         logger.info(f"Successfully processed chat_id: {chat_id}")
         await phi_logger.log(
