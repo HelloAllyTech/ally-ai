@@ -16,8 +16,11 @@ class BaseAPITest:
 
     @pytest.fixture
     def client(self):
-        """Create a test client."""
-        return TestClient(app)
+        """Create a test client with API key header."""
+        client = TestClient(app)
+        # Add API key header for all requests
+        client.headers.update({"x-api-key": "test-api-key"})
+        return client
 
     @pytest.fixture
     def mock_conversation_service(self):

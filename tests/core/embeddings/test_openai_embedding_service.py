@@ -1,10 +1,10 @@
 """Tests for OpenAIEmbeddingService."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import openai
 import pytest
-from httpx import Response, Request
+from httpx import Request, Response
 
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.exceptions.custom_exceptions import EmbeddingFailedException
@@ -43,11 +43,11 @@ class TestOpenAIEmbeddingService:
         """Test embedding with rate limit error."""
         # Setup mocks
         text = "This is a test text"
-        
+
         # Create a real httpx Request/Response with request set
         request = Request("POST", "https://api.openai.com/v1/embeddings")
         response = Response(status_code=429, request=request)
-        
+
         mock_error = openai.RateLimitError(
             message="Rate limit exceeded", response=response, body=None
         )
@@ -64,10 +64,10 @@ class TestOpenAIEmbeddingService:
         """Test embedding with connection error."""
         # Setup mocks
         text = "This is a test text"
-        
+
         # Create a real httpx Request/Response for APIConnectionError
         request = Request("POST", "https://api.openai.com/v1/embeddings")
-        
+
         mock_error = openai.APIConnectionError(
             message="Connection error", request=request
         )
@@ -131,11 +131,11 @@ class TestOpenAIEmbeddingService:
         """Test multiple embeddings with rate limit error."""
         # Setup mocks
         texts = ["Text 1", "Text 2"]
-        
+
         # Create a real httpx Request/Response with request set
         request = Request("POST", "https://api.openai.com/v1/embeddings")
         response = Response(status_code=429, request=request)
-        
+
         mock_error = openai.RateLimitError(
             message="Rate limit exceeded", response=response, body=None
         )
@@ -152,10 +152,10 @@ class TestOpenAIEmbeddingService:
         """Test multiple embeddings with connection error."""
         # Setup mocks
         texts = ["Text 1", "Text 2"]
-        
+
         # Create a real httpx Request for APIConnectionError
         request = Request("POST", "https://api.openai.com/v1/embeddings")
-        
+
         mock_error = openai.APIConnectionError(
             message="Connection error", request=request
         )

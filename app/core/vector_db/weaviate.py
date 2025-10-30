@@ -9,9 +9,9 @@ from weaviate.collections.classes.internal import QueryReturn
 from weaviate.exceptions import AuthenticationFailedException, WeaviateConnectionError
 
 from app.core.config import settings
-from app.core.constants import VectorDBCollectionNames
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.vector_db.base import VectorDB
+from app.core.vector_db.constants import VectorDBCollectionNames
 from app.exceptions.custom_exceptions import (
     DocumentNotFoundException,
     EmbeddingFailedException,

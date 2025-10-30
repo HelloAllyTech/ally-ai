@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     HIPAA_AUDIT_LOG_GROUP_NAME: str = Field(default="")
     HIPAA_AUDIT_LOG_STREAM_NAME: str = Field(default="")
     HIPAA_AUDIT_ENABLE_CONSOLE_LOGS: bool = Field(default=False)
+    SARVAM_API_KEY: str = Field(...)
 
 
 settings = Settings()

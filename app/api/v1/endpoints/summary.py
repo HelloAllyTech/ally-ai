@@ -113,8 +113,6 @@ async def get_tag_positivity_ratings(
         )
 
 
-
-
 @router.post(
     "/scenario/feedback",
     tags=["simulation", "analysis"],

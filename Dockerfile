@@ -32,5 +32,5 @@ COPY . .
 # Expose the port on which the app will run
 EXPOSE 8000
 
-# Run the application using Python
+# Run migrations first, then start the application
 CMD ["bash", "-c", "poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]

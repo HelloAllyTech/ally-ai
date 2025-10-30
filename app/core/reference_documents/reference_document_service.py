@@ -1,9 +1,9 @@
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from app.core.constants import VectorDBCollectionNames
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.vector_db.base import VectorDB
+from app.core.vector_db.constants import VectorDBCollectionNames
 from app.exceptions.custom_exceptions import (
     DocumentAlreadyExistsException,
     DocumentNotFoundException,

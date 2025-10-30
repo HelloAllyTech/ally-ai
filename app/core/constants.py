@@ -12,11 +12,6 @@ class TextGenerationConstants:
     DEFAULT_MODEL: Final[str] = "gpt-4o-mini-2024-07-18"
 
 
-class VectorDBCollectionNames:
-    CONVERSATIONS: Final[str] = "Conversation"
-    REFERENCE_DOCUMENTS: Final[str] = "ReferenceDocument"
-
-
 class AgeRange(str, Enum):
     EIGHTEEN_TO_TWENTY_FOUR = "18-24"
     TWENTY_FIVE_TO_THIRTY_FOUR = "25-34"
@@ -28,6 +23,7 @@ class AgeRange(str, Enum):
 
 class ReferenceDocumentConstants:
     """Model for reference document."""
+
     SIMILARITY_THRESHOLD: Final[float] = 0.5
 
 

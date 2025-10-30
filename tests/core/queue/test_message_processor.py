@@ -48,7 +48,7 @@ class TestMessageProcessor:
             polling_interval=5,
             delete_after_processing=False,
         )
-        
+
         assert mp.queue_service == mock_queue_service
         assert mp.handler == mock_handler
         assert mp.queue_url == "test-queue"
@@ -61,7 +61,9 @@ class TestMessageProcessor:
         assert mp._task is None
 
     @pytest.mark.asyncio
-    async def test_process_message_success_deletes_message(self, message_processor, mock_handler, mock_queue_service):
+    async def test_process_message_success_deletes_message(
+        self, message_processor, mock_handler, mock_queue_service
+    ):
         """Test successful message processing with deletion."""
         message = {
             "receipt_handle": "rh-123",
@@ -76,7 +78,9 @@ class TestMessageProcessor:
         )
 
     @pytest.mark.asyncio
-    async def test_process_message_parses_json_string_body(self, mock_queue_service, mock_handler):
+    async def test_process_message_parses_json_string_body(
+        self, mock_queue_service, mock_handler
+    ):
         """Test message processing with JSON string body."""
         mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
 
@@ -89,7 +93,9 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_process_message_invalid_json_body_skips_handler_but_deletes(self, mock_queue_service, mock_handler):
+    async def test_process_message_invalid_json_body_skips_handler_but_deletes(
+        self, mock_queue_service, mock_handler
+    ):
         """Test message processing with invalid JSON body."""
         mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
 
@@ -103,7 +109,9 @@ class TestMessageProcessor:
         )
 
     @pytest.mark.asyncio
-    async def test_process_message_handler_error_still_deletes(self, mock_queue_service, mock_handler):
+    async def test_process_message_handler_error_still_deletes(
+        self, mock_queue_service, mock_handler
+    ):
         """Test message processing when handler raises exception."""
         mock_handler.side_effect = RuntimeError("boom")
         mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
@@ -117,7 +125,9 @@ class TestMessageProcessor:
         )
 
     @pytest.mark.asyncio
-    async def test_process_message_skip_delete_when_flag_false(self, mock_queue_service, mock_handler):
+    async def test_process_message_skip_delete_when_flag_false(
+        self, mock_queue_service, mock_handler
+    ):
         """Test message processing without deletion when flag is False."""
         mp = MessageProcessor(
             mock_queue_service, mock_handler, "q-url", delete_after_processing=False
@@ -130,7 +140,9 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_process_message_no_receipt_handle_skips_delete(self, mock_queue_service, mock_handler):
+    async def test_process_message_no_receipt_handle_skips_delete(
+        self, mock_queue_service, mock_handler
+    ):
         """Test message processing without receipt handle."""
         mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
 
@@ -142,7 +154,9 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_process_message_delete_error_is_logged(self, mock_queue_service, mock_handler):
+    async def test_process_message_delete_error_is_logged(
+        self, mock_queue_service, mock_handler
+    ):
         """Test message processing when deletion fails."""
         mock_queue_service.delete_message.side_effect = RuntimeError("delete-fail")
         mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
@@ -156,7 +170,9 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_poll_queue_processes_all_messages_concurrently(self, message_processor, mock_queue_service, mock_handler):
+    async def test_poll_queue_processes_all_messages_concurrently(
+        self, message_processor, mock_queue_service, mock_handler
+    ):
         """Test polling queue and processing multiple messages."""
         messages = [
             {"receipt_handle": f"rh-{i}", "body": {"chat_id": f"c-{i}"}}
@@ -180,7 +196,9 @@ class TestMessageProcessor:
         assert mock_queue_service.delete_message.await_count == 3
 
     @pytest.mark.asyncio
-    async def test_poll_queue_no_messages_received(self, message_processor, mock_queue_service, mock_handler):
+    async def test_poll_queue_no_messages_received(
+        self, message_processor, mock_queue_service, mock_handler
+    ):
         """Test polling queue when no messages are received."""
         mock_queue_service.receive_messages.return_value = []
 
@@ -191,7 +209,9 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_poll_queue_handles_receive_exception(self, message_processor, mock_queue_service, mock_handler):
+    async def test_poll_queue_handles_receive_exception(
+        self, message_processor, mock_queue_service, mock_handler
+    ):
         """Test polling queue when receive_messages raises exception."""
         mock_queue_service.receive_messages.side_effect = RuntimeError("recv-fail")
 
@@ -238,11 +258,19 @@ class TestMessageProcessor:
         mock_queue_service.receive_messages.assert_called()
 
     @pytest.mark.asyncio
-    async def test_start_multiple_times_reuses_task(self, mock_queue_service, mock_handler):
+    async def test_start_multiple_times_reuses_task(
+        self, mock_queue_service, mock_handler
+    ):
         """Test starting message processor multiple times."""
         mock_queue_service.receive_messages.return_value = []
 
-        mp = MessageProcessor(mock_queue_service, mock_handler, "q-url", wait_time_seconds=0, polling_interval=0.01)
+        mp = MessageProcessor(
+            mock_queue_service,
+            mock_handler,
+            "q-url",
+            wait_time_seconds=0,
+            polling_interval=0.01,
+        )
 
         # Start first time
         await mp.start()
@@ -251,7 +279,7 @@ class TestMessageProcessor:
         # Start again - should reuse if task is still running
         await mp.start()
         second_task = mp._task
-        
+
         # Clean up
         await mp.stop()
 
@@ -274,11 +302,11 @@ class TestMessageProcessor:
         # Start task
         task = asyncio.create_task(mp.run())
         await asyncio.sleep(0.02)  # Let it run one cycle
-        
+
         # Stop by setting flag and cancelling
         mp._running = False
         task.cancel()
-        
+
         try:
             await task
         except asyncio.CancelledError:
@@ -292,7 +320,13 @@ class TestMessageProcessor:
         """Test run method handles CancelledError gracefully."""
         mock_queue_service.receive_messages.return_value = []
 
-        mp = MessageProcessor(mock_queue_service, mock_handler, "q-url", wait_time_seconds=0, polling_interval=0.01)
+        mp = MessageProcessor(
+            mock_queue_service,
+            mock_handler,
+            "q-url",
+            wait_time_seconds=0,
+            polling_interval=0.01,
+        )
 
         # Start task and cancel it
         task = asyncio.create_task(mp.run())
@@ -314,19 +348,25 @@ class TestMessageProcessor:
         # First call raises exception, second call returns empty to allow graceful exit
         mock_queue_service.receive_messages.side_effect = [
             RuntimeError("poll-error"),
-            []
+            [],
         ]
 
-        mp = MessageProcessor(mock_queue_service, mock_handler, "q-url", wait_time_seconds=0, polling_interval=0.01)
+        mp = MessageProcessor(
+            mock_queue_service,
+            mock_handler,
+            "q-url",
+            wait_time_seconds=0,
+            polling_interval=0.01,
+        )
 
         # Start task
         task = asyncio.create_task(mp.run())
         await asyncio.sleep(0.05)  # Let it handle the exception and continue
-        
+
         # Stop by setting flag and cancelling
         mp._running = False
         task.cancel()
-        
+
         try:
             await task
         except asyncio.CancelledError:
