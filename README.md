@@ -378,10 +378,6 @@ When reporting issues, please include:
 - Expected vs actual behavior
 - Relevant error messages
 
-## 📄 License
-
-This project is proprietary software developed by KeyValue Software Systems.
-
 ## 🆘 Support
 
 For support and questions:
