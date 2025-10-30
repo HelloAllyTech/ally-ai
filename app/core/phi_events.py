@@ -3,6 +3,7 @@ from enum import Enum
 
 class PHIEvents(str, Enum):
     """PHI event types."""
+
     DATA_ACCESSED = "DATA_ACCESSED"
     DATA_MODIFIED = "DATA_MODIFIED"
     DATA_DELETED = "DATA_DELETED"

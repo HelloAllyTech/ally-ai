@@ -1,8 +1,8 @@
 """Tests for OpenAITextGenerationService."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import json
 import openai
 import pytest
 from httpx import Request, Response
@@ -165,7 +165,7 @@ class TestOpenAITextGenerationService:
 
     @pytest.mark.asyncio
     async def test_invoke_llm_rate_limit_error(
-            self, text_generation_service, mock_client
+        self, text_generation_service, mock_client
     ):
         """Test LLM invocation with rate limit error."""
         # Setup mocks
@@ -190,7 +190,7 @@ class TestOpenAITextGenerationService:
 
     @pytest.mark.asyncio
     async def test_invoke_llm_connection_error(
-            self, text_generation_service, mock_client
+        self, text_generation_service, mock_client
     ):
         """Test LLM invocation with connection error."""
         # Setup mocks
@@ -242,14 +242,17 @@ class TestOpenAITextGenerationService:
                 )
 
     def test_get_key_descriptions(self, text_generation_service):
-        """_get_key_descriptions should include descriptions for StructuredSummaryNote fields."""
-        desc = text_generation_service._get_key_descriptions(["tags", "call_quality", "unknown_field"])
+        """_get_key_descriptions should include descriptions for StructuredSummaryNote fields."""  # noqa: E501
+        desc = text_generation_service._get_key_descriptions(
+            ["tags", "call_quality", "unknown_field"]
+        )
         # Should mention known fields and ignore unknown ones
         assert "- tags:" in desc
         assert "- call_quality:" in desc
 
     def test_extract_tool_fields(self, text_generation_service):
         """_extract_tool_fields should parse tool_calls and return fields dict."""
+
         class R:
             pass
 
@@ -273,14 +276,19 @@ class TestOpenAITextGenerationService:
         assert "counselor:" in s and "client:" in s and "\n" in s
 
     @pytest.mark.asyncio
-    async def test_generate_dynamic_summary_without_key_descriptions_returns_precomputed_only(
+    async def test_generate_dynamic_summary_without_key_descriptions_returns_precomputed_only(  # noqa: E501
         self, text_generation_service, sample_chat_messages
     ):
-        """When no key descriptions, dynamic summary should return only precomputed metrics."""
-        with patch.object(
-            text_generation_service, "_calculate_metrics", return_value={"affirmations": 3}
-        ), patch.object(
-            text_generation_service, "_get_key_descriptions", return_value=""
+        """When no key descriptions, dynamic summary should return only precomputed metrics."""  # noqa: E501
+        with (
+            patch.object(
+                text_generation_service,
+                "_calculate_metrics",
+                return_value={"affirmations": 3},
+            ),
+            patch.object(
+                text_generation_service, "_get_key_descriptions", return_value=""
+            ),
         ):
             res = await text_generation_service.generate_summary_notes(
                 sample_chat_messages, keys=["nonexistent_key"]
@@ -293,12 +301,17 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Dynamic summary merges tool output fields with precomputed metrics."""
-        with patch.object(
-            text_generation_service, "_calculate_metrics", return_value={"affirmations": 2}
-        ), patch.object(
-            text_generation_service,
-            "_get_key_descriptions",
-            return_value="- session_summary: desc\n- tags: desc",
+        with (
+            patch.object(
+                text_generation_service,
+                "_calculate_metrics",
+                return_value={"affirmations": 2},
+            ),
+            patch.object(
+                text_generation_service,
+                "_get_key_descriptions",
+                return_value="- session_summary: desc\n- tags: desc",
+            ),
         ):
             # Mock model.bind_tools().ainvoke() to return a response with tool_calls
             tool_response = MagicMock()
@@ -308,7 +321,12 @@ class TestOpenAITextGenerationService:
                         "function": {
                             "name": "generate_dynamic_summary",
                             "arguments": json.dumps(
-                                {"fields": {"session_summary": "X", "tags": [{"tag": "t", "positivity_rating": 1}]}}
+                                {
+                                    "fields": {
+                                        "session_summary": "X",
+                                        "tags": [{"tag": "t", "positivity_rating": 1}],
+                                    }
+                                }
                             ),
                         }
                     }
@@ -339,19 +357,29 @@ class TestOpenAITextGenerationService:
         # Create a mock response object that allows setting attributes
         mock_response = MagicMock()
         mock_response.affirmations = 0
-        
+
         # Mock the converter to return our mock response
-        with patch(
-            "app.core.text_generations.openai_text_generation_service.structured_output_model_to_rest",
-            return_value=mock_response,
-        ), patch.object(
-            text_generation_service, "_invoke_llm", return_value=StructuredSummaryNote(
-                tags=[StructuredTag(tag="a", positivity_rating=2)], call_quality=80
-            )
-        ), patch.object(
-            text_generation_service, "_calculate_metrics", return_value={"avg_client_utterance_duration": 1.2}
+        with (
+            patch(
+                "app.core.text_generations.openai_text_generation_service.structured_output_model_to_rest",  # noqa: E501
+                return_value=mock_response,
+            ),
+            patch.object(
+                text_generation_service,
+                "_invoke_llm",
+                return_value=StructuredSummaryNote(
+                    tags=[StructuredTag(tag="a", positivity_rating=2)], call_quality=80
+                ),
+            ),
+            patch.object(
+                text_generation_service,
+                "_calculate_metrics",
+                return_value={"avg_client_utterance_duration": 1.2},
+            ),
         ):
-            res = await text_generation_service.generate_summary_notes(sample_chat_messages)
+            res = await text_generation_service.generate_summary_notes(
+                sample_chat_messages
+            )
 
         # Verify metrics were applied to the response
         assert res == mock_response
@@ -359,13 +387,13 @@ class TestOpenAITextGenerationService:
         assert res.avg_client_utterance_duration == 1.2
 
     @pytest.mark.asyncio
-    async def test_calculate_metrics_with_keys_subset_and_counselor_analysis_once(
+    async def test_calculate_metrics_with_keys_subset_and_counselor_analysis_once(  # noqa: E501
         self, text_generation_service, sample_chat_messages, monkeypatch
     ):
-        """_calculate_metrics should compute only requested keys and call counselor analysis once."""
+        """_calculate_metrics should compute only requested keys and call counselor analysis once."""  # noqa: E501
         # Patch simple metric function to avoid heavy work
         monkeypatch.setattr(
-            "app.core.text_generations.openai_text_generation_service.count_affirmations",
+            "app.core.text_generations.openai_text_generation_service.count_affirmations",  # noqa: E501
             lambda chat_history: 5,
         )
 
@@ -385,7 +413,11 @@ class TestOpenAITextGenerationService:
             )
 
         # Only requested keys present
-        assert set(out.keys()) == {"affirmations", "reflective_questions_asked", "back_channel_cues"}
+        assert set(out.keys()) == {
+            "affirmations",
+            "reflective_questions_asked",
+            "back_channel_cues",
+        }
         assert out["affirmations"] == 5
         assert out["reflective_questions_asked"] == 1
         assert out["back_channel_cues"] == 3
@@ -609,7 +641,7 @@ class TestOpenAITextGenerationService:
 
     @pytest.mark.asyncio
     async def test_diarize_single_chunk_failure_raises(self, text_generation_service):
-        """Single-chunk diarization should wrap errors in LLMInvocationFailedException."""
+        """Single-chunk diarization should wrap errors in LLMInvocationFailedException."""  # noqa: E501
         transcription = "[00:00:01] Speaker 0: Hello"  # single small chunk
         with patch.object(
             text_generation_service, "_invoke_llm", side_effect=Exception("boom")
@@ -618,7 +650,9 @@ class TestOpenAITextGenerationService:
                 await text_generation_service.diarize_from_transcription(transcription)
 
     @pytest.mark.asyncio
-    async def test_diarize_multi_chunk_partial_failure_raises(self, text_generation_service):
+    async def test_diarize_multi_chunk_partial_failure_raises(
+        self, text_generation_service
+    ):
         """If any chunk fails, diarization should raise LLMInvocationFailedException."""
         # Create 2 small chunks by limiting max_words during split via patch
         text = "\n".join(
@@ -632,7 +666,7 @@ class TestOpenAITextGenerationService:
 
         # Force split into two chunks
         with patch(
-            "app.core.text_generations.openai_text_generation_service.MAX_WORDS_PER_CHUNK",
+            "app.core.text_generations.openai_text_generation_service.MAX_WORDS_PER_CHUNK",  # noqa: E501
             10,
         ):
             # First chunk succeeds, second fails

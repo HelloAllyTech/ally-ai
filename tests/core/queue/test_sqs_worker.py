@@ -2,11 +2,12 @@
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
 import app.core.queue.sqs_worker as sqs_worker_mod
+
+# from unittest.mock import MagicMock  # Unused import
 
 
 class TestSQSWorker:
@@ -31,9 +32,14 @@ class TestSQSWorker:
     def patch_constants(self, sqs_worker, monkeypatch):
         # Provide deterministic worker constants
         test_consts = SimpleNamespace(
-            MAX_MESSAGES=5, WAIT_TIME_SECONDS=2, VISIBILITY_TIMEOUT=30, POLLING_INTERVAL=0
+            MAX_MESSAGES=5,
+            WAIT_TIME_SECONDS=2,
+            VISIBILITY_TIMEOUT=30,
+            POLLING_INTERVAL=0,
         )
-        monkeypatch.setattr(sqs_worker, "SQSWorkerConstants", test_consts, raising=False)
+        monkeypatch.setattr(
+            sqs_worker, "SQSWorkerConstants", test_consts, raising=False
+        )
 
     @pytest.fixture
     def fakes(self):
@@ -99,7 +105,9 @@ class TestSQSWorker:
                 self.storage_service = storage_service
                 self.bucket_name = bucket_name
 
-            async def process_request(self, payload):  # pragma: no cover - not used directly
+            async def process_request(
+                self, payload
+            ):  # pragma: no cover - not used directly
                 return None
 
         class FakeMessageProcessor:
@@ -151,17 +159,27 @@ class TestSQSWorker:
         monkeypatch.setattr(sqs_worker, "SQSQueueClient", fakes.QueueClient)
         monkeypatch.setattr(sqs_worker, "SQSQueueService", fakes.QueueService)
         monkeypatch.setattr(sqs_worker, "OpenAIEmbeddingClient", fakes.EmbeddingClient)
-        monkeypatch.setattr(sqs_worker, "OpenAITextGenerationClient", fakes.TextGenClient)
-        monkeypatch.setattr(sqs_worker, "OpenAIEmbeddingService", fakes.EmbeddingService)
-        monkeypatch.setattr(sqs_worker, "OpenAITextGenerationService", fakes.TextGenService)
+        monkeypatch.setattr(
+            sqs_worker, "OpenAITextGenerationClient", fakes.TextGenClient
+        )
+        monkeypatch.setattr(
+            sqs_worker, "OpenAIEmbeddingService", fakes.EmbeddingService
+        )
+        monkeypatch.setattr(
+            sqs_worker, "OpenAITextGenerationService", fakes.TextGenService
+        )
         monkeypatch.setattr(sqs_worker, "S3Service", fakes.S3Service)
-        monkeypatch.setattr(sqs_worker, "TranscriptionHandler", fakes.TranscriptionHandler)
+        monkeypatch.setattr(
+            sqs_worker, "TranscriptionHandler", fakes.TranscriptionHandler
+        )
         monkeypatch.setattr(sqs_worker, "MessageProcessor", fakes.MessageProcessor)
         # No-op client initializer
         monkeypatch.setattr(sqs_worker, "initialize_openai_clients", lambda: None)
 
     @pytest.mark.asyncio
-    async def test_main_happy_path(self, sqs_worker, patch_settings, patch_constants, patch_dependencies, fakes):
+    async def test_main_happy_path(
+        self, sqs_worker, patch_settings, patch_constants, patch_dependencies, fakes
+    ):
         # Act
         await sqs_worker.main()
 
@@ -170,7 +188,15 @@ class TestSQSWorker:
         assert fakes.QueueClient.closed is True
 
     @pytest.mark.asyncio
-    async def test_main_handles_keyboard_interrupt(self, sqs_worker, patch_settings, patch_constants, patch_dependencies, fakes, monkeypatch):
+    async def test_main_handles_keyboard_interrupt(
+        self,
+        sqs_worker,
+        patch_settings,
+        patch_constants,
+        patch_dependencies,
+        fakes,
+        monkeypatch,
+    ):
         # Make MessageProcessor.start raise KeyboardInterrupt
         class RaisingProcessor(fakes.MessageProcessor):
             async def start(self):  # type: ignore[override]
@@ -185,7 +211,15 @@ class TestSQSWorker:
         assert fakes.QueueClient.closed is True
 
     @pytest.mark.asyncio
-    async def test_main_propagates_unexpected_error_but_cleans_up(self, sqs_worker, patch_settings, patch_constants, patch_dependencies, fakes, monkeypatch):
+    async def test_main_propagates_unexpected_error_but_cleans_up(
+        self,
+        sqs_worker,
+        patch_settings,
+        patch_constants,
+        patch_dependencies,
+        fakes,
+        monkeypatch,
+    ):
         class RaisingProcessor(fakes.MessageProcessor):
             async def start(self):  # type: ignore[override]
                 raise RuntimeError("boom")
@@ -199,7 +233,9 @@ class TestSQSWorker:
         assert fakes.QueueClient.closed is True
 
     @pytest.mark.asyncio
-    async def test_main_wires_dependencies_and_arguments(self, sqs_worker, patch_settings, patch_constants, fakes, monkeypatch):
+    async def test_main_wires_dependencies_and_arguments(
+        self, sqs_worker, patch_settings, patch_constants, fakes, monkeypatch
+    ):
         # Wrap fakes to capture constructed instances
         constructed = {}
 
@@ -222,11 +258,19 @@ class TestSQSWorker:
         monkeypatch.setattr(sqs_worker, "SQSQueueClient", fakes.QueueClient)
         monkeypatch.setattr(sqs_worker, "SQSQueueService", CapturingQueueService)
         monkeypatch.setattr(sqs_worker, "OpenAIEmbeddingClient", fakes.EmbeddingClient)
-        monkeypatch.setattr(sqs_worker, "OpenAITextGenerationClient", fakes.TextGenClient)
-        monkeypatch.setattr(sqs_worker, "OpenAIEmbeddingService", fakes.EmbeddingService)
-        monkeypatch.setattr(sqs_worker, "OpenAITextGenerationService", fakes.TextGenService)
+        monkeypatch.setattr(
+            sqs_worker, "OpenAITextGenerationClient", fakes.TextGenClient
+        )
+        monkeypatch.setattr(
+            sqs_worker, "OpenAIEmbeddingService", fakes.EmbeddingService
+        )
+        monkeypatch.setattr(
+            sqs_worker, "OpenAITextGenerationService", fakes.TextGenService
+        )
         monkeypatch.setattr(sqs_worker, "S3Service", fakes.S3Service)
-        monkeypatch.setattr(sqs_worker, "TranscriptionHandler", CapturingTranscriptionHandler)
+        monkeypatch.setattr(
+            sqs_worker, "TranscriptionHandler", CapturingTranscriptionHandler
+        )
         monkeypatch.setattr(sqs_worker, "MessageProcessor", CapturingMessageProcessor)
         monkeypatch.setattr(sqs_worker, "initialize_openai_clients", lambda: None)
 
@@ -238,15 +282,36 @@ class TestSQSWorker:
 
         # Verify handler wiring uses settings
         handler_args = constructed["handler_args"]
-        assert handler_args["request_queue_url"] == sqs_worker.settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL
-        assert handler_args["result_queue_url"] == sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL
-        assert handler_args["bucket_name"] == sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET
+        assert (
+            handler_args["request_queue_url"]
+            == sqs_worker.settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL
+        )
+        assert (
+            handler_args["result_queue_url"]
+            == sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL
+        )
+        assert (
+            handler_args["bucket_name"]
+            == sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET
+        )
 
         # Verify message processor params from constants
         proc_kwargs = constructed["processor_kwargs"]
-        assert proc_kwargs["queue_url"] == sqs_worker.settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL
+        assert (
+            proc_kwargs["queue_url"]
+            == sqs_worker.settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL
+        )
         assert proc_kwargs["max_messages"] == sqs_worker.SQSWorkerConstants.MAX_MESSAGES
-        assert proc_kwargs["wait_time_seconds"] == sqs_worker.SQSWorkerConstants.WAIT_TIME_SECONDS
-        assert proc_kwargs["visibility_timeout"] == sqs_worker.SQSWorkerConstants.VISIBILITY_TIMEOUT
-        assert proc_kwargs["polling_interval"] == sqs_worker.SQSWorkerConstants.POLLING_INTERVAL
+        assert (
+            proc_kwargs["wait_time_seconds"]
+            == sqs_worker.SQSWorkerConstants.WAIT_TIME_SECONDS
+        )
+        assert (
+            proc_kwargs["visibility_timeout"]
+            == sqs_worker.SQSWorkerConstants.VISIBILITY_TIMEOUT
+        )
+        assert (
+            proc_kwargs["polling_interval"]
+            == sqs_worker.SQSWorkerConstants.POLLING_INTERVAL
+        )
         assert proc_kwargs["delete_after_processing"] is True

@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+
 from app.schemas.health import HealthCheckResponse
 from app.utils.logger import get_logger
 

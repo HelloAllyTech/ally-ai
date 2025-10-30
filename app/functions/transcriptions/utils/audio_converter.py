@@ -1,12 +1,11 @@
 import asyncio
 import math
 import os
-import subprocess
 import tempfile
 from typing import List
 
+import ffmpeg
 import httpx
-
 from utils.logger import get_logger
 from utils.phi_events import PHIEvents
 from utils.phi_logger import PHILogEvent, phi_logger
@@ -30,19 +29,6 @@ async def download_file_to_temp_and_get_details(
     """
     try:
         logger.info("Downloading audio file")
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": "Downloading audio file",
-                    "audio_url": audio_url,
-                    "component": "AudioConverter",
-                    "method": "download_file_to_temp_and_get_details",
-                },
-            )
-        )
         # Download the file first with a generic extension
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(audio_url)
@@ -54,21 +40,6 @@ async def download_file_to_temp_and_get_details(
             temp_input.close()
 
             logger.info(f"Downloaded audio file ({len(response.content)} bytes)")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_MODIFIED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": f"Downloaded audio file ({len(response.content)} bytes)",  # noqa: E501
-                        "audio_url": audio_url,
-                        "file_size_bytes": len(response.content),
-                        "temp_file_path": temp_input.name,
-                        "component": "AudioConverter",
-                        "method": "download_file_to_temp_and_get_details",
-                    },
-                )
-            )
 
             # Now identify the actual format
             actual_extension = await identify_audio_format(temp_input.name, chat_id)
@@ -99,41 +70,10 @@ async def download_file_to_temp_and_get_details(
                 logger.warning(
                     f"Failed to rename file, using original: {type(e).__name__}"
                 )
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.SYSTEM_ERROR,
-                        chat_id=str(chat_id) if chat_id else None,
-                        audit_id=None,  # Will be set by external service,
-                        details={
-                            "error": f"Failed to rename file, using original: {type(e).__name__}",  # noqa: E501
-                            "audio_url": audio_url,
-                            "detected_extension": actual_extension,
-                            "original_path": temp_input.name,
-                            "correct_path": correct_path,
-                            "exception_type": type(e).__name__,
-                            "component": "AudioConverter",
-                            "method": "download_file_to_temp_and_get_details",
-                        },
-                    )
-                )
                 return temp_input.name, actual_extension
 
     except Exception as e:
         logger.error(f"Error downloading audio: {type(e).__name__}")
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.SYSTEM_ERROR,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "error": f"Error downloading audio: {type(e).__name__}",
-                    "audio_url": audio_url,
-                    "exception_type": type(e).__name__,
-                    "component": "AudioConverter",
-                    "method": "download_file_to_temp_and_get_details",
-                },
-            )
-        )
         raise
 
 
@@ -178,43 +118,9 @@ async def convert_and_segment_audio_async(
             1024 * 1024
         )
         logger.info(f"file size: {file_size_mb:.2f} MB")
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_ACCESSED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": f"file size: {file_size_mb:.2f} MB",
-                    "audio_url": audio_url,
-                    "file_path": file_path,
-                    "file_size_mb": file_size_mb,
-                    "detected_extension": detected_extension,
-                    "sample_rate": sample_rate,
-                    "max_segment_size_mb": max_segment_size_mb,
-                    "component": "AudioConverter",
-                    "method": "convert_and_segment_audio_async",
-                },
-            )
-        )
 
         if file_size_mb <= max_segment_size_mb:
             logger.info("File size is within limit, no segmentation needed")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_ACCESSED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": "File size is within limit, no segmentation needed",
-                        "audio_url": audio_url,
-                        "file_path": file_path,
-                        "file_size_mb": file_size_mb,
-                        "max_segment_size_mb": max_segment_size_mb,
-                        "component": "AudioConverter",
-                        "method": "convert_and_segment_audio_async",
-                    },
-                )
-            )
             return [file_path]
 
         # Get audio duration to calculate segment duration
@@ -248,24 +154,6 @@ async def convert_and_segment_audio_async(
             f"Audio duration: {duration:.2f}s, will split into {num_segments} "
             f"segments of ~{segment_duration:.2f}s each"
         )
-        await phi_logger.log(
-            PHILogEvent(
-                event_type=PHIEvents.DATA_MODIFIED,
-                chat_id=str(chat_id) if chat_id else None,
-                audit_id=None,  # Will be set by external service,
-                details={
-                    "message": f"Audio duration: {duration:.2f}s, will split into {num_segments} segments of ~{segment_duration:.2f}s each",  # noqa: E501
-                    "audio_url": audio_url,
-                    "file_path": file_path,
-                    "duration": duration,
-                    "num_segments": num_segments,
-                    "segment_duration": segment_duration,
-                    "bytes_per_second": bytes_per_second,
-                    "component": "AudioConverter",
-                    "method": "convert_and_segment_audio_async",
-                },
-            )
-        )
 
         # Split audio into segments
         segment_paths = await split_audio_into_segments(
@@ -276,37 +164,8 @@ async def convert_and_segment_audio_async(
         try:
             await asyncio.to_thread(os.remove, file_path)
             logger.info("Cleaned up original file")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_DELETED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": "Cleaned up original file",
-                        "audio_url": audio_url,
-                        "file_path": file_path,
-                        "component": "AudioConverter",
-                        "method": "convert_and_segment_audio_async",
-                    },
-                )
-            )
         except OSError as e:
             logger.warning(f"Failed to cleanup original file: {type(e).__name__}")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "error": f"Failed to cleanup original file: {type(e).__name__}",
-                        "audio_url": audio_url,
-                        "file_path": file_path,
-                        "exception_type": type(e).__name__,
-                        "component": "AudioConverter",
-                        "method": "convert_and_segment_audio_async",
-                    },
-                )
-            )
 
         return segment_paths
 
@@ -335,7 +194,7 @@ async def split_audio_into_segments(
     file_path: str, num_segments: int, total_duration: float, chat_id: int = None
 ) -> List[str]:
     """
-    Split a file into multiple segments using FFmpeg.
+    Split a file into multiple segments using ffmpeg-python.
 
     Args:
         file_path (str): Path to the input file
@@ -353,56 +212,78 @@ async def split_audio_into_segments(
         # Create base path for segments
         base_path = os.path.splitext(file_path)[0]
         file_extension = file_path.lower().split(".")[-1]
+
         for i in range(num_segments):
             start_time = i * segment_duration
             end_time = min((i + 1) * segment_duration, total_duration)
+            duration = end_time - start_time
 
             # Create segment file path
             segment_path = f"{base_path}_segment_{i:03d}.{file_extension}"
 
-            if file_extension == "wav":
-                # Use FFmpeg to extract segment
-                ffmpeg_cmd = [
-                    "ffmpeg",
-                    "-i",
-                    file_path,
-                    "-ss",
-                    str(start_time),
-                    "-t",
-                    str(end_time - start_time),
-                    "-acodec",
-                    "pcm_s16le",
-                    "-ar",
-                    "16000",
-                    "-ac",
-                    "1",
-                    "-y",
-                    segment_path,
-                ]
-            else:
-                # For other formats, copy the codec (faster, preserves quality)
-                ffmpeg_cmd = [
-                    "ffmpeg",
-                    "-i",
-                    file_path,
-                    "-ss",
-                    str(start_time),
-                    "-t",
-                    str(end_time - start_time),
-                    "-c",
-                    "copy",  # Copy without re-encoding (much faster)
-                    "-y",
-                    segment_path,
-                ]
+            try:
+                # Use ffmpeg-python to create segment
+                if file_extension == "wav":
+                    # For WAV files, re-encode to ensure proper format
+                    stream = ffmpeg.input(file_path, ss=start_time, t=duration)
+                    stream = ffmpeg.output(
+                        stream,
+                        segment_path,
+                        acodec="pcm_s16le",
+                        ar=16000,
+                        ac=1,
+                        **{"y": None},  # Overwrite output file
+                    )
+                else:
+                    # For other formats, copy without re-encoding (faster)
+                    stream = ffmpeg.input(file_path, ss=start_time, t=duration)
+                    stream = ffmpeg.output(
+                        stream,
+                        segment_path,
+                        c="copy",
+                        **{"y": None},  # Overwrite output file
+                    )
 
-            process = await asyncio.create_subprocess_exec(
-                *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
+                # Run ffmpeg in async context
+                await asyncio.to_thread(
+                    ffmpeg.run,
+                    stream,
+                    overwrite_output=True,
+                    capture_stdout=True,
+                    capture_stderr=True,
+                )
 
-            stdout, stderr = await process.communicate()
+                # Verify segment file size
+                segment_size_mb = await asyncio.to_thread(
+                    os.path.getsize, segment_path
+                ) / (1024 * 1024)
+                logger.info(
+                    f"Created segment {i} "
+                    f"({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)"
+                )
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.DATA_MODIFIED,
+                        chat_id=str(chat_id) if chat_id else None,
+                        audit_id=None,  # Will be set by external service,
+                        details={
+                            "message": f"Created segment {i} ({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)",  # noqa: E501
+                            "file_path": file_path,
+                            "segment_index": i,
+                            "segment_path": segment_path,
+                            "segment_size_mb": segment_size_mb,
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "component": "AudioConverter",
+                            "method": "split_audio_into_segments",
+                        },
+                    )
+                )
 
-            if process.returncode != 0:
-                logger.error(f"FFmpeg segmentation failed for segment {i}")
+                segment_paths.append(segment_path)
+
+            except ffmpeg.Error as e:
+                logger.error(f"FFmpeg segmentation failed for segment {i}: {e}")
                 await phi_logger.log(
                     PHILogEvent(
                         event_type=PHIEvents.SYSTEM_ERROR,
@@ -415,47 +296,13 @@ async def split_audio_into_segments(
                             "segment_path": segment_path,
                             "start_time": start_time,
                             "end_time": end_time,
-                            "ffmpeg_returncode": process.returncode,
-                            "stderr": stderr.decode("utf-8") if stderr else None,
+                            "ffmpeg_error": str(e),
                             "component": "AudioConverter",
                             "method": "split_audio_into_segments",
                         },
                     )
                 )
-                raise subprocess.CalledProcessError(
-                    process.returncode,
-                    "ffmpeg",
-                    f"FFmpeg segmentation failed for segment {i}",
-                )
-
-            # Verify segment file size
-            segment_size_mb = await asyncio.to_thread(os.path.getsize, segment_path) / (
-                1024 * 1024
-            )
-            logger.info(
-                f"Created segment {i} "
-                f"({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)"
-            )
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_MODIFIED,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "message": f"Created segment {i} ({segment_size_mb:.2f} MB, {start_time:.2f}s - {end_time:.2f}s)",  # noqa: E501
-                        "file_path": file_path,
-                        "segment_index": i,
-                        "segment_path": segment_path,
-                        "segment_size_mb": segment_size_mb,
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        "component": "AudioConverter",
-                        "method": "split_audio_into_segments",
-                    },
-                )
-            )
-
-            segment_paths.append(segment_path)
+                raise Exception(f"FFmpeg segmentation failed for segment {i}: {e}")
 
         logger.info(f"Successfully created {len(segment_paths)} audio segments")
         await phi_logger.log(
@@ -495,47 +342,34 @@ async def split_audio_into_segments(
         )
         raise
 
+
 async def get_audio_duration(file_path: str, chat_id: int = None) -> float:
-    """Get audio duration in seconds using FFprobe"""
+    """Get audio duration in seconds using ffmpeg-python"""
     try:
-        ffprobe_cmd = [
-            "ffprobe",
-            "-v",
-            "quiet",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "csv=p=0",
-            file_path,
-        ]
+        # Use ffmpeg-python to probe the file
+        probe = await asyncio.to_thread(ffmpeg.probe, file_path)
 
-        process = await asyncio.create_subprocess_exec(
-            *ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+        # Extract duration from format info
+        duration = float(probe["format"]["duration"])
+        return duration
 
-        stdout, stderr = await process.communicate()
-
-        if process.returncode == 0:
-            duration = float(stdout.decode("utf-8").strip())
-            return duration
-        else:
-            logger.warning("Could not get audio duration")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "error": "Could not get audio duration",
-                        "file_path": file_path,
-                        "ffprobe_returncode": process.returncode,
-                        "stderr": stderr.decode("utf-8") if stderr else None,
-                        "component": "AudioConverter",
-                        "method": "get_audio_duration",
-                    },
-                )
+    except ffmpeg.Error as e:
+        logger.warning(f"Could not get audio duration: {e}")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": "Could not get audio duration",
+                    "file_path": file_path,
+                    "ffmpeg_error": str(e),
+                    "component": "AudioConverter",
+                    "method": "get_audio_duration",
+                },
             )
-            return 0.0
+        )
+        return 0.0
 
     except Exception as e:
         logger.warning(f"Error getting audio duration: {type(e).__name__}")
@@ -559,12 +393,12 @@ async def get_audio_duration(file_path: str, chat_id: int = None) -> float:
 async def download_and_convert_raw_audio_to_wav(
     file_path: str = None, sample_rate: int = 8000, chat_id: int = None
 ) -> str:
-    """Convert raw file to wav audio using pipe streaming."""
+    """Convert raw file to wav audio using ffmpeg-python."""
     temp_input_path = None
     try:
         temp_input_path = file_path
         output_path = temp_input_path.replace(".raw", ".wav")
-        ffmpeg_cmd = build_ffmpeg_command(temp_input_path, output_path, sample_rate)
+
         logger.info("Running FFmpeg conversion")
         await phi_logger.log(
             PHILogEvent(
@@ -582,14 +416,40 @@ async def download_and_convert_raw_audio_to_wav(
             )
         )
 
-        # Run FFmpeg process with timeout
-        process = await asyncio.create_subprocess_exec(
-            *ffmpeg_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        # Build ffmpeg stream based on sample rate
+        if sample_rate in [8000, 16000]:
+            # For known sample rates, use explicit format specification
+            stream = ffmpeg.input(
+                temp_input_path,
+                f="s16le",  # Explicit format: 16-bit signed PCM
+                ar=sample_rate,  # Input sample rate
+                ac=1,  # Explicit channels: mono
+            )
+        else:
+            # For other sample rates, use auto-detection
+            stream = ffmpeg.input(temp_input_path)
+
+        # Configure output stream
+        stream = ffmpeg.output(
+            stream,
+            output_path,
+            acodec="pcm_s16le",
+            ar=16000,  # Output sample rate: 16kHz
+            ac=1,  # Output channels: mono
+            f="wav",
         )
 
+        # Run FFmpeg with timeout
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=120.0
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    ffmpeg.run,
+                    stream,
+                    overwrite_output=True,
+                    capture_stdout=True,
+                    capture_stderr=True,
+                ),
+                timeout=120.0,
             )
         except asyncio.TimeoutError:
             logger.error("FFmpeg process timed out")
@@ -609,49 +469,27 @@ async def download_and_convert_raw_audio_to_wav(
                     },
                 )
             )
-            process.kill()
             raise Exception("FFmpeg conversion timed out")
 
-        if process.returncode != 0:
-            logger.error("FFmpeg conversion error")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "error": "FFmpeg conversion error",
-                        "input_path": temp_input_path,
-                        "output_path": output_path,
-                        "sample_rate": sample_rate,
-                        "ffmpeg_returncode": process.returncode,
-                        "stderr": stderr.decode("utf-8") if stderr else None,
-                        "component": "AudioConverter",
-                        "method": "download_and_convert_raw_audio_to_wav",
-                    },
-                )
-            )
-            raise subprocess.CalledProcessError(
-                process.returncode, "ffmpeg", "FFmpeg conversion failed"
-            )
-
         # Check if output file exists and has content
-        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-            raise Exception("FFmpeg output file is empty or missing")
+        if not await asyncio.to_thread(os.path.exists, output_path):
+            raise Exception("FFmpeg output file is missing")
 
-        logger.info(
-            f"Audio converted successfully " f"({os.path.getsize(output_path)} bytes)"
-        )
+        output_size = await asyncio.to_thread(os.path.getsize, output_path)
+        if output_size == 0:
+            raise Exception("FFmpeg output file is empty")
+
+        logger.info(f"Audio converted successfully ({output_size} bytes)")
         await phi_logger.log(
             PHILogEvent(
                 event_type=PHIEvents.DATA_MODIFIED,
                 chat_id=str(chat_id) if chat_id else None,
                 audit_id=None,  # Will be set by external service,
                 details={
-                    "message": f"Audio converted successfully ({os.path.getsize(output_path)} bytes)",  # noqa: E501
+                    "message": f"Audio converted successfully ({output_size} bytes)",  # noqa: E501
                     "input_path": temp_input_path,
                     "output_path": output_path,
-                    "output_size_bytes": os.path.getsize(output_path),
+                    "output_size_bytes": output_size,
                     "sample_rate": sample_rate,
                     "component": "AudioConverter",
                     "method": "download_and_convert_raw_audio_to_wav",
@@ -662,7 +500,7 @@ async def download_and_convert_raw_audio_to_wav(
         try:
             # Clean up temp input file since it is raw file and we dont need it anymore
             # We will return the output path of wav file instead of the temp file_path
-            os.unlink(temp_input_path)
+            await asyncio.to_thread(os.unlink, temp_input_path)
             logger.info("Cleaned up temp input file")
             await phi_logger.log(
                 PHILogEvent(
@@ -698,6 +536,26 @@ async def download_and_convert_raw_audio_to_wav(
 
         return output_path
 
+    except ffmpeg.Error as e:
+        logger.error(f"FFmpeg conversion error: {e}")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": "FFmpeg conversion error",
+                    "input_path": temp_input_path,
+                    "output_path": output_path,
+                    "sample_rate": sample_rate,
+                    "ffmpeg_error": str(e),
+                    "component": "AudioConverter",
+                    "method": "download_and_convert_raw_audio_to_wav",
+                },
+            )
+        )
+        raise Exception(f"FFmpeg conversion failed: {e}")
+
     except Exception as e:
         logger.error(
             f"Error in download_and_convert_raw_audio_to_wav: {type(e).__name__}"
@@ -722,7 +580,7 @@ async def download_and_convert_raw_audio_to_wav(
 
 async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
     """
-    Identify audio format using FFprobe.
+    Identify audio format using ffmpeg-python.
 
     Args:
         file_path (str): Path to the audio file
@@ -732,63 +590,67 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
         str: File extension with dot (e.g., '.mp3', '.wav', '.raw')
     """
     try:
-        # Use FFprobe to get format information
-        ffprobe_cmd = [
-            "ffprobe",
-            "-v",
-            "quiet",
-            "-print_format",
-            "json",
-            "-show_format",
-            "-show_streams",
-            file_path,
-        ]
+        # Use ffmpeg-python to probe the file
+        probe = await asyncio.to_thread(ffmpeg.probe, file_path)
 
-        process = await asyncio.create_subprocess_exec(
-            *ffprobe_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+        # Check format name first
+        format_name = probe.get("format", {}).get("format_name", "").lower()
 
-        stdout, stderr = await process.communicate()
+        # Map common format names to extensions
+        format_mapping = {
+            "mp3": ".mp3",
+            "mpeg": ".mp3",
+            "wav": ".wav",
+            "wave": ".wav",
+            "aac": ".aac",
+            "m4a": ".m4a",
+            "mp4": ".m4a",
+            "flac": ".flac",
+            "ogg": ".ogg",
+            "opus": ".opus",
+            "webm": ".webm",
+            "wma": ".wma",
+            "amr": ".amr",
+        }
 
-        if process.returncode == 0:
-            import json
+        # Check if format is in our mapping
+        for format_key, extension in format_mapping.items():
+            if format_key in format_name:
+                logger.info(f"Detected format: {format_name} -> {extension}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.DATA_ACCESSED,
+                        chat_id=str(chat_id) if chat_id else None,
+                        audit_id=None,  # Will be set by external service,
+                        details={
+                            "message": f"Detected format: {format_name} -> {extension}",  # noqa: E501
+                            "file_path": file_path,
+                            "detected_format": format_name,
+                            "detected_extension": extension,
+                            "component": "AudioConverter",
+                            "method": "identify_audio_format",
+                        },
+                    )
+                )
+                return extension
 
-            try:
-                info = json.loads(stdout.decode("utf-8"))
-
-                # Check format name first
-                format_name = info.get("format", {}).get("format_name", "").lower()
-
-                # Map common format names to extensions
-                format_mapping = {
-                    "mp3": ".mp3",
-                    "mpeg": ".mp3",
-                    "wav": ".wav",
-                    "wave": ".wav",
-                    "aac": ".aac",
-                    "m4a": ".m4a",
-                    "mp4": ".m4a",
-                    "flac": ".flac",
-                    "ogg": ".ogg",
-                    "opus": ".opus",
-                    "webm": ".webm",
-                    "wma": ".wma",
-                    "amr": ".amr",
-                }
-
-                # Check if format is in our mapping
+        # If no match found, check the first audio stream codec
+        streams = probe.get("streams", [])
+        for stream in streams:
+            if stream.get("codec_type") == "audio":
+                codec_name = stream.get("codec_name", "").lower()
                 for format_key, extension in format_mapping.items():
-                    if format_key in format_name:
-                        logger.info(f"Detected format: {format_name} -> {extension}")
+                    if format_key in codec_name:
+                        logger.info(f"Detected codec: {codec_name} -> {extension}")
                         await phi_logger.log(
                             PHILogEvent(
                                 event_type=PHIEvents.DATA_ACCESSED,
                                 chat_id=str(chat_id) if chat_id else None,
                                 audit_id=None,  # Will be set by external service,
                                 details={
-                                    "message": f"Detected format: {format_name} -> {extension}",  # noqa: E501
+                                    "message": f"Detected codec: {codec_name} -> {extension}",  # noqa: E501
                                     "file_path": file_path,
-                                    "detected_format": format_name,
+                                    "detected_codec": codec_name,
                                     "detected_extension": extension,
                                     "component": "AudioConverter",
                                     "method": "identify_audio_format",
@@ -796,88 +658,44 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
                             )
                         )
                         return extension
+                break
 
-                # If no match found, check the first audio stream codec
-                streams = info.get("streams", [])
-                for stream in streams:
-                    if stream.get("codec_type") == "audio":
-                        codec_name = stream.get("codec_name", "").lower()
-                        for format_key, extension in format_mapping.items():
-                            if format_key in codec_name:
-                                logger.info(
-                                    f"Detected codec: {codec_name} -> {extension}"
-                                )
-                                await phi_logger.log(
-                                    PHILogEvent(
-                                        event_type=PHIEvents.DATA_ACCESSED,
-                                        chat_id=str(chat_id) if chat_id else None,
-                                        audit_id=None,  # Will be set by external service,  # noqa: E501
-                                        details={
-                                            "message": f"Detected codec: {codec_name} -> {extension}",  # noqa: E501
-                                            "file_path": file_path,
-                                            "detected_codec": codec_name,
-                                            "detected_extension": extension,
-                                            "component": "AudioConverter",
-                                            "method": "identify_audio_format",
-                                        },
-                                    )
-                                )
-                                return extension
-                        break
-
-                # If still no match, check file extension from URL as fallback
-                logger.warning("Could not detect format from FFprobe, using fallback")
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.SYSTEM_ERROR,
-                        chat_id=str(chat_id) if chat_id else None,
-                        audit_id=None,  # Will be set by external service,
-                        details={
-                            "error": "Could not detect format from FFprobe, using fallback",  # noqa: E501
-                            "file_path": file_path,
-                            "format_name": format_name,
-                            "streams_count": len(streams),
-                            "component": "AudioConverter",
-                            "method": "identify_audio_format",
-                        },
-                    )
-                )
-                return ".raw"
-
-            except json.JSONDecodeError:
-                logger.warning("Failed to parse FFprobe JSON output")
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.SYSTEM_ERROR,
-                        chat_id=str(chat_id) if chat_id else None,
-                        audit_id=None,  # Will be set by external service,
-                        details={
-                            "error": "Failed to parse FFprobe JSON output",
-                            "file_path": file_path,
-                            "component": "AudioConverter",
-                            "method": "identify_audio_format",
-                        },
-                    )
-                )
-                return ".raw"
-        else:
-            logger.warning("FFprobe failed")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id) if chat_id else None,
-                    audit_id=None,  # Will be set by external service,
-                    details={
-                        "error": "FFprobe failed",
-                        "file_path": file_path,
-                        "ffprobe_returncode": process.returncode,
-                        "stderr": stderr.decode("utf-8") if stderr else None,
-                        "component": "AudioConverter",
-                        "method": "identify_audio_format",
-                    },
-                )
+        # If still no match, use fallback
+        logger.warning("Could not detect format from ffmpeg probe, using fallback")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": "Could not detect format from ffmpeg probe, using fallback",  # noqa: E501
+                    "file_path": file_path,
+                    "format_name": format_name,
+                    "streams_count": len(streams),
+                    "component": "AudioConverter",
+                    "method": "identify_audio_format",
+                },
             )
-            return ".raw"
+        )
+        return ".raw"
+
+    except ffmpeg.Error as e:
+        logger.warning(f"FFmpeg probe failed: {e}")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": "FFmpeg probe failed",
+                    "file_path": file_path,
+                    "ffmpeg_error": str(e),
+                    "component": "AudioConverter",
+                    "method": "identify_audio_format",
+                },
+            )
+        )
+        return ".raw"
 
     except Exception as e:
         logger.warning(f"Error identifying audio format: {type(e).__name__}")
@@ -896,47 +714,3 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
             )
         )
         return ".raw"
-
-
-def build_ffmpeg_command(
-    temp_input_path: str, output_path: str, sample_rate: int = 8000
-) -> List[str]:
-    """Build FFmpeg command based on sample rate."""
-    if sample_rate in [8000, 16000]:
-        # For known sample rates, use explicit format specification
-        return [
-            "ffmpeg",
-            "-f",
-            "s16le",  # Explicit format: 16-bit signed PCM
-            "-ar",
-            str(sample_rate),  # Input sample rate
-            "-ac",
-            "1",  # Explicit channels: mono
-            "-i",
-            temp_input_path,
-            "-acodec",
-            "pcm_s16le",
-            "-ar",
-            "16000",  # Output sample rate: 16kHz
-            "-ac",
-            "1",  # Output channels: mono
-            "-f",
-            "wav",
-            output_path,
-        ]
-    else:
-        # For other sample rates, use auto-detection
-        return [
-            "ffmpeg",
-            "-i",
-            temp_input_path,
-            "-acodec",
-            "pcm_s16le",
-            "-ar",
-            "16000",  # Output sample rate: 16kHz
-            "-ac",
-            "1",  # Output channels: mono
-            "-f",
-            "wav",
-            output_path,
-        ]
