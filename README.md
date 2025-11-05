@@ -2,6 +2,9 @@
 
 **Lifeline AI** is an advanced AI service designed to function as a copilot for mental health counselors. This project leverages FastAPI to deliver a robust and scalable API backend, integrating custom middleware and enhanced logging capabilities to ensure reliable performance and traceability. With environment-based configuration and containerization via Docker, Lifeline AI is built for seamless deployment and development. Managed with Poetry for dependency handling, the service provides intelligent insights and support tools to empower mental health professionals in their daily practice.
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+## Getting Started
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
