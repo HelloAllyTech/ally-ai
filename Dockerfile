@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install awscli-local and AWS CLI for LocalStack management
+RUN pip install --no-cache-dir awscli-local awscli
+
 # Install Poetry using its official installer
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
@@ -32,5 +35,5 @@ COPY . .
 # Expose the port on which the app will run
 EXPOSE 8000
 
-# Run migrations first, then start the application
-CMD ["bash", "-c", "poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
+# Bootstrap LocalStack resources, run migrations, then start the application
+CMD ["bash", "-c", "/app/scripts/bootstrap_localstack.sh && poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
