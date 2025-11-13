@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Install awscli-local if not already installed (needed for LocalStack)
+if ! command -v awslocal &> /dev/null; then
+  pip install --no-cache-dir awscli-local awscli >/dev/null 2>&1
+  # Ensure awslocal is in PATH (pip installs to /usr/local/bin)
+  export PATH="/usr/local/bin:$PATH"
+fi
+
 # Default credentials and endpoints for LocalStack
 export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-test}"
 export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-test}"
