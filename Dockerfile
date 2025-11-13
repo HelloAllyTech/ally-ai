@@ -35,5 +35,5 @@ COPY . .
 # Expose the port on which the app will run
 EXPOSE 8000
 
-# Bootstrap LocalStack resources, run migrations, then start the application
-CMD ["bash", "-c", "/app/scripts/bootstrap_localstack.sh && poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
+# Run migrations first, then start the application
+CMD ["bash", "-c", "poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
