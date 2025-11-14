@@ -316,7 +316,55 @@ docker-compose down
 
 ### Full Local Stack
 
-To run the API together with LocalStack (SQS/S3) and Weaviate, use the bundled compose file:
+To run the API together with LocalStack (SQS/S3) and Weaviate, you need to start LocalStack separately first, then use the bundled compose file.
+
+#### Step 1: Start Shared LocalStack
+
+LocalStack must be running separately before starting the application stack. This allows multiple repositories to share the same LocalStack instance without port conflicts.
+
+Start shared LocalStack using Docker Run:
+
+```bash
+# Start shared LocalStack container
+docker run -d \
+  --name shared-localstack \
+  --restart unless-stopped \
+  -p 4566:4566 \
+  -p 4510-4559:4510-4559 \
+  -e SERVICES=sqs,s3 \
+  -e DEBUG=1 \
+  -e AWS_DEFAULT_REGION=ap-southeast-1 \
+  -e AWS_ACCESS_KEY_ID=test \
+  -e AWS_SECRET_ACCESS_KEY=test \
+  -v shared_localstack_data:/var/lib/localstack \
+  localstack/localstack:latest
+
+# Verify it's running
+curl http://localhost:4566/_localstack/health
+```
+
+**Managing Shared LocalStack**
+
+```bash
+# Check if LocalStack is running
+docker ps | grep shared-localstack
+
+# View logs
+docker logs -f shared-localstack
+
+# Stop LocalStack
+docker stop shared-localstack
+
+# Start LocalStack (if already created)
+docker start shared-localstack
+
+# Remove LocalStack (if needed)
+docker rm -f shared-localstack
+```
+
+#### Step 2: Start Application Stack
+
+Once LocalStack is running, start the application:
 
 ```bash
 docker compose -f docker-compose.full.yml up --build
@@ -328,13 +376,20 @@ Key details:
 - The compose file injects `WEAVIATE__HTTP_HOST=weaviate`, so no manual `.env` change is needed for the in-cluster hostname.
 - `scripts/bootstrap_localstack.sh` runs on container start and waits for LocalStack before creating the required queues (`TRANSCRIPTION_RESULTS_QUEUE`, `TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE`) and the S3 bucket defined by `QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET`.
 - Ensure your `.env` contains the queue URLs/bucket name you want the application to use; the bootstrap script derives queue names from those URLs when present.
-- When you shut the stack down, volumes keep LocalStack and Weaviate data so subsequent starts are fast.
+- The application connects to LocalStack via `host.docker.internal:4566` to access the shared instance running on your host machine.
+- When you shut the stack down, volumes keep Weaviate data so subsequent starts are fast.
 
 To tear everything down:
 
 ```bash
+# Stop application stack
 docker compose -f docker-compose.full.yml down
+
+# Stop shared LocalStack (if needed)
+docker stop shared-localstack
 ```
+
+**Note**: The shared LocalStack instance persists across application restarts, so queues and buckets created by the bootstrap script will remain available.
 
 ## 📚 API Documentation
 

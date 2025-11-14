@@ -12,8 +12,9 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: ap-southeast-1
-      AWS_ENDPOINT_URL: http://localstack:4566
-      LOCALSTACK_HOST: localstack
+      AWS__ENDPOINT_URL: http://host.docker.internal:4566  # Points to shared LocalStack on host (double underscore for pydantic nested config)
+      AWS_ENDPOINT_URL: http://host.docker.internal:4566  # Also set single underscore for bootstrap script
+      LOCALSTACK_HOST: host.docker.internal
       WEAVIATE__HTTP_HOST: weaviate
       WEAVIATE__GRPC_HOST: weaviate
     ports:
@@ -22,10 +23,29 @@ services:
     depends_on:
       weaviate:
         condition: service_started
-      localstack:
-        condition: service_healthy
+      localstack-wait:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Ensures host.docker.internal works
     networks:
       - lifeline-network
+
+  # Wait service that checks if shared LocalStack is ready
+  localstack-wait:
+    image: curlimages/curl:latest
+    command:
+      - sh
+      - -c
+      - |
+        echo "Waiting for shared LocalStack to be ready..."
+        until curl -f http://host.docker.internal:4566/_localstack/health; do
+          echo "LocalStack is not ready yet. Waiting..."
+          sleep 2
+        done
+        echo "LocalStack is ready!"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
 
   weaviate:
     image: semitechnologies/weaviate:1.28.3
@@ -44,36 +64,8 @@ services:
     networks:
       - lifeline-network
 
-  localstack:
-    image: localstack/localstack:latest
-    ports:
-      - "4566:4566"
-      - "4510-4559:4510-4559"
-    environment:
-      - SERVICES=sqs, s3
-      - DEBUG=1
-      - DATA_DIR=/var/lib/localstack/data
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - LOCALSTACK_HOST=localstack
-      - AWS_DEFAULT_REGION=ap-southeast-1
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=test
-    volumes:
-      - localstack_data:/var/lib/localstack
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - lifeline-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 10s
-
 volumes:
   weaviate_data:
-    driver: local
-  localstack_data:
     driver: local
 
 networks:
