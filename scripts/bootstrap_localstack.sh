@@ -49,27 +49,38 @@ LOCALSTACK_QUEUE_RESPONSE_URL="${AWS_ENDPOINT_URL}/000000000000/${QUEUE_RESPONSE
 bootstrap_queues() {
   echo "Creating SQS queues..."
   
-  # Create queues (idempotent - safe to run multiple times)
-  awslocal sqs create-queue --queue-name "$QUEUE_RESULTS_NAME" >/dev/null 2>&1 || true
-  awslocal sqs create-queue --queue-name "$QUEUE_RESPONSE_NAME" >/dev/null 2>&1 || true
+  # Helper function to check if queue exists and create if needed
+  ensure_queue_exists() {
+    local queue_name="$1"
+    local queue_url="${AWS_ENDPOINT_URL}/000000000000/${queue_name}"
+    
+    # Check if queue already exists
+    if awslocal sqs get-queue-attributes --queue-url "$queue_url" --attribute-names QueueArn >/dev/null 2>&1; then
+      echo "✓ Queue $queue_name already exists"
+      echo "$queue_url"
+      return 0
+    fi
+    
+    # Queue doesn't exist, create it
+    echo "Creating queue: $queue_name..."
+    if awslocal sqs create-queue --queue-name "$queue_name" >/dev/null 2>&1; then
+      echo "✓ Queue $queue_name created successfully"
+      echo "$queue_url"
+      return 0
+    else
+      echo "✗ Failed to create queue $queue_name"
+      return 1
+    fi
+  }
   
-  # Get actual queue URLs by querying LocalStack
-  # LocalStack queue URLs follow the pattern: http://endpoint/000000000000/queue-name
-  ACTUAL_RESULTS_URL="${AWS_ENDPOINT_URL}/000000000000/${QUEUE_RESULTS_NAME}"
-  ACTUAL_RESPONSE_URL="${AWS_ENDPOINT_URL}/000000000000/${QUEUE_RESPONSE_NAME}"
+  # Ensure queues exist
+  ACTUAL_RESULTS_URL=$(ensure_queue_exists "$QUEUE_RESULTS_NAME")
+  ACTUAL_RESPONSE_URL=$(ensure_queue_exists "$QUEUE_RESPONSE_NAME")
   
-  # Verify queues exist by getting their attributes (this will fail if queue doesn't exist)
-  echo "Verifying queues exist..."
-  if awslocal sqs get-queue-attributes --queue-url "$ACTUAL_RESULTS_URL" --attribute-names QueueArn >/dev/null 2>&1; then
-    echo "✓ Queue $QUEUE_RESULTS_NAME exists"
-  else
-    echo "✗ Warning: Failed to verify queue $QUEUE_RESULTS_NAME"
-  fi
-  
-  if awslocal sqs get-queue-attributes --queue-url "$ACTUAL_RESPONSE_URL" --attribute-names QueueArn >/dev/null 2>&1; then
-    echo "✓ Queue $QUEUE_RESPONSE_NAME exists"
-  else
-    echo "✗ Warning: Failed to verify queue $QUEUE_RESPONSE_NAME"
+  # Verify both queues exist
+  if [[ -z "$ACTUAL_RESULTS_URL" ]] || [[ -z "$ACTUAL_RESPONSE_URL" ]]; then
+    echo "✗ Error: Failed to ensure queues exist"
+    exit 1
   fi
   
   # Export queue URLs as environment variables for the application to use
@@ -78,7 +89,7 @@ bootstrap_queues() {
   export QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL="$ACTUAL_RESPONSE_URL"
   
   echo ""
-  echo "Created queues:"
+  echo "Queues ready:"
   echo "  - $QUEUE_RESULTS_NAME -> $ACTUAL_RESULTS_URL"
   echo "  - $QUEUE_RESPONSE_NAME -> $ACTUAL_RESPONSE_URL"
   echo ""
@@ -96,7 +107,22 @@ bootstrap_bucket() {
   if [[ -z "$bucket" ]]; then
     return 0
   fi
-  awslocal s3 mb "s3://$bucket" || true
+  
+  # Check if bucket already exists
+  if awslocal s3 ls "s3://$bucket" >/dev/null 2>&1; then
+    echo "✓ S3 bucket $bucket already exists"
+    return 0
+  fi
+  
+  # Bucket doesn't exist, create it
+  echo "Creating S3 bucket: $bucket..."
+  if awslocal s3 mb "s3://$bucket" >/dev/null 2>&1; then
+    echo "✓ S3 bucket $bucket created successfully"
+    return 0
+  else
+    echo "✗ Warning: Failed to create S3 bucket $bucket"
+    return 1
+  fi
 }
 
 bootstrap_queues
