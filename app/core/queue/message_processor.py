@@ -2,6 +2,8 @@ import asyncio
 import json
 from typing import Any, Awaitable, Callable, Dict
 
+from botocore.exceptions import ClientError
+
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
 from app.core.queue.sqs_queue_service import SQSQueueService
@@ -182,6 +184,28 @@ class MessageProcessor:
                     return_exceptions=True,
                 )
 
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "AWS.SimpleQueueService.NonExistentQueue":
+                # Queue doesn't exist yet - this can happen during startup
+                # Re-raise so the run() method can handle backoff
+                raise
+            else:
+                logger.exception(f"Error polling queue: {type(e).__name__}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=None,
+                        audit_id=None,
+                        details={
+                            "error": f"Error polling queue: {type(e).__name__}",
+                            "exception_type": type(e).__name__,
+                            "error_code": error_code,
+                            "queue_url": self.queue_url,
+                        },
+                    )
+                )
+                raise
         except Exception as e:
             logger.exception(f"Error polling queue: {type(e).__name__}")
             await phi_logger.log(
@@ -207,9 +231,14 @@ class MessageProcessor:
         self._running = True
         logger.info(f"Starting message processor for queue: {self.queue_url}")
 
+        consecutive_queue_not_found_errors = 0
+        
         while self._running:
             try:
                 await self.poll_queue()
+                
+                # Reset error counter on successful poll
+                consecutive_queue_not_found_errors = 0
 
                 # Add polling interval if specified
                 if self.polling_interval > 0:
@@ -218,6 +247,33 @@ class MessageProcessor:
             except asyncio.CancelledError:
                 logger.info("Message processor cancelled")
                 break
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "")
+                if error_code == "AWS.SimpleQueueService.NonExistentQueue":
+                    consecutive_queue_not_found_errors += 1
+                    # Exponential backoff: 2s, 4s, 8s, 16s, max 30s
+                    backoff_time = min(2 ** consecutive_queue_not_found_errors, 30)
+                    logger.warning(
+                        f"Queue not found (attempt {consecutive_queue_not_found_errors}). "
+                        f"Waiting {backoff_time}s before retry..."
+                    )
+                    await asyncio.sleep(backoff_time)
+                else:
+                    logger.exception(f"Error in message processor: {type(e).__name__}")
+                    await phi_logger.log(
+                        PHILogEvent(
+                            event_type=PHIEvents.SYSTEM_ERROR,
+                            chat_id=None,
+                            audit_id=None,
+                            details={
+                                "error": f"Error in message processor: {type(e).__name__}",
+                                "exception_type": type(e).__name__,
+                                "error_code": error_code,
+                                "queue_url": self.queue_url,
+                            },
+                        )
+                    )
+                    await asyncio.sleep(1)
             except Exception as e:
                 logger.exception(f"Error in message processor: {type(e).__name__}")
                 await phi_logger.log(

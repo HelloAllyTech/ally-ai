@@ -47,17 +47,48 @@ LOCALSTACK_QUEUE_RESPONSE_URL="${AWS_ENDPOINT_URL}/000000000000/${QUEUE_RESPONSE
 
 # Bootstrap operations - shared LocalStack should be ready (waited for by localstack-wait service)
 bootstrap_queues() {
-  # Create queues
+  echo "Creating SQS queues..."
+  
+  # Create queues (idempotent - safe to run multiple times)
   awslocal sqs create-queue --queue-name "$QUEUE_RESULTS_NAME" >/dev/null 2>&1 || true
   awslocal sqs create-queue --queue-name "$QUEUE_RESPONSE_NAME" >/dev/null 2>&1 || true
   
-  echo "Created queues:"
-  echo "  - $QUEUE_RESULTS_NAME -> $LOCALSTACK_QUEUE_RESULTS_URL"
-  echo "  - $QUEUE_RESPONSE_NAME -> $LOCALSTACK_QUEUE_RESPONSE_URL"
+  # Get actual queue URLs by querying LocalStack
+  # LocalStack queue URLs follow the pattern: http://endpoint/000000000000/queue-name
+  ACTUAL_RESULTS_URL="${AWS_ENDPOINT_URL}/000000000000/${QUEUE_RESULTS_NAME}"
+  ACTUAL_RESPONSE_URL="${AWS_ENDPOINT_URL}/000000000000/${QUEUE_RESPONSE_NAME}"
+  
+  # Verify queues exist by getting their attributes (this will fail if queue doesn't exist)
+  echo "Verifying queues exist..."
+  if awslocal sqs get-queue-attributes --queue-url "$ACTUAL_RESULTS_URL" --attribute-names QueueArn >/dev/null 2>&1; then
+    echo "✓ Queue $QUEUE_RESULTS_NAME exists"
+  else
+    echo "✗ Warning: Failed to verify queue $QUEUE_RESULTS_NAME"
+  fi
+  
+  if awslocal sqs get-queue-attributes --queue-url "$ACTUAL_RESPONSE_URL" --attribute-names QueueArn >/dev/null 2>&1; then
+    echo "✓ Queue $QUEUE_RESPONSE_NAME exists"
+  else
+    echo "✗ Warning: Failed to verify queue $QUEUE_RESPONSE_NAME"
+  fi
+  
+  # Export queue URLs as environment variables for the application to use
+  # These will be available to processes started after this script
+  export QUEUE__TRANSCRIPTION_RESULTS_QUEUE_URL="$ACTUAL_RESULTS_URL"
+  export QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL="$ACTUAL_RESPONSE_URL"
+  
   echo ""
-  echo "Note: Ensure your .env file has these queue URLs set correctly:"
-  echo "  QUEUE__TRANSCRIPTION_RESULTS_QUEUE_URL=\"$LOCALSTACK_QUEUE_RESULTS_URL\""
-  echo "  QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL=\"$LOCALSTACK_QUEUE_RESPONSE_URL\""
+  echo "Created queues:"
+  echo "  - $QUEUE_RESULTS_NAME -> $ACTUAL_RESULTS_URL"
+  echo "  - $QUEUE_RESPONSE_NAME -> $ACTUAL_RESPONSE_URL"
+  echo ""
+  echo "Exported environment variables:"
+  echo "  QUEUE__TRANSCRIPTION_RESULTS_QUEUE_URL=\"$ACTUAL_RESULTS_URL\""
+  echo "  QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL=\"$ACTUAL_RESPONSE_URL\""
+  echo ""
+  
+  # Small delay to ensure queues are fully ready
+  sleep 1
 }
 
 bootstrap_bucket() {
