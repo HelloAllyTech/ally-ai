@@ -16,8 +16,6 @@ on:
     branches:
       - dev
       - develop
-      - stg
-      - staging
     paths:
       - app/functions/transcriptions/**
 
