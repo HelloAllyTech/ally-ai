@@ -16,8 +16,6 @@ on:
     branches:
       - dev
       - develop
-      - stg
-      - staging
     paths:
       - app/functions/transcriptions/**
 
@@ -49,9 +47,9 @@ jobs:
           if [ -z "$ENV" ]; then
             case "$BRANCH" in
               "dev"|"develop")  ENV="dev" ;;
-              "main"|"master")
-                echo "Production deployment must be manual via workflow_dispatch"
-                exit 1
+              "main"|"master") 
+                echo "Production deployment must be manual via workflow_dispatch" 
+                exit 1 
                 ;;
               *) echo "ENV not configured" && exit 1 ;;
             esac
@@ -142,3 +140,4 @@ jobs:
             --image-uri "${{ needs.build-push-image.outputs.IMAGE_URI_LATEST }}"
           aws lambda wait function-updated --function-name "${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }}"
           echo ":white_check_mark: Updated ${{ needs.prepare-env.outputs.LAMBDA_FUNCTION }} to image ${{ needs.build-push-image.outputs.IMAGE_URI_LATEST }}" >> $GITHUB_STEP_SUMMARY
+

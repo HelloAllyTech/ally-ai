@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "AI-powered lifeline application"
 authors = ["risal-kv <risal@keyvalue.systems>"]
 readme = "README.md"
+license = "MIT"
 
 packages = [
     { include = "app" }
