@@ -2,6 +2,9 @@
 
 **Lifeline AI** is an advanced AI service designed to function as a copilot for mental health counselors. This project leverages FastAPI to deliver a robust and scalable API backend, integrating custom middleware and enhanced logging capabilities to ensure reliable performance and traceability. With environment-based configuration and containerization via Docker, Lifeline AI is built for seamless deployment and development. Managed with Poetry for dependency handling, the service provides intelligent insights and support tools to empower mental health professionals in their daily practice.
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+## Getting Started
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
@@ -311,6 +314,28 @@ docker-compose logs -f
 docker-compose down
 ```
 
+### Full Local Stack
+
+To run the API together with LocalStack (SQS/S3) and Weaviate, use the bundled compose file:
+
+```bash
+docker compose -f docker-compose.full.yml up --build
+```
+
+Key details:
+
+- The API is exposed on `http://localhost:8001`.
+- The compose file injects `WEAVIATE__HTTP_HOST=weaviate`, so no manual `.env` change is needed for the in-cluster hostname.
+- `scripts/bootstrap_localstack.sh` runs on container start and waits for LocalStack before creating the required queues (`TRANSCRIPTION_RESULTS_QUEUE`, `TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE`) and the S3 bucket defined by `QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET`.
+- Ensure your `.env` contains the queue URLs/bucket name you want the application to use; the bootstrap script derives queue names from those URLs when present.
+- When you shut the stack down, volumes keep LocalStack and Weaviate data so subsequent starts are fast.
+
+To tear everything down:
+
+```bash
+docker compose -f docker-compose.full.yml down
+```
+
 ## 📚 API Documentation
 
 ### Interactive Documentation
@@ -377,6 +402,10 @@ When reporting issues, please include:
 - Steps to reproduce
 - Expected vs actual behavior
 - Relevant error messages
+
+## Contributing
+
+Please see the CONTRIBUTING.md to get started.
 
 ## 🆘 Support
 

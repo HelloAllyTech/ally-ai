@@ -412,19 +412,26 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return DynamicSummaryNoteResponse(fields=merged)
 
     async def _generate_structured_summary(
-        self, chat_history, chat_history_str, **kwargs
+            self, chat_history, chat_history_str, **kwargs
     ):
-        prompt = SUMMARY_PROMPT.format(chat_history=chat_history_str)
-        response = cast(
+        """Optimized structured summary with parallel processing."""
+        # Start LLM call and metric calculation in parallel
+        llm_task = self._invoke_llm(
+            SUMMARY_PROMPT.format(chat_history=chat_history_str),
             StructuredSummaryNote,
-            await self._invoke_llm(prompt, StructuredSummaryNote, **kwargs),
+            **kwargs
         )
+
+        metrics_task = self._calculate_metrics(
+            chat_history, chat_history_str
+        )
+
+        # Run both in parallel
+        response, metrics = await asyncio.gather(llm_task, metrics_task)
 
         response = structured_output_model_to_rest(response)
 
-        # enrich with extra metrics
-        metrics = await self._calculate_metrics(chat_history, chat_history_str)
-
+        # Add metrics to response
         for key, value in metrics.items():
             setattr(response, key, value)
 
