@@ -403,6 +403,10 @@ When reporting issues, please include:
 - Expected vs actual behavior
 - Relevant error messages
 
+## Contributing
+
+Please see the CONTRIBUTING.md to get started.
+
 ## 🆘 Support
 
 For support and questions:
