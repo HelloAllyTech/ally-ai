@@ -350,8 +350,8 @@ class SimulationAnalysisRequest(BaseModel):
     chat_history: List[ChatMessage] = Field(
         ..., description="List of chat messages/exchanges in the simulation"
     )
-    goal: str = Field(
-        ..., description="The objective or goal to analyze the simulation against"
+    goal: Optional[str] = Field(
+        description="The objective or goal to analyze the simulation against",default=None
     )
 
 
