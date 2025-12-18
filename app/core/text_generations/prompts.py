@@ -336,40 +336,44 @@ SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
 )
 
 SIMULATION_ANALYSIS_PROMPT_NO_GOAL = PromptTemplate(
+    input_variables=["chat_history"],
     template=textwrap.dedent(
         """
-       You are a clinical supervisor analyzing a counselor training simulation
-       where an AI client interacts with a counselor-in-training.
+        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
+        
+        Evaluate the counselor's performance against the following 15 competencies:
+        1. Active listening
+        2. Verbal communication skills
+        3. Explanation and promotion of confidentiality
+        4. Rapport building & self-disclosure
+        5. Exploration & normalization of feelings
+        6. Demonstration of empathy, warmth, & genuineness
+        7. Assessment of harm to self, harm to others, harm from others & developing collaborative response plan
+        8. Connection to social functioning & impact on life
+        9. Exploration of client’s & social support network’s explanation for problem
+        10. Appropriate involvement of family members & other close persons
+        11. Collaborative goal setting & addressing client’s expectations
+        12. Promotion of realistic hope for change
+        13. Incorporation of coping mechanisms & prior solutions
+        14. Psychoeducation & use of local terminology
+        15. Elicitation of feedback when providing advice, suggestions & recommendations
 
-       Evaluate the counselor's performance and return ONLY a JSON object with two array fields.
-       Since no specific training goal was provided, conduct a general assessment 
-       focused on core clinical competencies.
+        Conversation Transcript:
+        {chat_history}
 
-       Important rules:
-       - Provide specific, actionable feedback points
-       - Reference exact examples from the conversation
-       - Focus on clinical competencies and therapeutic techniques
-       - Each point should be concise but substantive
-
-       Conversation Transcript:
-       {chat_history}
-
-       Analyze the counselor's:
-       • Therapeutic rapport building and engagement
-       • Active listening and reflective techniques
-       • Empathy expression and validation
-       • Question formulation and timing
-       • Professional boundaries and crisis response
-       • Skill demonstration
-
-       Return only valid JSON with these fields:
-       - "improvements" → Array of specific areas needing development
-         with conversation examples
-       - "positives" → Array of demonstrated strengths and effective
-         techniques with examples
-
-       Return only valid JSON.
-       """
+        Return ONLY a JSON object with exactly two array fields.
+        
+        Important rules:
+        - Provide specific, actionable feedback points based on the 15 competencies above.
+        - Reference exact examples or quotes from the conversation to support your points.
+        - Each point should be concise but substantive.
+        - If a competency was not applicable (e.g., no crisis mentioned), do not force a positive/negative unless the counselor missed an opportunity to address it.
+        
+        Return only valid JSON with these fields:
+        - "positives": Array of demonstrated strengths and effective techniques with examples.
+        - "improvements": Array of specific areas needing development with conversation examples.
+        
+        Return ONLY valid JSON.
+        """
     ),
-    input_variables=["chat_history"],
 )
