@@ -263,16 +263,17 @@ class SummaryService:
             ) from e
 
     async def generate_simulation_summary(
-        self, chat_history: List[ChatMessage], goal: str, chat_id: Optional[str] = None
+        self, chat_history: List[ChatMessage], goal: Optional[str] = None, chat_id: Optional[str] = None
     ):
         """
-        Generate counselor training simulation analysis from chat history and goal.
+        Generate counselor training simulation analysis from chat history and optional goal.
+
+        If 'goal' is provided, a deprecation warning is issued.
 
         Parameters:
-            chat_history (List[str]): The conversation between AI client and counselor
+            chat_history (List[ChatMessage]): The conversation between AI client and counselor.
+            goal (Optional[str]): The specific training objective to evaluate against. (DEPRECATED)
             chat_id (Optional[str]): The chat ID for PHI logging.
-            as a list of string messages.
-            goal (str): The specific training objective to evaluate against.
 
         Returns:
             Dict[str, List[str]]: Dictionary containing:
@@ -283,6 +284,12 @@ class SummaryService:
             CounselorTrainingAnalysisFailedException: If analysis generation fails.
         """
         start_time = time.time()
+
+        if goal is not None:
+            logger.warning(
+                f"DEPRECATION: 'goal' parameter was provided for chat_id: {chat_id}. "
+                "Please remove 'goal' from future calls."
+            )
         try:
             # Generate the counselor training analysis
             result = await self.text_generation_service.generate_simulation_summary(

@@ -23,7 +23,7 @@ from app.core.text_generations.prompts import (
     NUDGE_PROMPT,
     SIMULATION_ANALYSIS_PROMPT,
     SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT,
+    TAG_POSITIVITY_RATING_PROMPT, SIMULATION_ANALYSIS_PROMPT_NO_GOAL,
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
@@ -885,16 +885,17 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return totals
 
     async def generate_simulation_summary(
-        self, chat_history: List[ChatMessage], goal: str, **kwargs
+        self, chat_history: List[ChatMessage], goal: Optional[str] = None, **kwargs
     ) -> Dict[str, List[str]]:
         """
-        Generate simulation summary analyzing chat history against a goal.
+        Generate simulation summary analyzing chat history against an optional goal.
 
         Analyzes conversation performance to identify improvement areas and positives.
+        If 'goal' is None, a general clinical assessment is performed.
 
         Parameters:
-            chat_history (List[str]): List of chat messages/exchanges
-            goal (str): The objective or goal to analyze against
+            chat_history (List[ChatMessage]): List of chat messages/exchanges
+            goal (Optional[str]): The objective or goal to analyze against
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
@@ -910,13 +911,24 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             [f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)]
         )
 
+        if goal:
+            logger.info("Using prompt with specific goal.")
+            prompt_template = SIMULATION_ANALYSIS_PROMPT
+            formatted_prompt = prompt_template.format(
+                goal=goal, chat_history=chat_history_str
+            )
+        else:
+            logger.info("Using prompt for general assessment (no goal provided).")
+            prompt_template = SIMULATION_ANALYSIS_PROMPT_NO_GOAL
+            formatted_prompt = prompt_template.format(
+                chat_history=chat_history_str
+            )
+
         try:
             response = cast(
                 SimulationAnalysis,
                 await self._invoke_llm(
-                    SIMULATION_ANALYSIS_PROMPT.format(
-                        goal=goal, chat_history=chat_history_str
-                    ),
+                    formatted_prompt,
                     SimulationAnalysis,
                     **kwargs,
                 ),
