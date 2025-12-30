@@ -1,0 +1,143 @@
+import re
+from collections import defaultdict
+from typing import List
+
+from app.core.constants import Language, LanguageCode
+
+# Step 1: Unicode block mapping
+UNICODE_SCRIPT_RANGES = {
+    LanguageCode.HINDI: [
+        0x0900,
+        0x097F,
+    ],  # Hindi (Devanagari script range, also includes Marathi)
+    LanguageCode.BENGALI: [0x0980, 0x09FF],  # Bengali script range
+    LanguageCode.PUNJABI: [0x0A00, 0x0A7F],  # Punjabi
+    LanguageCode.GUJARATI: [0x0A80, 0x0AFF],  # Gujarati script range
+    LanguageCode.ORIYA: [0x0B00, 0x0B7F],  # Oriya (Odia) script range
+    LanguageCode.TAMIL: [0x0B80, 0x0BFF],  # Tamil script range
+    LanguageCode.TELUGU: [0x0C00, 0x0C7F],  # Telugu script range
+    LanguageCode.KANNADA: [0x0C80, 0x0CFF],  # Kannada script range
+    LanguageCode.MALAYALAM: [0x0D00, 0x0D7F],  # Malayalam script range
+    LanguageCode.ENGLISH: [0x0041, 0x007A],  # English (Basic Latin script range)
+}
+
+
+def get_script_for_char(char: str) -> LanguageCode:
+    """
+    Determine the script for a single character using Unicode ranges.
+
+    Args:
+        char: A single character
+
+    Returns:
+        The language code enum value
+    """
+    if not char:  # Handle empty string
+        return LanguageCode.ENGLISH
+
+    code_point = ord(char)
+    for script, (start, end) in UNICODE_SCRIPT_RANGES.items():
+        if start <= code_point <= end:
+            return script
+    return LanguageCode.ENGLISH  # Default to English
+
+
+def preprocess_text(text: str) -> List[str]:
+    """
+    Preprocess text by removing punctuation and splitting into words.
+
+    Args:
+        text: Input text string
+
+    Returns:
+        List of preprocessed words
+    """
+    text = re.sub(r"[^\w\s]", "", text)  # Remove punctuation
+    return text.split()
+
+
+def detect_script_for_word(word: str) -> LanguageCode:
+    """
+    Detect script for a word based on majority of characters.
+
+    Args:
+        word: Input word
+
+    Returns:
+        The most common language code in the word, or English if word is empty
+    """
+    if not word:  # Handle empty string
+        return LanguageCode.ENGLISH
+
+    script_counter = defaultdict(int)
+    for char in word:
+        script = get_script_for_char(char)
+        script_counter[script] += 1
+
+    # Return the most common script, or English if no characters were processed
+    return (
+        max(script_counter.items(), key=lambda x: x[1])[0]
+        if script_counter
+        else LanguageCode.ENGLISH
+    )
+
+
+def parse_chat_messages(chat_history: str) -> List[str]:
+    """
+    Parse chat history into a list of message contents.
+
+    Args:
+        chat_history: A string containing the chat history
+
+    Returns:
+        List of message contents
+    """
+    messages = []
+    for line in chat_history.split("\n"):
+        if ":" in line:
+            _, content = line.split(":", 1)
+            messages.append(content.strip())
+    return messages
+
+
+def detect_languages(chat_history: str) -> List[Language]:
+    """
+    Detect languages in chat history using Unicode script ranges.
+
+    Args:
+        chat_history: A string containing the chat history
+
+    Returns:
+        List of Language objects with language and percentage
+    """
+
+    # Parse messages from chat history
+    messages = parse_chat_messages(chat_history)
+    if not messages:
+        return []
+
+    # First loop: Collect all words from all messages
+    all_words = []
+    for message in messages:
+        words = preprocess_text(message)
+        all_words.extend(words)
+
+    total_words = len(all_words)
+
+    # Second loop: Count scripts for all words
+    script_counter = defaultdict(int)
+    for word in all_words:
+        script = detect_script_for_word(word)
+        script_counter[script] += 1
+
+    # Convert counts to percentages
+    result = []
+    for script, count in script_counter.items():
+        if total_words > 0:
+            percentage = (count / total_words) * 100
+            result.append(
+                Language(language=script.value, percentage=round(percentage, 1))
+            )
+
+    # Sort by percentage in descending order
+    return sorted(result, key=lambda x: x.percentage, reverse=True)

@@ -1,0 +1,75 @@
+[tool.poetry]
+name = "lifeline-ai"
+version = "0.1.0"
+description = "AI-powered lifeline application"
+authors = ["risal-kv <risal@keyvalue.systems>"]
+readme = "README.md"
+license = "MIT"
+
+packages = [
+    { include = "app" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.8"
+pydantic-settings = "^2.7.1"
+contextvars = "^2.4"
+uvicorn = "^0.34.0"
+weaviate-client = "^4.11.0"
+langchain-openai = "^0.3.6"
+slack-sdk = "^3.35.0"
+numpy = "^2.3.0"
+scikit-learn = "^1.7.0"
+vadersentiment = "^3.3.2"
+boto3 = "^1.39.4"
+deepgram-sdk = "^4.7.0"
+rapidfuzz = "^3.13.0"
+ffmpeg-python = "^0.2.0"
+
+[tool.poetry.group.dev.dependencies]
+aiohttp = "^3.11.15"
+pre-commit = "^3.6.0"
+black = "^24.2.0"
+isort = "^5.13.2"
+flake8 = "^7.0.0"
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+pytest-mock = "^3.12.0"
+pytest-cov = "^4.0.0"
+pytest-xdist = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | pretrained_models
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip = ["pretrained_models"]

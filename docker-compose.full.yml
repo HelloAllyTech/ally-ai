@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: ap-southeast-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      LOCALSTACK_HOST: localstack
+      WEAVIATE__HTTP_HOST: weaviate
+      WEAVIATE__GRPC_HOST: weaviate
+    ports:
+      - "8001:8000"
+    command: ["bash", "-c", "/app/scripts/bootstrap_localstack.sh && poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & wait -n"]
+    depends_on:
+      weaviate:
+        condition: service_started
+      localstack:
+        condition: service_healthy
+    networks:
+      - lifeline-network
+
+  weaviate:
+    image: semitechnologies/weaviate:1.28.3
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    environment:
+      - QUERY_DEFAULTS_LIMIT=20
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate-lifeline
+      - ENABLE_CONSOLE=true
+      - CLUSTER_HOSTNAME=weaviate
+      - CLUSTER_SINGLE_NODE_MODE=true
+    volumes:
+      - weaviate_data:/var/lib/weaviate-lifeline
+    networks:
+      - lifeline-network
+
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=sqs, s3
+      - DEBUG=1
+      - DATA_DIR=/var/lib/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - LOCALSTACK_HOST=localstack
+      - AWS_DEFAULT_REGION=ap-southeast-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - lifeline-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  weaviate_data:
+    driver: local
+  localstack_data:
+    driver: local
+
+networks:
+  lifeline-network:
+    driver: bridge
+
