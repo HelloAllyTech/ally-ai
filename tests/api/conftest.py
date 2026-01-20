@@ -46,6 +46,8 @@ os.environ.update(
         "SLACK_ALERTS__CHANNEL_ID": "test-channel",
         "SLACK_ALERTS__LOG_LEVEL": "WARNING",
         "API__X_API_KEY": "test-api-key",
+        "ALLY_CORE__ENDPOINT": "http://localhost:4000",
+        "ALLY_CORE__API_KEY": "test",
     }
 )
 
@@ -235,3 +237,19 @@ def mock_weaviate_client():
 
         mock_client.return_value = mock_client_instance
         yield mock_client_instance
+
+@pytest.fixture(autouse=True)
+def mock_ally_core_client():
+    """Mock AllyCoreClient for API tests."""
+    with patch(
+        "app.clients.ally_core"
+    ) as mock_get_client:
+
+        mock_client = MagicMock()
+
+        # async method
+        mock_client.process_transcript = AsyncMock(return_value=None)
+
+        mock_get_client.return_value = mock_client
+
+        yield mock_client

@@ -29,6 +29,11 @@ class ServerSettings(BaseModel):
     PORT: int = Field(8000)
 
 
+class AllyCoreSettings(BaseModel):
+    ENDPOINT: str = Field("localhost")
+    API_KEY: str = Field(...)
+
+
 class WeaviateSettings(BaseModel):
     HTTP_HOST: str = Field(...)
     HTTP_PORT: int = Field(...)
@@ -113,6 +118,7 @@ class AppSettings(BaseSettings):
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = 0.65
     LLM: LLMSettings
     HIPAA_AUDIT: HipaaAuditSettings
+    ALLY_CORE: AllyCoreSettings
 
     def model_post_init(self, __context=None) -> None:
         """

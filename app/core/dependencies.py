@@ -9,6 +9,8 @@ from app.core.conversations.conversation_service import ConversationService
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.clients.ally_core import AllyCoreClient
+from app.core.http import ally_core_http_client
 from app.core.reference_documents.reference_document_service import (
     ReferenceDocumentService,
 )
@@ -117,3 +119,7 @@ async def get_reference_document_service(
     Returns an instance of ReferenceDocumentService.
     """
     return ReferenceDocumentService(vector_db, embedding_service)
+
+async def get_ally_core_client() -> AllyCoreClient:
+    assert ally_core_http_client is not None, "HTTP client not initialized"
+    return AllyCoreClient(client=ally_core_http_client)
