@@ -23,7 +23,6 @@ class TranscriptionHandler:
         self,
         ally_core_service: AllyCoreService = None,
         request_queue_url: str = None,
-        result_queue_url: str = None,
         text_generation_service: Optional[OpenAITextGenerationService] = None,
         storage_service: Optional[S3Service] = None,
         bucket_name: str = None,
@@ -42,7 +41,6 @@ class TranscriptionHandler:
         """
         self.ally_core_service = ally_core_service
         self.request_queue_url = request_queue_url
-        self.result_queue_url = result_queue_url
         self.text_generation_service = text_generation_service  # Use passed service
         self.storage_service = storage_service
         self.bucket_name = bucket_name
@@ -68,7 +66,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "process_request",
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -97,7 +94,6 @@ class TranscriptionHandler:
                             "method": "process_request",
                             "status": "success",
                             "request_queue_url": self.request_queue_url,
-                            "result_queue_url": self.result_queue_url,
                             "bucket_name": self.bucket_name,
                         },
                     )
@@ -116,7 +112,6 @@ class TranscriptionHandler:
                             "method": "process_request",
                             "status": "failed",
                             "request_queue_url": self.request_queue_url,
-                            "result_queue_url": self.result_queue_url,
                             "bucket_name": self.bucket_name,
                         },
                     )
@@ -142,7 +137,6 @@ class TranscriptionHandler:
                         "method": "process_request",
                         "exception_type": type(e).__name__,
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -180,7 +174,6 @@ class TranscriptionHandler:
                             len(segments_text) if segments_text else 0
                         ),
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -235,7 +228,6 @@ class TranscriptionHandler:
                         "messages_count": len(messages),
                         "transcription_data_length": len(transcription_data),
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -260,7 +252,6 @@ class TranscriptionHandler:
                         "method": "_process_transcription",
                         "exception_type": type(e).__name__,
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -305,7 +296,6 @@ class TranscriptionHandler:
                         "exception_type": type(e).__name__,
                         "messages_count": len(messages),
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -377,7 +367,6 @@ class TranscriptionHandler:
                             "method": "send_combined_result_to_ally_core",
                             "bucket_object_key": bucket_object_key,
                             "bucket_name": self.bucket_name,
-                            "result_queue_url": self.result_queue_url,
                             "download_url_generated": bool(download_presigned_url),
                             "delete_url_generated": bool(delete_presigned_url),
                         },
@@ -405,7 +394,6 @@ class TranscriptionHandler:
                         "method": "send_combined_result_to_ally_core",
                         "bucket_object_key": bucket_object_key,
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                         "download_url_length": len(download_presigned_url),
                         "delete_url_length": len(delete_presigned_url),
                         "transcription_count": len(transcription),
@@ -427,7 +415,6 @@ class TranscriptionHandler:
                         "url_type": "download",
                         "url_preview": download_presigned_url[:50] + "...",
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                     },
                 )
             )
@@ -445,7 +432,6 @@ class TranscriptionHandler:
                         "url_type": "delete",
                         "url_preview": delete_presigned_url[:50] + "...",
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                     },
                 )
             )
@@ -467,7 +453,6 @@ class TranscriptionHandler:
                         "method": "send_combined_result_to_ally_core",
                         "exception_type": type(e).__name__,
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                         "transcription_count": len(transcription),
                         "summary_keys": list(summary.keys()) if summary else [],
                     },
@@ -496,7 +481,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "_send_error_response",
                         "error_message": error_message,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -519,7 +503,6 @@ class TranscriptionHandler:
                         "method": "_send_error_response",
                         "exception_type": type(e).__name__,
                         "error_message": error_message,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
