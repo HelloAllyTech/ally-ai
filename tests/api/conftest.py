@@ -46,6 +46,8 @@ os.environ.update(
         "SLACK_ALERTS__CHANNEL_ID": "test-channel",
         "SLACK_ALERTS__LOG_LEVEL": "WARNING",
         "API__X_API_KEY": "test-api-key",
+        "ALLY_CORE__ENDPOINT": "localhost",
+        "ALLY_CORE__API_KEY": "test",
     }
 )
 

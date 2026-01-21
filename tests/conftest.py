@@ -48,6 +48,8 @@ os.environ.update(
         "HIPAA_AUDIT__LOG_GROUP_NAME": "test-log-group",
         "HIPAA_AUDIT__LOG_STREAM_NAME": "test-log-stream",
         "HIPAA_AUDIT__ENABLE_CONSOLE_LOGS": "false",
+        "ALLY_CORE__ENDPOINT": "localhost",
+        "ALLY_CORE__API_KEY": "test",
     }
 )
 
