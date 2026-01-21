@@ -9,8 +9,8 @@ queue.
 import asyncio
 import json
 import time
-from typing import Any, Dict
 from enum import Enum
+from typing import Any, Dict
 
 import boto3
 from core.config import settings
@@ -29,8 +29,10 @@ from utils.phi_logger import PHILogEvent, log_sync, phi_logger
 
 logger = get_logger(__name__)
 
+
 class TranscriptionProvider(str, Enum):
     """Enumeration of supported transcription providers."""
+
     OPENAI = "openai"
     DEEPGRAM = "deepgram"
     SARVAM = "sarvam"

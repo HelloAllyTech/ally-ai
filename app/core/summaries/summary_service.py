@@ -263,7 +263,10 @@ class SummaryService:
             ) from e
 
     async def generate_simulation_summary(
-        self, chat_history: List[ChatMessage], goal: Optional[str] = None, chat_id: Optional[str] = None
+        self,
+        chat_history: List[ChatMessage],
+        goal: Optional[str] = None,
+        chat_id: Optional[str] = None,
     ):
         """
         Generate counselor training simulation analysis from chat history and optional goal.

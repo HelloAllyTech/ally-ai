@@ -1,10 +1,10 @@
 # dependencies.py
-
-
+import httpx
 from fastapi import Depends
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from weaviate.client import WeaviateAsyncClient
 
+from app.core.ally_core import AllyCoreClient, AllyCoreService
 from app.core.conversations.conversation_service import ConversationService
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
@@ -32,6 +32,16 @@ async def get_weaviate_client() -> WeaviateAsyncClient:
     Ensures the client is properly closed after use.
     """
     return WeaviateClient.get_client()
+
+
+async def get_ally_core_client() -> httpx.AsyncClient:
+    return AllyCoreClient.get_client()
+
+
+async def get_ally_core_service(
+    client=Depends(get_ally_core_client),
+) -> AllyCoreService:
+    return AllyCoreService(client)
 
 
 # Dependency for the OpenAI embedding client

@@ -50,3 +50,6 @@ HIPAA_AUDIT__ENABLE_CONSOLE_LOGS=false
 API__X_API_KEY=<x-api-key>
 
 LLM__MAX_CONCURRENT_LLM_CALLS=10
+
+ALLY_CORE__ENDPOINT=http://localhost:8001
+ALLY_CORE__API_KEY=<ally-core-api-key>
