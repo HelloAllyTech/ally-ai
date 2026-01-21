@@ -22,8 +22,9 @@ from app.core.text_generations.prompts import (
     IDENTIFY_USER_PROMPT,
     NUDGE_PROMPT,
     SIMULATION_ANALYSIS_PROMPT,
+    SIMULATION_ANALYSIS_PROMPT_NO_GOAL,
     SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT, SIMULATION_ANALYSIS_PROMPT_NO_GOAL,
+    TAG_POSITIVITY_RATING_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
@@ -412,19 +413,17 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return DynamicSummaryNoteResponse(fields=merged)
 
     async def _generate_structured_summary(
-            self, chat_history, chat_history_str, **kwargs
+        self, chat_history, chat_history_str, **kwargs
     ):
         """Optimized structured summary with parallel processing."""
         # Start LLM call and metric calculation in parallel
         llm_task = self._invoke_llm(
             SUMMARY_PROMPT.format(chat_history=chat_history_str),
             StructuredSummaryNote,
-            **kwargs
+            **kwargs,
         )
 
-        metrics_task = self._calculate_metrics(
-            chat_history, chat_history_str
-        )
+        metrics_task = self._calculate_metrics(chat_history, chat_history_str)
 
         # Run both in parallel
         response, metrics = await asyncio.gather(llm_task, metrics_task)
@@ -920,9 +919,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         else:
             logger.info("Using prompt for general assessment (no goal provided).")
             prompt_template = SIMULATION_ANALYSIS_PROMPT_NO_GOAL
-            formatted_prompt = prompt_template.format(
-                chat_history=chat_history_str
-            )
+            formatted_prompt = prompt_template.format(chat_history=chat_history_str)
 
         try:
             response = cast(

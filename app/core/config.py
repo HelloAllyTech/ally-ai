@@ -79,6 +79,11 @@ class LLMSettings(BaseModel):
     MAX_CONCURRENT_LLM_CALLS: int = Field(...)
 
 
+class AllyCoreSettings(BaseModel):
+    ENDPOINT: str = Field("localhost")
+    API_KEY: str = Field(...)
+
+
 class HipaaAuditSettings(BaseModel):
     ENABLED: bool = Field(False)
     LOG_GROUP_NAME: str = Field(...)
@@ -113,6 +118,7 @@ class AppSettings(BaseSettings):
     REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD: float = 0.65
     LLM: LLMSettings
     HIPAA_AUDIT: HipaaAuditSettings
+    ALLY_CORE: AllyCoreSettings
 
     def model_post_init(self, __context=None) -> None:
         """

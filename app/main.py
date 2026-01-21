@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.api import root
 from app.api.v1.api import api_router
+from app.core.ally_core.client import AllyCoreClient
 from app.core.config import settings
 from app.core.constants import APISettings
 from app.core.vector_db.weaviate_client import WeaviateClient
@@ -20,6 +21,7 @@ async def lifespan(_: FastAPI):
     # Initialize Weaviate client
     WeaviateClient.create_client()
     await WeaviateClient.connect(WeaviateClient.get_client())
+    await AllyCoreClient.create_client()
 
     # Initialize OpenAI clients
     initialize_openai_clients()
@@ -27,6 +29,7 @@ async def lifespan(_: FastAPI):
 
     yield
     await WeaviateClient.close(WeaviateClient.get_client())
+    await AllyCoreClient.close(AllyCoreClient.get_client())
     logger.info("Shutting down application...")
 
 

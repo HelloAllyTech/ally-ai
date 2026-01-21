@@ -351,7 +351,8 @@ class SimulationAnalysisRequest(BaseModel):
         ..., description="List of chat messages/exchanges in the simulation"
     )
     goal: Optional[str] = Field(
-        description="The objective or goal to analyze the simulation against",default=None
+        description="The objective or goal to analyze the simulation against",
+        default=None,
     )
 
 

@@ -10,9 +10,8 @@ import shutil
 from pathlib import Path
 from typing import Tuple
 
-from sarvamai import AsyncSarvamAI
-
 from core.config import settings
+from sarvamai import AsyncSarvamAI
 from utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
 from utils.exceptions import TranscriptionFailedException
 from utils.logger import get_logger
@@ -84,7 +83,9 @@ class SarvamTranscriptionService:
                 )
 
             # Log the output transcript
-            logger.info(f"Transcription completed with {len(segments_text.split(chr(10)))} segments")
+            logger.info(
+                f"Transcription completed with {len(segments_text.split(chr(10)))} segments"
+            )
             await phi_logger.log(
                 PHILogEvent(
                     event_type=PHIEvents.DATA_ACCESSED,
@@ -122,9 +123,7 @@ class SarvamTranscriptionService:
             )
             raise TranscriptionFailedException("Transcription failed")
 
-    async def _transcribe_with_sarvam_sdk(
-        self, audio_path: str, chat_id: int
-    ) -> str:
+    async def _transcribe_with_sarvam_sdk(self, audio_path: str, chat_id: int) -> str:
         """
         Transcribe single audio file using Sarvam SDK.
 
@@ -155,7 +154,7 @@ class SarvamTranscriptionService:
                 model="saaras:v2.5",
                 with_diarization=True,
                 num_speakers=2,
-                prompt="Conversation transcription"
+                prompt="Conversation transcription",
             )
 
             job_id = job._job_id
@@ -184,8 +183,7 @@ class SarvamTranscriptionService:
 
             # Wait for completion
             await job.wait_until_complete(
-                poll_interval=POLL_INTERVAL,
-                timeout=JOB_TIMEOUT
+                poll_interval=POLL_INTERVAL, timeout=JOB_TIMEOUT
             )
 
             if await job.is_failed():
@@ -246,7 +244,6 @@ class SarvamTranscriptionService:
                     logger.error(f"Segment {idx} failed: {type(result).__name__}")
                     raise result
                 all_segments.extend(result)
-
 
             # Format
             segments_text = "\n".join(
@@ -320,7 +317,9 @@ class SarvamTranscriptionService:
             srt_files = list(output_dir.glob("*.srt"))
 
             if not (json_files or txt_files or srt_files):
-                raise TranscriptionFailedException("No output files found from Sarvam job")
+                raise TranscriptionFailedException(
+                    "No output files found from Sarvam job"
+                )
 
             all_segments = []  # list of tuples (start, end, text)
 
@@ -336,7 +335,11 @@ class SarvamTranscriptionService:
                         data = json.load(f)
 
                     # Case 1: word-level data
-                    if isinstance(data, dict) and "words" in data and isinstance(data["words"], list):
+                    if (
+                        isinstance(data, dict)
+                        and "words" in data
+                        and isinstance(data["words"], list)
+                    ):
                         current_segment = {"words": [], "start": None, "speaker": None}
                         last_end = 0.0
                         for word_data in data["words"]:
@@ -345,11 +348,24 @@ class SarvamTranscriptionService:
                             end = float(word_data.get("end", 0) or 0)
                             last_end = end or last_end
                             speaker = word_data.get("speaker", "Speaker 0")
-                            if current_segment["speaker"] and current_segment["speaker"] != speaker:
+                            if (
+                                current_segment["speaker"]
+                                and current_segment["speaker"] != speaker
+                            ):
                                 text = " ".join(current_segment["words"]).strip()
                                 if text:
-                                    all_segments.append((float(current_segment["start"] or 0.0), last_end, text))
-                                current_segment = {"words": [], "start": None, "speaker": None}
+                                    all_segments.append(
+                                        (
+                                            float(current_segment["start"] or 0.0),
+                                            last_end,
+                                            text,
+                                        )
+                                    )
+                                current_segment = {
+                                    "words": [],
+                                    "start": None,
+                                    "speaker": None,
+                                }
                             if current_segment["start"] is None:
                                 current_segment["start"] = start
                             current_segment["words"].append(word)
@@ -357,7 +373,13 @@ class SarvamTranscriptionService:
                         if current_segment["words"]:
                             text = " ".join(current_segment["words"]).strip()
                             if text:
-                                all_segments.append((float(current_segment["start"] or 0.0), last_end, text))
+                                all_segments.append(
+                                    (
+                                        float(current_segment["start"] or 0.0),
+                                        last_end,
+                                        text,
+                                    )
+                                )
 
                     # Case 2: diarized transcript structure
                     elif isinstance(data, dict) and "diarized_transcript" in data:
@@ -371,7 +393,9 @@ class SarvamTranscriptionService:
                                 all_segments.append((st, et, f"[{speaker}] {tx}"))
 
                     # Case 3: plain transcript text in dict
-                    elif isinstance(data, dict) and ("transcript" in data or "text" in data):
+                    elif isinstance(data, dict) and (
+                        "transcript" in data or "text" in data
+                    ):
                         tx = data.get("transcript") or data.get("text") or ""
                         add_plain_text_segment(str(tx))
 
@@ -391,9 +415,13 @@ class SarvamTranscriptionService:
                     else:
                         # Unknown schema, store a preview to help debugging
                         preview = str(data)[:200]
-                        logger.warning(f"Unknown Sarvam JSON schema in {jf.name}: {preview}")
+                        logger.warning(
+                            f"Unknown Sarvam JSON schema in {jf.name}: {preview}"
+                        )
                 except Exception as je:
-                    logger.warning(f"Failed to parse JSON output {jf.name}: {type(je).__name__}")
+                    logger.warning(
+                        f"Failed to parse JSON output {jf.name}: {type(je).__name__}"
+                    )
 
             # Parse TXT outputs (fallback)
             for tf in txt_files:
@@ -403,7 +431,9 @@ class SarvamTranscriptionService:
                         text = " ".join(l for l in lines if l.strip())
                         add_plain_text_segment(text)
                 except Exception as te:
-                    logger.warning(f"Failed to read TXT output {tf.name}: {type(te).__name__}")
+                    logger.warning(
+                        f"Failed to read TXT output {tf.name}: {type(te).__name__}"
+                    )
 
             # Parse minimal SRT outputs (basic time parsing)
             def _parse_srt_time(ts: str) -> float:
@@ -424,11 +454,17 @@ class SarvamTranscriptionService:
                             # Some SRTs may have an index line; handle both
                             time_line = lines[0]
                             text_lines = lines[1:]
-                            if lines[0].isdigit() and len(lines) >= 3 and "-->" in lines[1]:
+                            if (
+                                lines[0].isdigit()
+                                and len(lines) >= 3
+                                and "-->" in lines[1]
+                            ):
                                 time_line = lines[1]
                                 text_lines = lines[2:]
                             try:
-                                start_ts, end_ts = [p.strip() for p in time_line.split("-->")]
+                                start_ts, end_ts = [
+                                    p.strip() for p in time_line.split("-->")
+                                ]
                                 st = _parse_srt_time(start_ts)
                                 et = _parse_srt_time(end_ts)
                             except Exception:
@@ -438,7 +474,9 @@ class SarvamTranscriptionService:
                             if text:
                                 all_segments.append((st, et, text))
                 except Exception as se:
-                    logger.warning(f"Failed to parse SRT output {sf.name}: {type(se).__name__}")
+                    logger.warning(
+                        f"Failed to parse SRT output {sf.name}: {type(se).__name__}"
+                    )
 
             # Sort by start time and format
             all_segments.sort(key=lambda x: x[0])
@@ -456,7 +494,9 @@ class SarvamTranscriptionService:
                     details={
                         "message": f"Parsed {len(all_segments)} segments from output",
                         "segments_count": len(all_segments),
-                        "transcript_preview": segments_text[:200] if segments_text else "",
+                        "transcript_preview": (
+                            segments_text[:200] if segments_text else ""
+                        ),
                         "component": "SarvamTranscriptionService",
                         "method": "_parse_sarvam_output",
                     },
