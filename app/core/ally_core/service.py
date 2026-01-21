@@ -30,7 +30,7 @@ class AllyCoreService:
 
         # Required fields
         payload: dict[str, str | int] = {
-            "chat_id": chat_id,
+            "chatId": chat_id,
         }
 
         # Optional fields (only added if present)

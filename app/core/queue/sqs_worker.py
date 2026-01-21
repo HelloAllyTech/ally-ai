@@ -4,6 +4,7 @@ Production SQS Worker with proper cleanup and shutdown.
 
 import asyncio
 
+from app.core.ally_core import AllyCoreClient, AllyCoreService
 from app.core.config import settings
 from app.core.constants import SQSWorkerConstants
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
@@ -33,6 +34,7 @@ async def main():
         # Initialize components
         SQSQueueClient.create_client()
         queue_service = SQSQueueService(client=SQSQueueClient.get_client())
+        ally_core_service = AllyCoreService(AllyCoreClient.get_client())
 
         # Initialize OpenAI clients
         initialize_openai_clients()
@@ -46,7 +48,7 @@ async def main():
 
         # Pass text_generation_service to the handler
         transcription_handler = TranscriptionHandler(
-            queue_service=queue_service,
+            ally_core_service=ally_core_service,
             request_queue_url=settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
             result_queue_url=settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL,
             text_generation_service=text_generation_service,
