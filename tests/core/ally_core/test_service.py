@@ -62,7 +62,7 @@ async def test_process_transcript_required_only(service, mock_client):
     }
 
     assert kwargs["json"] == {
-        "chat_id": 123,
+        "chatId": 123,
     }
 
 
@@ -82,7 +82,7 @@ async def test_process_transcript_with_optional_fields(service, mock_client):
     _, kwargs = mock_client.post.call_args
 
     assert kwargs["json"] == {
-        "chat_id": 1,
+        "chatId": 1,
         "downloadPresignedUrl": "https://download.url",
         "deletePresignedUrl": "https://delete.url",
         "error": "some error",
