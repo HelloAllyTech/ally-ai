@@ -32,7 +32,6 @@ class TestTranscriptionHandler:
         return TranscriptionHandler(
             ally_core_service=mock_ally_core_service,
             request_queue_url="http://localhost:4566/test-queue",
-            result_queue_url="http://localhost:4566/response-queue",
             text_generation_service=mock_text_generation_service,
             storage_service=mock_storage_service,
             bucket_name="test-bucket",

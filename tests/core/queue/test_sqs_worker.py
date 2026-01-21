@@ -102,14 +102,12 @@ class TestSQSWorker:
                 self,
                 ally_core_service,
                 request_queue_url,
-                result_queue_url,
                 text_generation_service,
                 storage_service,
                 bucket_name,
             ):
                 self.ally_core_service = ally_core_service
                 self.request_queue_url = request_queue_url
-                self.result_queue_url = result_queue_url
                 self.text_generation_service = text_generation_service
                 self.storage_service = storage_service
                 self.bucket_name = bucket_name
@@ -300,10 +298,6 @@ class TestSQSWorker:
         assert (
             handler_args["request_queue_url"]
             == sqs_worker.settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL
-        )
-        assert (
-            handler_args["result_queue_url"]
-            == sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL
         )
         assert (
             handler_args["bucket_name"]
