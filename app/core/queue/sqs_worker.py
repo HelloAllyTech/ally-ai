@@ -33,6 +33,7 @@ async def main():
     try:
         # Initialize components
         SQSQueueClient.create_client()
+        await AllyCoreClient.create_client()
         queue_service = SQSQueueService(client=SQSQueueClient.get_client())
         ally_core_service = AllyCoreService(AllyCoreClient.get_client())
 

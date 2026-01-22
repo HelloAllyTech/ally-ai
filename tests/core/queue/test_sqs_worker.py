@@ -67,6 +67,10 @@ class TestSQSWorker:
 
         class FakeAllyCoreClient:
             @classmethod
+            async def create_client(cls):
+                cls.created = True
+
+            @classmethod
             def get_client(cls):
                 return "ally-core-client"
 

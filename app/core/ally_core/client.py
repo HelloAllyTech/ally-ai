@@ -14,7 +14,7 @@ class AllyCoreClient:
         global _ally_core_client
 
         if not _ally_core_client:
-            raise Exception("All core client not initialised.")
+            raise Exception("Ally core client not initialised.")
 
         return _ally_core_client
 

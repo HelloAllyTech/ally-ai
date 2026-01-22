@@ -20,7 +20,7 @@ def reset_global_client():
 
 @pytest.mark.asyncio
 async def test_get_client_raises_if_not_initialized():
-    with pytest.raises(Exception, match="All core client not initialised."):
+    with pytest.raises(Exception, match="Ally core client not initialised."):
         AllyCoreClient.get_client()
 
 
