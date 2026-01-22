@@ -65,6 +65,15 @@ class TestSQSWorker:
             def __init__(self, client):
                 self.client = client
 
+        class FakeAllyCoreClient:
+            @classmethod
+            def get_client(cls):
+                return "ally-core-client"
+
+        class FakeAllyCoreService:
+            def __init__(self, client):
+                self.client = client
+
         class FakeEmbeddingClient:
             @classmethod
             def get_client(cls):
@@ -91,16 +100,14 @@ class TestSQSWorker:
         class FakeTranscriptionHandler:
             def __init__(
                 self,
-                queue_service,
+                ally_core_service,
                 request_queue_url,
-                result_queue_url,
                 text_generation_service,
                 storage_service,
                 bucket_name,
             ):
-                self.queue_service = queue_service
+                self.ally_core_service = ally_core_service
                 self.request_queue_url = request_queue_url
-                self.result_queue_url = result_queue_url
                 self.text_generation_service = text_generation_service
                 self.storage_service = storage_service
                 self.bucket_name = bucket_name
@@ -151,11 +158,15 @@ class TestSQSWorker:
             S3Service=FakeS3Service,
             TranscriptionHandler=FakeTranscriptionHandler,
             MessageProcessor=FakeMessageProcessor,
+            AllyCoreClient=FakeAllyCoreClient,
+            AllyCoreService=FakeAllyCoreService,
         )
 
     @pytest.fixture
     def patch_dependencies(self, sqs_worker, monkeypatch, fakes):
         # Patch all external deps referenced inside sqs_worker
+        monkeypatch.setattr(sqs_worker, "AllyCoreClient", fakes.AllyCoreClient)
+        monkeypatch.setattr(sqs_worker, "AllyCoreService", fakes.AllyCoreService)
         monkeypatch.setattr(sqs_worker, "SQSQueueClient", fakes.QueueClient)
         monkeypatch.setattr(sqs_worker, "SQSQueueService", fakes.QueueService)
         monkeypatch.setattr(sqs_worker, "OpenAIEmbeddingClient", fakes.EmbeddingClient)
@@ -255,6 +266,8 @@ class TestSQSWorker:
                 constructed["processor_kwargs"] = kwargs
 
         # Patch with capturing fakes and minimal deps
+        monkeypatch.setattr(sqs_worker, "AllyCoreClient", fakes.AllyCoreClient)
+        monkeypatch.setattr(sqs_worker, "AllyCoreService", fakes.AllyCoreService)
         monkeypatch.setattr(sqs_worker, "SQSQueueClient", fakes.QueueClient)
         monkeypatch.setattr(sqs_worker, "SQSQueueService", CapturingQueueService)
         monkeypatch.setattr(sqs_worker, "OpenAIEmbeddingClient", fakes.EmbeddingClient)
@@ -285,10 +298,6 @@ class TestSQSWorker:
         assert (
             handler_args["request_queue_url"]
             == sqs_worker.settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL
-        )
-        assert (
-            handler_args["result_queue_url"]
-            == sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL
         )
         assert (
             handler_args["bucket_name"]

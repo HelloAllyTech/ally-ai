@@ -1,15 +1,9 @@
-import asyncio
-import json
 from typing import Any, Dict, List, Optional
 
+from app.core.ally_core import AllyCoreService
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
-from app.core.queue.message_models import (
-    MessageType,
-    TranscribeAndSummarizeResponseMessage,
-    TranscriptionResultMessage,
-)
-from app.core.queue.sqs_queue_service import SQSQueueService
+from app.core.queue.message_models import TranscriptionResultMessage
 from app.core.storage.s3_service import S3Service
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
@@ -27,9 +21,8 @@ class TranscriptionHandler:
 
     def __init__(
         self,
-        queue_service: Optional[SQSQueueService] = None,
+        ally_core_service: AllyCoreService = None,
         request_queue_url: str = None,
-        result_queue_url: str = None,
         text_generation_service: Optional[OpenAITextGenerationService] = None,
         storage_service: Optional[S3Service] = None,
         bucket_name: str = None,
@@ -38,17 +31,16 @@ class TranscriptionHandler:
         Initialize the transcription handler.
 
         Parameters:
-            queue_service (Optional[SQSQueueService]): The queue service to use for
-            sending responses.
+            ally_core_service (AllyCoreService): The service to use for interaction with
+            ally backend (core).
             text_generation_service (Optional[OpenAITextGenerationService]): The text
             generation service for diarization and summary.
             storage_service (Optional[S3Service]): The storage service to use for
             uploading results.
             bucket_name (str): The name of the bucket to use for uploading results.
         """
-        self.queue_service = queue_service
+        self.ally_core_service = ally_core_service
         self.request_queue_url = request_queue_url
-        self.result_queue_url = result_queue_url
         self.text_generation_service = text_generation_service  # Use passed service
         self.storage_service = storage_service
         self.bucket_name = bucket_name
@@ -74,7 +66,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "process_request",
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -103,7 +94,6 @@ class TranscriptionHandler:
                             "method": "process_request",
                             "status": "success",
                             "request_queue_url": self.request_queue_url,
-                            "result_queue_url": self.result_queue_url,
                             "bucket_name": self.bucket_name,
                         },
                     )
@@ -122,7 +112,6 @@ class TranscriptionHandler:
                             "method": "process_request",
                             "status": "failed",
                             "request_queue_url": self.request_queue_url,
-                            "result_queue_url": self.result_queue_url,
                             "bucket_name": self.bucket_name,
                         },
                     )
@@ -148,7 +137,6 @@ class TranscriptionHandler:
                         "method": "process_request",
                         "exception_type": type(e).__name__,
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -186,7 +174,6 @@ class TranscriptionHandler:
                             len(segments_text) if segments_text else 0
                         ),
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -222,8 +209,8 @@ class TranscriptionHandler:
                 summary.model_dump() if hasattr(summary, "model_dump") else summary
             )
 
-            # Send the results to bucket and queue
-            await self.send_combined_result_to_queue(
+            # Send the results to bucket and ally core
+            await self.send_combined_result_to_ally_core(
                 chat_id, transcription_data, summary_data
             )
 
@@ -241,7 +228,6 @@ class TranscriptionHandler:
                         "messages_count": len(messages),
                         "transcription_data_length": len(transcription_data),
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -266,7 +252,6 @@ class TranscriptionHandler:
                         "method": "_process_transcription",
                         "exception_type": type(e).__name__,
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -311,7 +296,6 @@ class TranscriptionHandler:
                         "exception_type": type(e).__name__,
                         "messages_count": len(messages),
                         "request_queue_url": self.request_queue_url,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -320,12 +304,12 @@ class TranscriptionHandler:
             await self._send_error_response(chat_id, "Processing failed")
             raise Exception("Summary generation failed")
 
-    async def send_combined_result_to_queue(
+    async def send_combined_result_to_ally_core(
         self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]
     ) -> None:
         """
         Upload transcription and summary results to bucket and send
-        presigned URLs to the result queue.
+        presigned URLs to the ally core using its process-transcript API.
 
         Parameters:
             chat_id (int): The chat ID.
@@ -380,10 +364,9 @@ class TranscriptionHandler:
                             "error": f"Failed to generate presigned URLs for chat_id: {chat_id}",
                             "chat_id": chat_id,
                             "component": "TranscriptionHandler",
-                            "method": "send_combined_result_to_queue",
+                            "method": "send_combined_result_to_ally_core",
                             "bucket_object_key": bucket_object_key,
                             "bucket_name": self.bucket_name,
-                            "result_queue_url": self.result_queue_url,
                             "download_url_generated": bool(download_presigned_url),
                             "delete_url_generated": bool(delete_presigned_url),
                         },
@@ -392,17 +375,10 @@ class TranscriptionHandler:
                 raise Exception("Failed to generate presigned URLs")
 
             # Create message with presigned URLs
-            message = TranscribeAndSummarizeResponseMessage(
-                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESPONSE,
-                timestamp=int(asyncio.get_event_loop().time() * 1000),
+            await self.ally_core_service.process_transcript(
                 chat_id=chat_id,
                 download_presigned_url=download_presigned_url,
                 delete_presigned_url=delete_presigned_url,
-            )
-
-            await self.queue_service.send_message(
-                queue_url=self.result_queue_url,
-                message_body=json.dumps(message.model_dump()),
             )
 
             logger.info(f"Sent presigned URLs to queue for chat_id: {chat_id}")
@@ -415,10 +391,9 @@ class TranscriptionHandler:
                         "message": f"Sent presigned URLs to queue for chat_id: {chat_id}",
                         "chat_id": chat_id,
                         "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_queue",
+                        "method": "send_combined_result_to_ally_core",
                         "bucket_object_key": bucket_object_key,
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                         "download_url_length": len(download_presigned_url),
                         "delete_url_length": len(delete_presigned_url),
                         "transcription_count": len(transcription),
@@ -436,11 +411,10 @@ class TranscriptionHandler:
                         "message": f"  - Download URL: {download_presigned_url[:50]}...",
                         "chat_id": chat_id,
                         "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_queue",
+                        "method": "send_combined_result_to_ally_core",
                         "url_type": "download",
                         "url_preview": download_presigned_url[:50] + "...",
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                     },
                 )
             )
@@ -454,11 +428,10 @@ class TranscriptionHandler:
                         "message": f"  - Delete URL: {delete_presigned_url[:50]}...",
                         "chat_id": chat_id,
                         "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_queue",
+                        "method": "send_combined_result_to_ally_core",
                         "url_type": "delete",
                         "url_preview": delete_presigned_url[:50] + "...",
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                     },
                 )
             )
@@ -477,10 +450,9 @@ class TranscriptionHandler:
                         "error": f"Error sending combined result to queue for chat_id {chat_id}: {type(e).__name__}",
                         "chat_id": chat_id,
                         "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_queue",
+                        "method": "send_combined_result_to_ally_core",
                         "exception_type": type(e).__name__,
                         "bucket_name": self.bucket_name,
-                        "result_queue_url": self.result_queue_url,
                         "transcription_count": len(transcription),
                         "summary_keys": list(summary.keys()) if summary else [],
                     },
@@ -492,18 +464,9 @@ class TranscriptionHandler:
     async def _send_error_response(self, chat_id: Any, error_message: str) -> None:
         """Send error response to the results queue."""
         try:
-            error_response = TranscribeAndSummarizeResponseMessage(
-                message_type=MessageType.TRANSCRIBE_AND_SUMMARIZE_RESPONSE,
-                timestamp=int(asyncio.get_event_loop().time() * 1000),
+            await self.ally_core_service.process_transcript(
                 chat_id=chat_id,
-                transcription=None,
-                summary=None,
                 error=error_message,
-            )
-
-            await self.queue_service.send_message(
-                queue_url=self.result_queue_url,
-                message_body=json.dumps(error_response.model_dump()),
             )
 
             logger.info(f"Error response sent for chat_id: {chat_id}")
@@ -518,7 +481,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "_send_error_response",
                         "error_message": error_message,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )
@@ -541,7 +503,6 @@ class TranscriptionHandler:
                         "method": "_send_error_response",
                         "exception_type": type(e).__name__,
                         "error_message": error_message,
-                        "result_queue_url": self.result_queue_url,
                         "bucket_name": self.bucket_name,
                     },
                 )

@@ -32,6 +32,7 @@ class TranscriptionResultMessage(BaseQueueMessage):
     segments_text: str
 
 
+# TODO - Remove after testing ally-ai and ally-core integration
 class TranscribeAndSummarizeResponseMessage(BaseQueueMessage):
     """
     Message containing presigned URLs for downloading and deleting transcription

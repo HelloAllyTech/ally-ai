@@ -14,7 +14,7 @@ class TestTranscriptionHandler:
     """Class-based tests for TranscriptionHandler."""
 
     @pytest.fixture
-    def mock_queue_service(self):
+    def mock_ally_core_service(self):
         return AsyncMock()
 
     @pytest.fixture
@@ -27,12 +27,11 @@ class TestTranscriptionHandler:
 
     @pytest.fixture
     def handler(
-        self, mock_queue_service, mock_storage_service, mock_text_generation_service
+        self, mock_ally_core_service, mock_storage_service, mock_text_generation_service
     ):
         return TranscriptionHandler(
-            queue_service=mock_queue_service,
+            ally_core_service=mock_ally_core_service,
             request_queue_url="http://localhost:4566/test-queue",
-            result_queue_url="http://localhost:4566/response-queue",
             text_generation_service=mock_text_generation_service,
             storage_service=mock_storage_service,
             bucket_name="test-bucket",
@@ -40,7 +39,7 @@ class TestTranscriptionHandler:
 
     # ---------------- process_request ----------------
     @pytest.mark.asyncio
-    async def test_process_request_success(self, handler, mock_queue_service):
+    async def test_process_request_success(self, handler, mock_ally_core_service):
         # Arrange
         message_data = {
             "message_type": MessageType.TRANSCRIPTION_RESULT,
@@ -57,7 +56,7 @@ class TestTranscriptionHandler:
         # Assert
         handler._process_transcription.assert_awaited_once()
         handler._send_error_response.assert_not_awaited()
-        mock_queue_service.send_message.assert_not_awaited()  # no direct sends here
+        mock_ally_core_service.process_transcript.assert_not_awaited()  # no direct sends here
 
     @pytest.mark.asyncio
     async def test_process_request_failure_sends_error(self, handler):
@@ -102,7 +101,7 @@ class TestTranscriptionHandler:
         handler,
         mock_text_generation_service: AsyncMock,
         mock_storage_service: AsyncMock,
-        mock_queue_service: AsyncMock,
+        mock_ally_core_service: AsyncMock,
     ):
         # Arrange diarization result with lowercase roles to verify uppercasing
         diarized_messages = [
@@ -117,7 +116,7 @@ class TestTranscriptionHandler:
 
         fake_summary = {"summary": "ok"}
         handler._generate_summary = AsyncMock(return_value=fake_summary)
-        handler.send_combined_result_to_queue = AsyncMock()
+        handler.send_combined_result_to_ally_core = AsyncMock()
 
         request = SimpleNamespace(
             chat_id=111, segments_text="00:00-00:01 hi\n00:01-00:02 hello"
@@ -137,7 +136,7 @@ class TestTranscriptionHandler:
         )
         assert passed_messages[0].role == "CLIENT"
         assert passed_messages[1].role == "COUNSELOR"
-        handler.send_combined_result_to_queue.assert_awaited_once_with(
+        handler.send_combined_result_to_ally_core.assert_awaited_once_with(
             111, [m.model_dump() for m in passed_messages], fake_summary
         )
 
@@ -190,10 +189,13 @@ class TestTranscriptionHandler:
         # Assert
         handler._send_error_response.assert_awaited_once_with(444, "Processing failed")
 
-    # ---------------- send_combined_result_to_queue ----------------
+    # ---------------- send_combined_result_to_ally_core ----------------
     @pytest.mark.asyncio
-    async def test_send_combined_result_to_queue_success(
-        self, handler, mock_storage_service: AsyncMock, mock_queue_service: AsyncMock
+    async def test_send_combined_result_to_ally_core_success(
+        self,
+        handler,
+        mock_storage_service: AsyncMock,
+        mock_ally_core_service: AsyncMock,
     ):
         # Arrange
         chat_id = 555
@@ -208,7 +210,7 @@ class TestTranscriptionHandler:
         )
 
         # Act
-        await handler.send_combined_result_to_queue(chat_id, transcription, summary)
+        await handler.send_combined_result_to_ally_core(chat_id, transcription, summary)
 
         # Assert upload and presigned generation
         mock_storage_service.upload_to_s3.assert_awaited_once()
@@ -216,17 +218,14 @@ class TestTranscriptionHandler:
         mock_storage_service.generate_presigned_delete_url.assert_awaited_once()
 
         # Assert queue send with proper body
-        assert mock_queue_service.send_message.await_count == 1
-        called_kwargs = mock_queue_service.send_message.await_args.kwargs
-        assert called_kwargs["queue_url"] == handler.result_queue_url
-        body = json.loads(called_kwargs["message_body"])  # It sends model_dump JSON
-        assert body["message_type"] == "transcribe_and_summarize_response"
-        assert body["chat_id"] == chat_id
-        assert body["download_presigned_url"].startswith("https://dl/")
-        assert body["delete_presigned_url"].startswith("https://del/")
+        assert mock_ally_core_service.process_transcript.await_count == 1
+        called_kwargs = mock_ally_core_service.process_transcript.await_args.kwargs
+        assert called_kwargs["chat_id"] == chat_id
+        assert called_kwargs["download_presigned_url"].startswith("https://dl/")
+        assert called_kwargs["delete_presigned_url"].startswith("https://del/")
 
     @pytest.mark.asyncio
-    async def test_send_combined_result_to_queue_missing_presigned_triggers_error(
+    async def test_send_combined_result_to_ally_core_missing_presigned_triggers_error(
         self, handler, mock_storage_service: AsyncMock
     ):
         # Arrange
@@ -237,7 +236,7 @@ class TestTranscriptionHandler:
         handler._send_error_response = AsyncMock()
 
         # Act
-        await handler.send_combined_result_to_queue(666, [], {})
+        await handler.send_combined_result_to_ally_core(666, [], {})
 
         # Assert: error path sends error response
         handler._send_error_response.assert_awaited_once_with(666, "Processing failed")
@@ -245,19 +244,13 @@ class TestTranscriptionHandler:
     # ---------------- _send_error_response ----------------
     @pytest.mark.asyncio
     async def test_send_error_response_pushes_message(
-        self, handler, mock_queue_service: AsyncMock
+        self, handler, mock_ally_core_service: AsyncMock
     ):
         # Act
         await handler._send_error_response(chat_id=777, error_message="bad news")
 
         # Assert
-        assert mock_queue_service.send_message.await_count == 1
-        kwargs = mock_queue_service.send_message.await_args.kwargs
-        assert kwargs["queue_url"] == handler.result_queue_url
-        payload = json.loads(kwargs["message_body"])  # model_dump JSON
-        assert payload["message_type"] == "transcribe_and_summarize_response"
-        assert payload["chat_id"] == 777
-        assert payload["error"] == "bad news"
-        # Transcription and summary are NOT part of the response message schema
-        assert "transcription" not in payload
-        assert "summary" not in payload
+        assert mock_ally_core_service.process_transcript.await_count == 1
+        kwargs = mock_ally_core_service.process_transcript.await_args.kwargs
+        assert kwargs["chat_id"] == 777
+        assert kwargs["error"] == "bad news"
