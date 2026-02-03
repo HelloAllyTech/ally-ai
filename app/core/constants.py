@@ -13,6 +13,9 @@ class TextGenerationConstants:
 
 
 class AgeRange(str, Enum):
+    BELOW_FIVE = "0-5"
+    SIX_TO_TWELVE = "6-12"
+    TWELVE_TO_SEVENTEEN = "13-17"
     EIGHTEEN_TO_TWENTY_FOUR = "18-24"
     TWENTY_FIVE_TO_THIRTY_FOUR = "25-34"
     THIRTY_FIVE_TO_FORTY_FOUR = "35-44"
