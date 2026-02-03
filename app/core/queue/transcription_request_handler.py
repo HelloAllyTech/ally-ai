@@ -246,5 +246,5 @@ class TranscriptionRequestHandler:
             }
 
 
-
- 
+print(TranscribeAndSummarizeRequestMessage)
+print(DeepgramTranscriptionService)
