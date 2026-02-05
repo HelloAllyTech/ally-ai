@@ -5,19 +5,19 @@ from enum import Enum
 from typing import Any, Dict
 
 import boto3
-from core.config import settings
-from core.message_models import (
+from app.functions.transcriptions.core.config import settings
+from app.functions.transcriptions.core.message_models import (
     TranscribeAndSummarizeRequestMessage,
     TranscriptionResultMessage,
 )
-from services import (
+from app.functions.transcriptions.services import (
     DeepgramTranscriptionService,
     OpenAITranscriptionService,
     SarvamTranscriptionService,
 )
-from utils.logger import get_logger
-from utils.phi_events import PHIEvents
-from utils.phi_logger import PHILogEvent, log_sync, phi_logger
+from app.functions.transcriptions.utils.logger import get_logger
+from app.functions.transcriptions.utils.phi_events import PHIEvents
+from app.functions.transcriptions.utils.phi_logger import PHILogEvent, log_sync, phi_logger
 
 logger = get_logger(__name__)
 
@@ -244,7 +244,3 @@ class TranscriptionRequestHandler:
                 "error": "Processing failed",
                 "chat_id": chat_id,
             }
-
-
-print(TranscribeAndSummarizeRequestMessage)
-print(DeepgramTranscriptionService)
