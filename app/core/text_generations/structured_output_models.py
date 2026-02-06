@@ -191,9 +191,9 @@ class StructuredSummaryNote(BaseModel):
     relationship_status: Optional[str] = Field(
         None, description="Relationship status of the client."
     )
-    session_summary: Optional[str] = Field(
+    session_summary: Optional[list[str]] = Field(
         None,
-        description="Detailed summary of the session, which have 250 to 500 words.",
+        description="Bulletin points of the session summary.",
     )
     counseling_process_flow: Optional[List[str]] = Field(
         None,
@@ -257,8 +257,10 @@ class StructuredSummaryNote(BaseModel):
                 "relationship_status": "Single",
                 "location": "Mumbai",
                 "code_of_concern": "Work-life Concerns",
-                "session_summary": "Client discussed work-life balance challenges "
-                "and developed coping strategies.",
+                "session_summary": ["The client expressed feelings of exhaustion and overwhelm due to the pressures of work and home responsibilities. ",
+                "The session focused on identifying goals for managing emotions and setting boundaries.",
+                " The counselor guided the client through a breathing exercise and discussed practical steps for sharing household responsibilities with her husband and engaging in self-care activities.",
+                " The client expressed hope for implementing the strategies discussed."],
                 "counseling_process_flow": [
                     "Initial assessment",
                     "Discussion of concerns",

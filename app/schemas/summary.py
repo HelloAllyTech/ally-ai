@@ -72,7 +72,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
         None, description="Code of concern for the session."
     )
 
-    session_summary: Optional[str] = Field(None, description="Summary of the session.")
+    session_summary: Optional[str] = Field(None, description="Summary of the session as bullet points.")
 
     counseling_process_flow: Optional[str] = Field(
         None, description="Flow of the counseling process."

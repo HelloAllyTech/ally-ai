@@ -44,8 +44,9 @@ SUMMARY_PROMPT = PromptTemplate(
                 for each field in the output schema.
                 Avoid leaving fields as null/empty when information
                 is present in the conversation.
-                For the session summary, provide a detailed summary between 300
-                and 500 words.
+                For the session summary, provide a detailed summary mostly independent sentences.
+                
+                      
                 Responses shorter than 300 words are invalid.
 
                 IMPORTANT RULES:

@@ -432,7 +432,7 @@ class TestOpenAITextGenerationService:
         # Setup mocks
 
         mock_structured_response = StructuredSummaryNote(
-            session_summary="Test summary",
+            session_summary=["Test summary"],
             tags=[StructuredTag(tag="anxiety", positivity_rating=2)],
             call_quality=85,
         )

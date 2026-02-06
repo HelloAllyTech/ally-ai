@@ -164,7 +164,7 @@ class TestStructuredOutputModelToRest:
             relationship_status="Single",
             location="Mumbai",
             code_of_concern="Work-life Concerns",
-            session_summary="Summary...",
+            session_summary=["Summary..."],
             counseling_process_flow=["Phase A", "Phase B"],
             key_concerns=["Concern 1", "Concern 2"],
             subjective_observations=["Obs 1"],
@@ -197,7 +197,7 @@ class TestStructuredOutputModelToRest:
         assert resp.relationship_status == "Single"
         assert resp.location == "Mumbai"
         assert resp.code_of_concern == "Work-life Concerns"
-        assert resp.session_summary == "Summary..."
+        assert resp.session_summary == "- Summary..."
 
         # Bullet list formatting
         assert resp.counseling_process_flow == "- Phase A\n- Phase B"

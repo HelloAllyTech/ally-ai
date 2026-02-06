@@ -215,7 +215,11 @@ def _convert_structured_summary_note(
         relationship_status=sop_model.relationship_status,
         location=sop_model.location,
         code_of_concern=sop_model.code_of_concern,
-        session_summary=sop_model.session_summary,
+        session_summary=(
+            format_list_to_bullet_points(sop_model.session_summary)
+            if sop_model.session_summary
+            else None
+        ),
         counseling_process_flow=(
             format_list_to_bullet_points(sop_model.counseling_process_flow)
             if sop_model.counseling_process_flow

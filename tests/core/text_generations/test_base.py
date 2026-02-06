@@ -248,7 +248,7 @@ class TestBaseTextGenerationService:
                 self, chat_history: List[ChatMessage], keys: Optional[List[str]] = None
             ):
                 return SummaryNoteAndTagsResponse(
-                    summary="test", tags=[], call_quality=3
+                    session_summary="test", tags=[], call_quality=3
                 )
 
             # Missing other abstract methods
