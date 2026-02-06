@@ -123,13 +123,25 @@ async def generate_simulation_analysis(
     summary_service: SummaryService = Depends(get_summary_service),
 ):
     """
-    Generates simulation analysis based on chat history and goal.
+    Generates simulation analysis based on chat history.
 
-    Analyzes conversation performance to identify improvement areas and positives.
+    Analyzes conversation performance to identify improvement areas and positives
+    based on clinical counseling competencies.
+
+    Always returns:
+    - improvements: Areas needing development
+    - positives: Demonstrated strengths
+
+    When need_memory=True, additionally returns:
+    - session_glimpse: Brief overview of the current session
+    - cumulative_memory: Comprehensive cumulative narrative across sessions
     """
     try:
         analysis_response = await summary_service.generate_simulation_summary(
-            request.chat_history, request.goal
+            chat_history=request.chat_history,
+            need_memory=request.need_memory,
+            previous_memory=request.previous_memory,
+            memory_prompt=request.memory_prompt,
         )
 
         return SimulationAnalysisResponse(**analysis_response)

@@ -251,7 +251,6 @@ class TestSummaryScenarioFeedbackEndpoint(BaseAPITest):
         """Test successful scenario feedback generation."""
         request = {
             "chat_history": sample_chat_messages,
-            "goal": "Improve active listening skills",
         }
 
         # Use the global mock directly
@@ -282,7 +281,7 @@ class TestSummaryScenarioFeedbackEndpoint(BaseAPITest):
         self, client: TestClient, mock_summary_service
     ):
         """Test scenario feedback with empty chat history."""
-        request = {"chat_history": [], "goal": "Test goal"}
+        request = {"chat_history": []}
 
         # Use the global mock directly
         from unittest.mock import patch
@@ -317,7 +316,7 @@ class TestSummaryScenarioFeedbackEndpoint(BaseAPITest):
 
     def test_scenario_feedback_methods(self, client: TestClient, sample_chat_messages):
         """Test that scenario/feedback endpoint only accepts POST requests."""
-        request = {"chat_history": sample_chat_messages, "goal": "test"}
+        request = {"chat_history": sample_chat_messages}
 
         # Test POST (should work)
         response = client.post("/api/v1/summary/scenario/feedback", json=request)

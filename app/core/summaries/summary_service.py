@@ -265,38 +265,40 @@ class SummaryService:
     async def generate_simulation_summary(
         self,
         chat_history: List[ChatMessage],
-        goal: Optional[str] = None,
+        need_memory: bool = False,
+        previous_memory: Optional[str] = None,
+        memory_prompt: Optional[str] = None,
         chat_id: Optional[str] = None,
     ):
         """
-        Generate counselor training simulation analysis from chat history and optional goal.
-
-        If 'goal' is provided, a deprecation warning is issued.
+        Generate counselor training simulation analysis with optional memory summary.
 
         Parameters:
             chat_history (List[ChatMessage]): The conversation between AI client and counselor.
-            goal (Optional[str]): The specific training objective to evaluate against. (DEPRECATED)
+            need_memory (bool): Whether to generate memory summary alongside analysis.
+            previous_memory (Optional[str]): Previous memory summary to build upon (when need_memory=True).
+            memory_prompt (Optional[str]): Custom instructions for memory generation (when need_memory=True).
             chat_id (Optional[str]): The chat ID for PHI logging.
 
         Returns:
-            Dict[str, List[str]]: Dictionary containing:
+            Dict[str, Any]: Dictionary containing:
                 - "improvements": Array of areas needing development
                 - "positives": Array of demonstrated strengths
+                - "session_glimpse": Brief session overview (only if need_memory=True)
+                - "cumulative_memory": Cumulative narrative (only if need_memory=True)
 
         Raises:
             CounselorTrainingAnalysisFailedException: If analysis generation fails.
         """
         start_time = time.time()
 
-        if goal is not None:
-            logger.warning(
-                f"DEPRECATION: 'goal' parameter was provided for chat_id: {chat_id}. "
-                "Please remove 'goal' from future calls."
-            )
         try:
-            # Generate the counselor training analysis
             result = await self.text_generation_service.generate_simulation_summary(
-                chat_history, goal, chat_id=chat_id
+                chat_history,
+                need_memory=need_memory,
+                previous_memory=previous_memory,
+                memory_prompt=memory_prompt,
+                chat_id=chat_id,
             )
 
             # Calculate processing time
@@ -312,6 +314,7 @@ class SummaryService:
                         "message": "Counselor training simulation analysis completed",
                         "component": "SummaryService",
                         "processing_time_ms": processing_time_ms,
+                        "memory_generated": need_memory,
                         "result_keys": (
                             list(result.keys()) if isinstance(result, dict) else []
                         ),
@@ -336,7 +339,6 @@ class SummaryService:
                         "method": "generate_simulation_summary",
                         "exception_type": type(e).__name__,
                         "chat_history_count": len(chat_history),
-                        "goal_length": len(goal),
                         "processing_time_ms": processing_time_ms,
                     },
                 )

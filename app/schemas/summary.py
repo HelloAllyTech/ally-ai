@@ -350,9 +350,17 @@ class SimulationAnalysisRequest(BaseModel):
     chat_history: List[ChatMessage] = Field(
         ..., description="List of chat messages/exchanges in the simulation"
     )
-    goal: Optional[str] = Field(
-        description="The objective or goal to analyze the simulation against",
+    need_memory: bool = Field(
+        default=False,
+        description="Whether to generate memory summary alongside analysis",
+    )
+    previous_memory: Optional[str] = Field(
         default=None,
+        description="Previous cumulative memory to build upon (when need_memory=True)",
+    )
+    memory_prompt: Optional[str] = Field(
+        default=None,
+        description="Custom instructions for memory generation (when need_memory=True)",
     )
 
 
@@ -362,4 +370,12 @@ class SimulationAnalysisResponse(BaseModel):
     )
     positives: List[str] = Field(
         ..., description="Things that went well and positive aspects demonstrated"
+    )
+    session_glimpse: Optional[str] = Field(
+        default=None,
+        description="Brief overview of the current session (only when need_memory=True)",
+    )
+    cumulative_memory: Optional[str] = Field(
+        default=None,
+        description="Comprehensive cumulative narrative across sessions (only when need_memory=True)",
     )

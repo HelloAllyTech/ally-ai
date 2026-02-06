@@ -220,7 +220,6 @@ class TestSummaryService:
     ):
         """Test successful simulation summary generation."""
         # Setup mocks
-        goal = "Improve counseling skills"
         expected_response = {
             "improvements": ["Ask more open-ended questions"],
             "positives": ["Good rapport building"],
@@ -231,15 +230,17 @@ class TestSummaryService:
 
         # Execute
         result = await summary_service.generate_simulation_summary(
-            sample_chat_messages, goal
+            sample_chat_messages
         )
 
         # Assert
         assert result == expected_response
-        (
-            mock_text_generation_service.generate_simulation_summary.assert_called_once_with(  # noqa: E501
-                sample_chat_messages, goal, chat_id=None
-            )
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            sample_chat_messages,
+            need_memory=False,
+            previous_memory=None,
+            memory_prompt=None,
+            chat_id=None,
         )
 
     @pytest.mark.asyncio
@@ -248,16 +249,13 @@ class TestSummaryService:
     ):
         """Test simulation summary generation failure."""
         # Setup mocks
-        goal = "Improve counseling skills"
         mock_text_generation_service.generate_simulation_summary.side_effect = (
             LLMInvocationFailedException("LLM error")
         )
 
         # Execute and assert
         with pytest.raises(CounselorTrainingAnalysisFailedException) as exc_info:
-            await summary_service.generate_simulation_summary(
-                sample_chat_messages, goal
-            )
+            await summary_service.generate_simulation_summary(sample_chat_messages)
 
         assert "Failed to generate counselor training analysis" in str(exc_info.value)
 
@@ -267,19 +265,208 @@ class TestSummaryService:
     ):
         """Test simulation summary with empty chat history."""
         # Setup mocks
-        goal = "Improve counseling skills"
         expected_response = {"improvements": [], "positives": []}
         mock_text_generation_service.generate_simulation_summary.return_value = (
             expected_response
         )
 
         # Execute
-        result = await summary_service.generate_simulation_summary([], goal)
+        result = await summary_service.generate_simulation_summary([])
 
         # Assert
         assert result == expected_response
-        (
-            mock_text_generation_service.generate_simulation_summary.assert_called_once_with(  # noqa: E501
-                [], goal, chat_id=None
-            )
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            [],
+            need_memory=False,
+            previous_memory=None,
+            memory_prompt=None,
+            chat_id=None,
         )
+
+    @pytest.mark.asyncio
+    async def test_generate_simulation_summary_need_memory_false_no_memory_fields(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """When need_memory=False, output has no session_glimpse/cumulative_memory."""
+        base_response = {
+            "improvements": ["Improve reflection"],
+            "positives": ["Good listening"],
+        }
+        mock_text_generation_service.generate_simulation_summary.return_value = (
+            base_response
+        )
+
+        result = await summary_service.generate_simulation_summary(
+            sample_chat_messages,
+            need_memory=False,
+        )
+
+        assert result == base_response
+        assert "session_glimpse" not in result
+        assert "cumulative_memory" not in result
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            sample_chat_messages,
+            need_memory=False,
+            previous_memory=None,
+            memory_prompt=None,
+            chat_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_simulation_summary_need_memory_true_returns_all_fields(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """When need_memory=True, output includes session_glimpse and cumulative_memory."""
+        full_response = {
+            "improvements": ["Ask more open-ended questions"],
+            "positives": ["Good rapport"],
+            "session_glimpse": "Client discussed work anxiety; counselor reflected.",
+            "cumulative_memory": "Session 1: Focus on work-related anxiety.",
+        }
+        mock_text_generation_service.generate_simulation_summary.return_value = (
+            full_response
+        )
+
+        result = await summary_service.generate_simulation_summary(
+            sample_chat_messages,
+            need_memory=True,
+        )
+
+        assert result["improvements"] == full_response["improvements"]
+        assert result["positives"] == full_response["positives"]
+        assert result["session_glimpse"] == full_response["session_glimpse"]
+        assert result["cumulative_memory"] == full_response["cumulative_memory"]
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            sample_chat_messages,
+            need_memory=True,
+            previous_memory=None,
+            memory_prompt=None,
+            chat_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_simulation_summary_need_memory_true_with_previous_memory(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """When need_memory=True and previous_memory is set, it is passed through."""
+        previous_memory = "Previous session: client was anxious about deadlines."
+        full_response = {
+            "improvements": [],
+            "positives": ["Empathy"],
+            "session_glimpse": "Brief glimpse.",
+            "cumulative_memory": "Updated cumulative narrative.",
+        }
+        mock_text_generation_service.generate_simulation_summary.return_value = (
+            full_response
+        )
+
+        result = await summary_service.generate_simulation_summary(
+            sample_chat_messages,
+            need_memory=True,
+            previous_memory=previous_memory,
+        )
+
+        assert result["session_glimpse"] == full_response["session_glimpse"]
+        assert result["cumulative_memory"] == full_response["cumulative_memory"]
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            sample_chat_messages,
+            need_memory=True,
+            previous_memory=previous_memory,
+            memory_prompt=None,
+            chat_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_simulation_summary_need_memory_true_with_memory_prompt(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """When need_memory=True and memory_prompt is set, it is passed through."""
+        memory_prompt = "Focus on therapeutic alliance and goals."
+        full_response = {
+            "improvements": [],
+            "positives": [],
+            "session_glimpse": "Glimpse with custom focus.",
+            "cumulative_memory": "Memory with custom focus.",
+        }
+        mock_text_generation_service.generate_simulation_summary.return_value = (
+            full_response
+        )
+
+        result = await summary_service.generate_simulation_summary(
+            sample_chat_messages,
+            need_memory=True,
+            memory_prompt=memory_prompt,
+        )
+
+        assert result["session_glimpse"] == full_response["session_glimpse"]
+        assert result["cumulative_memory"] == full_response["cumulative_memory"]
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            sample_chat_messages,
+            need_memory=True,
+            previous_memory=None,
+            memory_prompt=memory_prompt,
+            chat_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_simulation_summary_need_memory_true_with_all_params(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """When need_memory=True with both previous_memory and memory_prompt, all are passed."""
+        previous_memory = "Last time: focus on anxiety."
+        memory_prompt = "Emphasize progress over time."
+        full_response = {
+            "improvements": ["More reflections"],
+            "positives": ["Warmth", "Validation"],
+            "session_glimpse": "Session focused on progress.",
+            "cumulative_memory": "Cumulative narrative with progress emphasis.",
+        }
+        mock_text_generation_service.generate_simulation_summary.return_value = (
+            full_response
+        )
+
+        result = await summary_service.generate_simulation_summary(
+            sample_chat_messages,
+            need_memory=True,
+            previous_memory=previous_memory,
+            memory_prompt=memory_prompt,
+        )
+
+        assert result["improvements"] == full_response["improvements"]
+        assert result["positives"] == full_response["positives"]
+        assert result["session_glimpse"] == full_response["session_glimpse"]
+        assert result["cumulative_memory"] == full_response["cumulative_memory"]
+        mock_text_generation_service.generate_simulation_summary.assert_called_once_with(
+            sample_chat_messages,
+            need_memory=True,
+            previous_memory=previous_memory,
+            memory_prompt=memory_prompt,
+            chat_id=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_simulation_summary_output_structure_with_memory(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """Output with need_memory=True has correct keys and types."""
+        mock_text_generation_service.generate_simulation_summary.return_value = {
+            "improvements": ["A", "B"],
+            "positives": ["X"],
+            "session_glimpse": "Short glimpse text",
+            "cumulative_memory": "Longer cumulative text",
+        }
+
+        result = await summary_service.generate_simulation_summary(
+            sample_chat_messages, need_memory=True
+        )
+
+        assert set(result.keys()) == {
+            "improvements",
+            "positives",
+            "session_glimpse",
+            "cumulative_memory",
+        }
+        assert isinstance(result["improvements"], list)
+        assert isinstance(result["positives"], list)
+        assert isinstance(result["session_glimpse"], str)
+        assert isinstance(result["cumulative_memory"], str)

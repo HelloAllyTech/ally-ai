@@ -22,13 +22,14 @@ from app.core.text_generations.prompts import (
     IDENTIFY_USER_PROMPT,
     NUDGE_PROMPT,
     SIMULATION_ANALYSIS_PROMPT,
-    SIMULATION_ANALYSIS_PROMPT_NO_GOAL,
+    SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT,
     SUMMARY_PROMPT,
     TAG_POSITIVITY_RATING_PROMPT,
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
     SimulationAnalysis,
+    SimulationAnalysisWithMemory,
     StructuredDiarization,
     StructuredIdentifyUsers,
     StructuredSummaryNote,
@@ -884,21 +885,33 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return totals
 
     async def generate_simulation_summary(
-        self, chat_history: List[ChatMessage], goal: Optional[str] = None, **kwargs
-    ) -> Dict[str, List[str]]:
+        self,
+        chat_history: List[ChatMessage],
+        need_memory: bool = False,
+        previous_memory: Optional[str] = None,
+        memory_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
         """
-        Generate simulation summary analyzing chat history against an optional goal.
+        Generate simulation summary analyzing chat history, with optional memory.
 
-        Analyzes conversation performance to identify improvement areas and positives.
-        If 'goal' is None, a general clinical assessment is performed.
+        Uses a single LLM call. When need_memory is False, returns only improvements
+        and positives. When need_memory is True, a combined prompt asks for all four
+        fields (improvements, positives, session_glimpse, cumulative_memory) in one call.
 
         Parameters:
             chat_history (List[ChatMessage]): List of chat messages/exchanges
-            goal (Optional[str]): The objective or goal to analyze against
+            need_memory (bool): Whether to also generate memory fields
+            previous_memory (Optional[str]): Previous memory to build upon
+                (when need_memory=True)
+            memory_prompt (Optional[str]): Custom instructions for memory generation
+                (when need_memory=True)
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
-            Dict[str, List[str]]: Dictionary with 'improvements' and 'positives' arrays
+            Dict[str, Any]: Dictionary with 'improvements' and 'positives' arrays.
+                When need_memory=True, also includes 'session_glimpse' and
+                'cumulative_memory'.
 
         Raises:
             LLMInvocationFailedException: If LLM invocation fails
@@ -910,33 +923,63 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             [f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)]
         )
 
-        if goal:
-            logger.info("Using prompt with specific goal.")
-            prompt_template = SIMULATION_ANALYSIS_PROMPT
-            formatted_prompt = prompt_template.format(
-                goal=goal, chat_history=chat_history_str
-            )
-        else:
-            logger.info("Using prompt for general assessment (no goal provided).")
-            prompt_template = SIMULATION_ANALYSIS_PROMPT_NO_GOAL
-            formatted_prompt = prompt_template.format(chat_history=chat_history_str)
-
         try:
-            response = cast(
-                SimulationAnalysis,
-                await self._invoke_llm(
-                    formatted_prompt,
+            if need_memory:
+                # Single combined LLM call for analysis + memory
+                custom_prompt_section = ""
+                if memory_prompt:
+                    custom_prompt_section = (
+                        f"Additional Instructions:\n{memory_prompt}"
+                    )
+
+                formatted_prompt = SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT.format(
+                    chat_history=chat_history_str,
+                    previous_summary=(
+                        previous_memory or "No previous summary available."
+                    ),
+                    custom_prompt_section=custom_prompt_section,
+                )
+
+                response = cast(
+                    SimulationAnalysisWithMemory,
+                    await self._invoke_llm(
+                        formatted_prompt,
+                        SimulationAnalysisWithMemory,
+                        **kwargs,
+                    ),
+                )
+
+                logger.info(
+                    "Simulation summary with memory generated successfully"
+                )
+
+                return {
+                    "improvements": response.improvements,
+                    "positives": response.positives,
+                    "session_glimpse": response.session_glimpse,
+                    "cumulative_memory": response.cumulative_memory,
+                }
+            else:
+                # Standard analysis-only LLM call
+                formatted_prompt = SIMULATION_ANALYSIS_PROMPT.format(
+                    chat_history=chat_history_str
+                )
+
+                response = cast(
                     SimulationAnalysis,
-                    **kwargs,
-                ),
-            )
+                    await self._invoke_llm(
+                        formatted_prompt,
+                        SimulationAnalysis,
+                        **kwargs,
+                    ),
+                )
 
-            logger.info("Simulation summary generated successfully")
+                logger.info("Simulation summary generated successfully")
 
-            return {
-                "improvements": response.improvements,
-                "positives": response.positives,
-            }
+                return {
+                    "improvements": response.improvements,
+                    "positives": response.positives,
+                }
 
         except LLMInvocationFailedException as e:
             logger.exception("Failed to generate simulation summary")

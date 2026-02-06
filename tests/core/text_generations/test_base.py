@@ -1,6 +1,6 @@
 """Tests for BaseTextGenerationService."""
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from unittest.mock import MagicMock
 
 import pytest
@@ -49,10 +49,22 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
         return {"reflective": 1, "open_ended": 2, "back_channel": 3}
 
     async def generate_simulation_summary(
-        self, chat_history: List[ChatMessage], goal: str, **kwargs
-    ) -> Dict[str, List[str]]:
+        self,
+        chat_history: List[ChatMessage],
+        need_memory: bool = False,
+        previous_memory: Optional[str] = None,
+        memory_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
         """Concrete implementation of generate_simulation_summary."""
-        return {"improvements": ["improvement1"], "positives": ["positive1"]}
+        result: Dict[str, Any] = {
+            "improvements": ["improvement1"],
+            "positives": ["positive1"],
+        }
+        if need_memory:
+            result["session_glimpse"] = "Test glimpse"
+            result["cumulative_memory"] = "Test memory"
+        return result
 
 
 class TestBaseTextGenerationService:
@@ -198,9 +210,8 @@ class TestBaseTextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test generate_simulation_summary method."""
-        goal = "test goal"
         result = await text_generation_service.generate_simulation_summary(
-            sample_chat_messages, goal
+            sample_chat_messages
         )
 
         assert isinstance(result, dict)
@@ -214,11 +225,8 @@ class TestBaseTextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test generate_simulation_summary method with additional kwargs."""
-        goal = "test goal"
-        extra_param = "extra"
-
         result = await text_generation_service.generate_simulation_summary(
-            sample_chat_messages, goal, extra_param=extra_param
+            sample_chat_messages, extra_param="extra"
         )
 
         assert isinstance(result, dict)
