@@ -14,6 +14,7 @@ from app.exceptions.custom_exceptions import (
 )
 from app.schemas.common import ChatMessage
 from app.schemas.summary import (
+    CompetencyItem,
     DynamicSummaryNoteResponse,
     SummaryNoteAndTagsResponse,
     Tag,
@@ -37,9 +38,14 @@ class TestSummaryService:
     def sample_chat_messages(self):
         """Sample chat messages for testing."""
         return [
-            ChatMessage(role="counselor", content="How are you feeling today?"),
-            ChatMessage(role="client", content="I'm feeling anxious about work."),
             ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+            ChatMessage(
+                id="msg-3",
                 role="counselor",
                 content=(
                     "I understand. Can you tell me more about what's causing "
@@ -470,3 +476,108 @@ class TestSummaryService:
         assert isinstance(result["positives"], list)
         assert isinstance(result["session_glimpse"], str)
         assert isinstance(result["cumulative_memory"], str)
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_success(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """Test successful scenario evaluation generation."""
+        competencies = [
+            {"id": "comp-1", "competency": "Socialising the Client to Counselling"},
+            {"id": "comp-2", "competency": "Explanation and Promotion of Ethics"},
+        ]
+
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": ["Test improvement"],
+            "positives": ["Test positive"],
+            "achieved_competency_ids": ["comp-1"],
+        }
+
+        result = await summary_service.generate_scenario_evaluation(
+            sample_chat_messages, competencies
+        )
+
+        assert set(result.keys()) == {"improvements", "positives", "achieved_competency_ids"}
+        assert isinstance(result["improvements"], list)
+        assert isinstance(result["positives"], list)
+        assert isinstance(result["achieved_competency_ids"], list)
+        assert result["achieved_competency_ids"] == ["comp-1"]
+
+        mock_text_generation_service.generate_scenario_evaluation.assert_called_once()
+        call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
+        assert call_args[0][0] == sample_chat_messages
+        assert call_args[1]["competencies"] == competencies
+        assert call_args[1]["need_memory"] is False
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_with_memory_success(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """Test scenario evaluation with memory generation."""
+        competencies = [
+            {"id": "comp-1", "competency": "Test Competency"},
+        ]
+
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": ["Test improvement"],
+            "positives": ["Test positive"],
+            "achieved_competency_ids": ["comp-1"],
+            "session_glimpse": "Short glimpse text",
+            "cumulative_memory": "Longer cumulative text",
+        }
+
+        result = await summary_service.generate_scenario_evaluation(
+            sample_chat_messages,
+            competencies,
+            need_memory=True,
+            previous_memory="Previous context",
+        )
+
+        assert set(result.keys()) == {
+            "improvements",
+            "positives",
+            "achieved_competency_ids",
+            "session_glimpse",
+            "cumulative_memory",
+        }
+        assert result["achieved_competency_ids"] == ["comp-1"]
+
+        mock_text_generation_service.generate_scenario_evaluation.assert_called_once()
+        call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
+        assert call_args[1]["need_memory"] is True
+        assert call_args[1]["previous_memory"] == "Previous context"
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_with_empty_competencies(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """Test scenario evaluation with empty competencies list."""
+        competencies = []
+
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": ["Test"],
+            "positives": ["Test"],
+            "achieved_competency_ids": [],
+        }
+
+        result = await summary_service.generate_scenario_evaluation(
+            sample_chat_messages, competencies
+        )
+
+        assert result["achieved_competency_ids"] == []
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_failed(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """Test scenario evaluation when LLM invocation fails."""
+        competencies = [{"id": "comp-1", "competency": "Test"}]
+
+        mock_text_generation_service.generate_scenario_evaluation.side_effect = (
+            LLMInvocationFailedException("LLM error")
+        )
+
+        with pytest.raises(CounselorTrainingAnalysisFailedException):
+            await summary_service.generate_scenario_evaluation(
+                sample_chat_messages, competencies
+            )

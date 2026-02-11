@@ -432,3 +432,73 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
         """
     ),
 )
+
+SCENARIO_EVALUATION_PROMPT = PromptTemplate(
+    input_variables=["chat_history", "competencies_list"],
+    template=textwrap.dedent(
+        """
+        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
+
+        Conversation Transcript:
+        {chat_history}
+
+        Competencies to Evaluate:
+        {competencies_list}
+
+        Evaluate the counselor's performance and return ONLY a JSON object with exactly three fields.
+
+        Important rules:
+        - Provide specific, actionable feedback points based on the competencies above.
+        - Reference exact examples or quotes from the conversation to support your points.
+        - Each point should be concise but substantive.
+        - For achieved_competency_ids: Only include IDs of competencies that were clearly demonstrated in this conversation. Be selective and evidence-based.
+
+        Return only valid JSON with these fields:
+        - "positives": Array of demonstrated strengths and effective techniques with specific examples from the conversation.
+        - "improvements": Array of specific areas needing development with conversation examples.
+        - "achieved_competency_ids": Array of competency IDs (strings) that were successfully demonstrated. Only include IDs from the provided list above.
+
+        """
+    ),
+)
+
+SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
+    input_variables=["chat_history", "competencies_list", "previous_summary", "custom_prompt_section"],
+    template=textwrap.dedent(
+        """
+        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
+        You also maintain a comprehensive memory of ongoing client-counselor interactions.
+
+        {custom_prompt_section}
+
+        Conversation Transcript:
+        {chat_history}
+
+        Competencies to Evaluate:
+        {competencies_list}
+
+        Previous Summary (if available):
+        ```
+        {previous_summary}
+        ```
+
+        Evaluate the counselor's performance and return ONLY a JSON object with exactly five fields.
+
+        Important rules:
+        - Provide specific, actionable feedback points based on the competencies above.
+        - Reference exact examples or quotes from the conversation to support your points.
+        - Each point should be concise but substantive.
+        - For achieved_competency_ids: Only include IDs of competencies that were clearly demonstrated in this conversation. Be selective and evidence-based.
+        - For session_glimpse: Focus ONLY on the current session as a quick snapshot.
+        - For cumulative_memory: If a previous summary exists, integrate the new conversation while maintaining historical context and identifying patterns or changes. If no previous summary exists, create a comprehensive initial summary. Track key themes, concerns, therapeutic interventions, progress, setbacks, and emerging patterns. Maintain a coherent narrative showing the evolution of the client's journey.
+
+        Return only valid JSON with these fields:
+        - "positives": Array of demonstrated strengths and effective techniques with specific examples from the conversation.
+        - "improvements": Array of specific areas needing development with conversation examples.
+        - "achieved_competency_ids": Array of competency IDs (strings) that were successfully demonstrated. Only include IDs from the provided list above.
+        - "session_glimpse": A brief overview (2-3 sentences) of THIS current session, highlighting main topics, key takeaways, and immediate observations.
+        - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that integrates ALL sessions including the current one, showing progression, patterns, and evolution.
+
+        """
+    ),
+)

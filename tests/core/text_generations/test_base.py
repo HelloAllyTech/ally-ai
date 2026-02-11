@@ -66,6 +66,26 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
             result["cumulative_memory"] = "Test memory"
         return result
 
+    async def generate_scenario_evaluation(
+        self,
+        chat_history: List[ChatMessage],
+        competencies: List,
+        need_memory: bool = False,
+        previous_memory: Optional[str] = None,
+        memory_prompt: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Concrete implementation of generate_scenario_evaluation."""
+        result: Dict[str, Any] = {
+            "improvements": ["improvement1"],
+            "positives": ["positive1"],
+            "achieved_competency_ids": [comp.id for comp in competencies[:2]],
+        }
+        if need_memory:
+            result["session_glimpse"] = "Test glimpse"
+            result["cumulative_memory"] = "Test memory"
+        return result
+
 
 class TestBaseTextGenerationService:
     """Test cases for BaseTextGenerationService."""
@@ -84,9 +104,15 @@ class TestBaseTextGenerationService:
     def sample_chat_messages(self):
         """Sample chat messages for testing."""
         return [
-            ChatMessage(role="client", content="Hello", start_time=None, end_time=None),
             ChatMessage(
-                role="counselor", content="Hi there", start_time=None, end_time=None
+                id="msg-1", role="client", content="Hello", start_time=None, end_time=None
+            ),
+            ChatMessage(
+                id="msg-2",
+                role="counselor",
+                content="Hi there",
+                start_time=None,
+                end_time=None,
             ),
         ]
 

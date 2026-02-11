@@ -449,3 +449,46 @@ class SimulationAnalysisWithMemory(BaseModel):
         "current conversation with previous context, tracking the evolving therapeutic "
         "relationship, client progress, patterns, and therapeutic interventions over time."
     )
+
+
+class ScenarioEvaluation(BaseModel):
+    """Structured output model for scenario evaluation with competency tracking."""
+
+    improvements: List[str] = Field(
+        description="Specific, actionable areas that need improvement "
+        "during the simulation"
+    )
+    positives: List[str] = Field(
+        description="Strengths and positive aspects demonstrated "
+        "during the simulation by the counselor"
+    )
+    achieved_competency_ids: List[str] = Field(
+        description="List of competency IDs that were successfully demonstrated in the conversation. "
+        "Only include IDs from the provided competencies list."
+    )
+
+
+class ScenarioEvaluationWithMemory(BaseModel):
+    """Structured output model for scenario evaluation with competency tracking and memory."""
+
+    improvements: List[str] = Field(
+        description="Specific, actionable areas that need improvement "
+        "during the simulation"
+    )
+    positives: List[str] = Field(
+        description="Strengths and positive aspects demonstrated "
+        "during the simulation by the counselor"
+    )
+    achieved_competency_ids: List[str] = Field(
+        description="List of competency IDs that were successfully demonstrated in the conversation. "
+        "Only include IDs from the provided competencies list."
+    )
+    session_glimpse: str = Field(
+        description="Brief overview/snapshot of the current session (2-3 sentences). "
+        "Highlight key takeaways, main topics discussed, and immediate observations."
+    )
+    cumulative_memory: str = Field(
+        description="Comprehensive cumulative narrative (300-500 words) that integrates "
+        "current conversation with previous context, tracking the evolving therapeutic "
+        "relationship, client progress, patterns, and therapeutic interventions over time."
+    )

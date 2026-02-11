@@ -36,9 +36,14 @@ class TestConversationService:
     def sample_chat_messages(self):
         """Sample chat messages for testing."""
         return [
-            ChatMessage(role="counselor", content="How are you feeling today?"),
-            ChatMessage(role="client", content="I'm feeling anxious about work."),
             ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+            ChatMessage(
+                id="msg-3",
                 role="counselor",
                 content=(
                     "I understand. Can you tell me more about what's causing "

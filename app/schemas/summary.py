@@ -347,6 +347,11 @@ class TagPositivityRatingResponse(BaseModel):
 
 
 class SimulationAnalysisRequest(BaseModel):
+    """
+    Request model for the deprecated /scenario/feedback endpoint.
+    Use ScenarioEvaluationRequest for the new /scenario/evaluation endpoint.
+    """
+
     chat_history: List[ChatMessage] = Field(
         ..., description="List of chat messages/exchanges in the simulation"
     )
@@ -365,11 +370,82 @@ class SimulationAnalysisRequest(BaseModel):
 
 
 class SimulationAnalysisResponse(BaseModel):
+    """
+    Response model for the deprecated /scenario/feedback endpoint.
+    Use ScenarioEvaluationResponse for the new /scenario/evaluation endpoint.
+    """
+
     improvements: List[str] = Field(
         ..., description="Areas that need improvement with specific, actionable points"
     )
     positives: List[str] = Field(
         ..., description="Things that went well and positive aspects demonstrated"
+    )
+    session_glimpse: Optional[str] = Field(
+        default=None,
+        description="Brief overview of the current session (only when need_memory=True)",
+    )
+    cumulative_memory: Optional[str] = Field(
+        default=None,
+        description="Comprehensive cumulative narrative across sessions (only when need_memory=True)",
+    )
+
+class CompetencyItem(BaseModel):
+    """
+    A Pydantic model representing a competency to evaluate.
+    """
+
+    id: str = Field(..., description="Unique identifier for the competency")
+    competency: str = Field(..., description="Name/description of the competency")
+
+    class ConfigDict:
+        json_schema_extra = {
+            "example": {
+                "id": "comp-1",
+                "competency": "Demonstration of Empathy, Warmth, Paraphrasing & Genuineness",
+            }
+        }
+
+
+class ScenarioEvaluationRequest(BaseModel):
+    """
+    Request model for the /scenario/evaluation endpoint.
+    """
+
+    chat_history: List[ChatMessage] = Field(
+        ..., description="List of chat messages with IDs for evaluation"
+    )
+    need_memory: bool = Field(
+        default=False,
+        description="Whether to generate memory summary alongside analysis",
+    )
+    previous_memory: Optional[str] = Field(
+        default=None,
+        description="Previous cumulative memory to build upon (when need_memory=True)",
+    )
+    memory_prompt: Optional[str] = Field(
+        default=None,
+        description="Custom instructions for memory generation (when need_memory=True)",
+    )
+    competencies_to_evaluate: List[CompetencyItem] = Field(
+        ...,
+        description="List of competencies to evaluate with their IDs",
+    )
+
+
+class ScenarioEvaluationResponse(BaseModel):
+    """
+    Response model for the /scenario/evaluation endpoint.
+    """
+
+    improvements: List[str] = Field(
+        ..., description="Areas that need improvement with specific, actionable points"
+    )
+    positives: List[str] = Field(
+        ..., description="Things that went well and positive aspects demonstrated"
+    )
+    achieved_competency_ids: List[str] = Field(
+        ..., description="List of competency IDs that were successfully demonstrated"
     )
     session_glimpse: Optional[str] = Field(
         default=None,

@@ -248,7 +248,7 @@ class TestSummaryScenarioFeedbackEndpoint(BaseAPITest):
     def test_scenario_feedback_success(
         self, client: TestClient, mock_summary_service, sample_chat_messages
     ):
-        """Test successful scenario feedback generation."""
+        """Test successful scenario feedback generation (deprecated endpoint)."""
         request = {
             "chat_history": sample_chat_messages,
         }
@@ -280,8 +280,10 @@ class TestSummaryScenarioFeedbackEndpoint(BaseAPITest):
     def test_scenario_feedback_empty_chat_history(
         self, client: TestClient, mock_summary_service
     ):
-        """Test scenario feedback with empty chat history."""
-        request = {"chat_history": []}
+        """Test scenario feedback with empty chat history (deprecated endpoint)."""
+        request = {
+            "chat_history": [],
+        }
 
         # Use the global mock directly
         from unittest.mock import patch
@@ -332,4 +334,83 @@ class TestSummaryScenarioFeedbackEndpoint(BaseAPITest):
 
         # Test DELETE (should fail)
         response = client.delete("/api/v1/summary/scenario/feedback")
+        assert response.status_code == 405
+
+
+class TestScenarioEvaluationEndpoint(BaseAPITest):
+    """Test cases for scenario evaluation endpoint (new endpoint with competencies)."""
+
+    def test_scenario_evaluation_success(
+        self, client: TestClient, mock_summary_service, sample_chat_messages, sample_competencies
+    ):
+        """Test successful scenario evaluation generation."""
+        request = {
+            "chat_history": sample_chat_messages,
+            "competencies_to_evaluate": sample_competencies,
+        }
+
+        # Use the global mock directly
+        from unittest.mock import patch
+
+        with patch(
+            "app.core.summaries.summary_service.SummaryService."
+            "generate_scenario_evaluation"
+        ) as mock_generate_evaluation:
+            mock_generate_evaluation.return_value = {
+                "improvements": [
+                    "Ask more open-ended questions",
+                    "Use reflective listening",
+                ],
+                "positives": ["Good rapport building", "Empathetic responses"],
+                "achieved_competency_ids": ["comp-1", "comp-2"],
+            }
+
+            response = client.post("/api/v1/summary/scenario/evaluation", json=request)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "improvements" in data
+            assert "positives" in data
+            assert "achieved_competency_ids" in data
+            assert len(data["improvements"]) == 2
+            assert len(data["positives"]) == 2
+            assert len(data["achieved_competency_ids"]) == 2
+
+    def test_scenario_evaluation_missing_competencies(
+        self, client: TestClient, sample_chat_messages
+    ):
+        """Test scenario evaluation with missing competencies field."""
+        request = {
+            "chat_history": sample_chat_messages,
+            # Missing competencies_to_evaluate
+        }
+
+        response = client.post("/api/v1/summary/scenario/evaluation", json=request)
+        
+        # Should fail validation
+        assert response.status_code == 422
+
+    def test_scenario_evaluation_methods(
+        self, client: TestClient, sample_chat_messages, sample_competencies
+    ):
+        """Test that scenario/evaluation endpoint only accepts POST requests."""
+        request = {
+            "chat_history": sample_chat_messages,
+            "competencies_to_evaluate": sample_competencies,
+        }
+
+        # Test POST (should work)
+        response = client.post("/api/v1/summary/scenario/evaluation", json=request)
+        assert response.status_code in [200, 500]  # 500 due to mocking
+
+        # Test GET (should fail)
+        response = client.get("/api/v1/summary/scenario/evaluation")
+        assert response.status_code == 405
+
+        # Test PUT (should fail)
+        response = client.put("/api/v1/summary/scenario/evaluation", json=request)
+        assert response.status_code == 405
+
+        # Test DELETE (should fail)
+        response = client.delete("/api/v1/summary/scenario/evaluation")
         assert response.status_code == 405

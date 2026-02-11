@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
@@ -13,6 +13,7 @@ from app.exceptions.custom_exceptions import (
 )
 from app.schemas.common import ChatMessage
 from app.schemas.summary import (
+    CompetencyItem,
     DynamicSummaryNoteResponse,
     SummaryNoteAndTagsResponse,
     Tag,
@@ -347,5 +348,100 @@ class SummaryService:
             logger.error(f"Failed to generate counselor training analysis: {str(e)}")
             raise CounselorTrainingAnalysisFailedException(
                 "Failed to generate counselor training analysis. "
+                "Please try again later."
+            ) from e
+
+    async def generate_scenario_evaluation(
+        self,
+        chat_history: List[ChatMessage],
+        competencies: List[CompetencyItem],
+        need_memory: bool = False,
+        previous_memory: Optional[str] = None,
+        memory_prompt: Optional[str] = None,
+        chat_id: Optional[str] = None,
+    ):
+        """
+        Generate scenario evaluation with competency tracking.
+
+        Parameters:
+            chat_history (List[ChatMessage]): The conversation between AI client and counselor.
+            competencies (List[CompetencyItem]): List of competencies with id and competency.
+            need_memory (bool): Whether to generate memory summary alongside evaluation.
+            previous_memory (Optional[str]): Previous memory summary to build upon (when need_memory=True).
+            memory_prompt (Optional[str]): Custom instructions for memory generation (when need_memory=True).
+            chat_id (Optional[str]): The chat ID for PHI logging.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - "improvements": Array of areas needing development
+                - "positives": Array of demonstrated strengths
+                - "achieved_competency_ids": Array of competency IDs demonstrated
+                - "session_glimpse": Brief session overview (only if need_memory=True)
+                - "cumulative_memory": Cumulative narrative (only if need_memory=True)
+
+        Raises:
+            CounselorTrainingAnalysisFailedException: If evaluation generation fails.
+        """
+        start_time = time.time()
+
+        try:
+            result = await self.text_generation_service.generate_scenario_evaluation(
+                chat_history,
+                competencies=competencies,
+                need_memory=need_memory,
+                previous_memory=previous_memory,
+                memory_prompt=memory_prompt,
+                chat_id=chat_id,
+            )
+
+            # Calculate processing time
+            processing_time_ms = int((time.time() - start_time) * 1000)
+
+            # Log successful completion
+            await phi_logger.log(
+                PHILogEvent(
+                    chat_id=str(chat_id) if chat_id else None,
+                    audit_id=None,  # Will be set by caller
+                    event_type=PHIEvents.DATA_MODIFIED,
+                    details={
+                        "message": "Scenario evaluation completed",
+                        "component": "SummaryService",
+                        "processing_time_ms": processing_time_ms,
+                        "memory_generated": need_memory,
+                        "competencies_count": len(competencies),
+                        "achieved_count": len(result.get("achieved_competency_ids", [])),
+                        "result_keys": (
+                            list(result.keys()) if isinstance(result, dict) else []
+                        ),
+                    },
+                )
+            )
+
+            return result
+
+        except LLMInvocationFailedException as e:
+            processing_time_ms = int((time.time() - start_time) * 1000)
+
+            # Log error
+            await phi_logger.log(
+                PHILogEvent(
+                    chat_id=str(chat_id) if chat_id else None,
+                    audit_id=None,  # Will be set by caller
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    details={
+                        "error": f"Failed to generate scenario evaluation: {type(e).__name__}",
+                        "component": "SummaryService",
+                        "method": "generate_scenario_evaluation",
+                        "exception_type": type(e).__name__,
+                        "chat_history_count": len(chat_history),
+                        "competencies_count": len(competencies),
+                        "processing_time_ms": processing_time_ms,
+                    },
+                )
+            )
+
+            logger.error(f"Failed to generate scenario evaluation: {str(e)}")
+            raise CounselorTrainingAnalysisFailedException(
+                "Failed to generate scenario evaluation. "
                 "Please try again later."
             ) from e

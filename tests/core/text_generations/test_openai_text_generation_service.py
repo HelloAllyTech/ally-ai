@@ -13,6 +13,8 @@ from app.core.text_generations.openai_text_generation_service import (
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
+    ScenarioEvaluation,
+    ScenarioEvaluationWithMemory,
     SimulationAnalysis,
     SimulationAnalysisWithMemory,
     StructuredDiarization,
@@ -29,7 +31,12 @@ from app.exceptions.custom_exceptions import (
 )
 from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse, Nudge
-from app.schemas.summary import ContentEnhance, DynamicSummaryNoteResponse, Tag
+from app.schemas.summary import (
+    CompetencyItem,
+    ContentEnhance,
+    DynamicSummaryNoteResponse,
+    Tag,
+)
 
 
 class TestSplitTextByLength:
@@ -115,9 +122,14 @@ class TestOpenAITextGenerationService:
     def sample_chat_messages(self):
         """Sample chat messages for testing."""
         return [
-            ChatMessage(role="counselor", content="How are you feeling today?"),
-            ChatMessage(role="client", content="I'm feeling anxious about work."),
             ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+            ChatMessage(
+                id="msg-3",
                 role="counselor",
                 content=(
                     "I understand. Can you tell me more about what's causing "
@@ -714,8 +726,8 @@ class TestOpenAITextGenerationService:
         """Test counselor message analysis with no counselor messages."""
         # Setup - only client messages
         client_messages = [
-            ChatMessage(role="client", content="I'm feeling anxious."),
-            ChatMessage(role="client", content="I need help."),
+            ChatMessage(id="msg-1", role="client", content="I'm feeling anxious."),
+            ChatMessage(id="msg-2", role="client", content="I need help."),
         ]
 
         # Execute
@@ -873,3 +885,92 @@ class TestOpenAITextGenerationService:
                 await text_generation_service.generate_simulation_summary(
                     sample_chat_messages, need_memory=True
                 )
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_success(
+        self, text_generation_service, sample_chat_messages
+    ):
+        """Test successful scenario evaluation generation (need_memory=False)."""
+        competencies = [
+            CompetencyItem(id="comp-1", competency="Socialising the Client to Counselling"),
+            CompetencyItem(id="comp-2", competency="Explanation and Promotion of Ethics"),
+            CompetencyItem(id="comp-3", competency="Exploration & Normalisation of Feelings"),
+        ]
+
+        mock_evaluation = ScenarioEvaluation(
+            improvements=["Ask more open-ended questions"],
+            positives=["Good rapport building"],
+            achieved_competency_ids=["comp-1", "comp-3"],
+        )
+
+        with patch.object(
+            text_generation_service, "_invoke_llm", return_value=mock_evaluation
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages, competencies
+            )
+
+            expected = {
+                "improvements": ["Ask more open-ended questions"],
+                "positives": ["Good rapport building"],
+                "achieved_competency_ids": ["comp-1", "comp-3"],
+            }
+            assert result == expected
+            assert "session_glimpse" not in result
+            assert "cumulative_memory" not in result
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_with_memory_success(
+        self, text_generation_service, sample_chat_messages
+    ):
+        """Test scenario evaluation with need_memory=True returns all 5 fields in a single LLM call."""
+        competencies = [
+            CompetencyItem(id="comp-1", competency="Socialising the Client to Counselling"),
+            CompetencyItem(id="comp-2", competency="Explanation and Promotion of Ethics"),
+        ]
+
+        mock_response = ScenarioEvaluationWithMemory(
+            improvements=["Improve reflective listening"],
+            positives=["Strong empathy demonstration"],
+            achieved_competency_ids=["comp-1"],
+            session_glimpse="Brief session overview",
+            cumulative_memory="Comprehensive memory narrative",
+        )
+
+        with patch.object(
+            text_generation_service, "_invoke_llm", return_value=mock_response
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages,
+                competencies,
+                need_memory=True,
+                previous_memory="Previous context",
+                memory_prompt="Custom instructions",
+            )
+
+            expected = {
+                "improvements": ["Improve reflective listening"],
+                "positives": ["Strong empathy demonstration"],
+                "achieved_competency_ids": ["comp-1"],
+                "session_glimpse": "Brief session overview",
+                "cumulative_memory": "Comprehensive memory narrative",
+            }
+            assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_failed(
+        self, text_generation_service, sample_chat_messages
+    ):
+        """Test scenario evaluation generation failure."""
+        competencies = [CompetencyItem(id="comp-1", competency="Test")]
+
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            side_effect=LLMInvocationFailedException("LLM error"),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await text_generation_service.generate_scenario_evaluation(
+                    sample_chat_messages, competencies
+                )
+

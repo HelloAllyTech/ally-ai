@@ -58,14 +58,25 @@ os.environ.update(
 def sample_chat_messages():
     """Sample chat messages for testing."""
     return [
-        {"role": "counselor", "content": "How are you feeling today?"},
-        {"role": "client", "content": "I'm feeling anxious about work."},
+        {"id": "msg-1", "role": "counselor", "content": "How are you feeling today?"},
+        {"id": "msg-2", "role": "client", "content": "I'm feeling anxious about work."},
         {
+            "id": "msg-3",
             "role": "counselor",
             "content": (
                 "I understand. Can you tell me more about what's causing this anxiety?"
             ),
         },
+    ]
+
+
+@pytest.fixture
+def sample_competencies():
+    """Sample competencies for testing."""
+    return [
+        {"id": "comp-1", "competency": "Socialising the Client to Counselling"},
+        {"id": "comp-2", "competency": "Explanation and Promotion of Ethics"},
+        {"id": "comp-3", "competency": "Exploration & Normalisation of Feelings"},
     ]
 
 

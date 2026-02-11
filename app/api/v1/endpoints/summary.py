@@ -13,6 +13,8 @@ from app.schemas.summary import (
     ContentEnhanceRequest,
     ContentEnhanceResponse,
     DynamicSummaryNoteResponse,
+    ScenarioEvaluationRequest,
+    ScenarioEvaluationResponse,
     SimulationAnalysisRequest,
     SimulationAnalysisResponse,
     SummaryNoteAndTagsRequest,
@@ -117,12 +119,15 @@ async def get_tag_positivity_ratings(
     "/scenario/feedback",
     tags=["simulation", "analysis"],
     response_model=SimulationAnalysisResponse,
+    deprecated=True,
 )
 async def generate_simulation_analysis(
     request: SimulationAnalysisRequest,
     summary_service: SummaryService = Depends(get_summary_service),
 ):
     """
+    [DEPRECATED] Use /scenario/evaluation instead.
+
     Generates simulation analysis based on chat history.
 
     Analyzes conversation performance to identify improvement areas and positives
@@ -135,7 +140,16 @@ async def generate_simulation_analysis(
     When need_memory=True, additionally returns:
     - session_glimpse: Brief overview of the current session
     - cumulative_memory: Comprehensive cumulative narrative across sessions
+
+    **This endpoint is deprecated and will be removed in a future version.
+    Please use /scenario/evaluation instead.**
     """
+
+    logger.warning(
+        "DEPRECATED: /scenario/feedback endpoint called. "
+        "Use /scenario/evaluation instead."
+    )
+
     try:
         analysis_response = await summary_service.generate_simulation_summary(
             chat_history=request.chat_history,
@@ -145,6 +159,58 @@ async def generate_simulation_analysis(
         )
 
         return SimulationAnalysisResponse(**analysis_response)
+    except CounselorTrainingAnalysisFailedException:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Counselor training analysis generation failed",
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong. Please try again later.",
+        )
+
+
+@router.post(
+    "/scenario/evaluation",
+    tags=["simulation", "analysis"],
+    response_model=ScenarioEvaluationResponse,
+)
+async def generate_scenario_evaluation(
+    request: ScenarioEvaluationRequest,
+    summary_service: SummaryService = Depends(get_summary_service),
+):
+    """
+    Generates comprehensive scenario evaluation based on chat history.
+
+    Analyzes conversation performance to identify improvement areas and positives
+    based on provided clinical counseling competencies.
+
+    Requires:
+    - chat_history: List of messages with unique IDs
+    - competencies_to_evaluate: List of competencies with IDs to evaluate
+
+    Always returns:
+    - improvements: Areas needing development
+    - positives: Demonstrated strengths
+
+    When need_memory=True, additionally returns:
+    - session_glimpse: Brief overview of the current session
+    - cumulative_memory: Comprehensive cumulative narrative across sessions
+    """
+    try:
+        evaluation_response = await summary_service.generate_scenario_evaluation(
+            chat_history=request.chat_history,
+            competencies=request.competencies_to_evaluate,
+            need_memory=request.need_memory,
+            previous_memory=request.previous_memory,
+            memory_prompt=request.memory_prompt,
+        )
+
+
+
+        return ScenarioEvaluationResponse(**evaluation_response)
     except CounselorTrainingAnalysisFailedException:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
