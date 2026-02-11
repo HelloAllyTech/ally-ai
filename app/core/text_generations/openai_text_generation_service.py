@@ -1033,6 +1033,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             [f"- ID: {comp.id}, Competency: {comp.competency}" 
              for comp in competencies]
         )
+        
+        # Create set of valid competency IDs for post-processing validation
+        valid_competency_ids = {comp.id for comp in competencies}
 
         try:
             if need_memory:
@@ -1064,11 +1067,18 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 logger.info(
                     "Scenario evaluation with memory generated successfully"
                 )
-
+                
+                # Validate and filter achieved competency IDs to prevent hallucinations
+                original_ids = response.achieved_competency_ids
+                validated_ids = [
+                    comp_id for comp_id in original_ids 
+                    if comp_id in valid_competency_ids
+                ]
+                
                 return {
                     "improvements": response.improvements,
                     "positives": response.positives,
-                    "achieved_competency_ids": response.achieved_competency_ids,
+                    "achieved_competency_ids": validated_ids,
                     "session_glimpse": response.session_glimpse,
                     "cumulative_memory": response.cumulative_memory,
                 }
@@ -1089,11 +1099,19 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 )
 
                 logger.info("Scenario evaluation generated successfully")
+                
+                # Validate and filter achieved competency IDs to prevent hallucinations
+                original_ids = response.achieved_competency_ids
+                validated_ids = [
+                    comp_id for comp_id in original_ids 
+                    if comp_id in valid_competency_ids
+                ]
+                
 
                 return {
                     "improvements": response.improvements,
                     "positives": response.positives,
-                    "achieved_competency_ids": response.achieved_competency_ids,
+                    "achieved_competency_ids": validated_ids,
                 }
 
         except LLMInvocationFailedException as e:
