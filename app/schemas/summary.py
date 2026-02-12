@@ -1,9 +1,43 @@
+from enum import Enum
 from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
 from app.core.constants import AgeRange, Language
 from app.schemas.common import ChatMessage
+
+
+class TagCategory(str, Enum):
+    """Enum for message tag category."""
+
+    POSITIVE = "POSITIVE"
+    NEGATIVE = "NEGATIVE"
+
+
+class MessageTagLabel(str, Enum):
+    """Static set of allowed message tag labels."""
+
+    AVOID_ADVICE_GIVING = "Avoid Advice Giving"
+    HOLD_EMOTIONAL_SPACE = "Hold Emotional Space"
+    PACING = "Pacing"
+    PARAPHRASES = "Paraphrases"
+
+
+class MessageTag(BaseModel):
+    """A single tag with a label and category."""
+
+    label: MessageTagLabel = Field(..., description="The tag label")
+    category: TagCategory = Field(..., description="Whether the tag is POSITIVE or NEGATIVE")
+
+
+class MessageTagItem(BaseModel):
+    """Tags associated with a specific message in the transcript."""
+
+    id: str = Field(..., description="The message ID from the transcript")
+    tags: List[MessageTag] = Field(
+        default_factory=list,
+        description="List of tags for this message",
+    )
 
 
 class SummaryNoteAndTagsRequest(BaseModel):
@@ -446,6 +480,10 @@ class ScenarioEvaluationResponse(BaseModel):
     )
     achieved_competency_ids: List[str] = Field(
         ..., description="List of competency IDs that were successfully demonstrated"
+    )
+    message_tags: List[MessageTagItem] = Field(
+        default_factory=list,
+        description="Per-message tags for counselor messages in the transcript",
     )
     session_glimpse: Optional[str] = Field(
         default=None,

@@ -53,6 +53,7 @@ from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
     Tag,
 )
+from app.utils.common import filter_message_tags, filter_valid_ids
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.counselor_interruption_calculator import (
@@ -1023,10 +1024,20 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Generating scenario evaluation using OpenAI")
 
-        # Convert chat history to string format
+        # Convert chat history to string format with IDs and roles for message tagging
         chat_history_str = "\n".join(
-            [f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)]
+            [
+                f"[ID: {msg.id}] ({msg.role}): {msg.content}"
+                for msg in chat_history
+            ]
         )
+
+        # Collect counselor message IDs for validating message_tags
+        counselor_message_ids = {
+            msg.id
+            for msg in chat_history
+            if msg.role and msg.role.lower() not in ("client", "assistant")
+        }
 
         # Format competencies list for prompt
         competencies_list = "\n".join(
@@ -1038,14 +1049,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         valid_competency_ids = {comp.id for comp in competencies}
 
         try:
+            # Select prompt and response model based on memory requirement
             if need_memory:
-                # Single combined LLM call for evaluation + memory
-                custom_prompt_section = ""
-                if memory_prompt:
-                    custom_prompt_section = (
-                        f"Additional Instructions:\n{memory_prompt}"
-                    )
-
+                custom_prompt_section = (
+                    f"Additional Instructions:\n{memory_prompt}"
+                    if memory_prompt
+                    else ""
+                )
                 formatted_prompt = SCENARIO_EVALUATION_WITH_MEMORY_PROMPT.format(
                     chat_history=chat_history_str,
                     competencies_list=competencies_list,
@@ -1054,65 +1064,42 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ),
                     custom_prompt_section=custom_prompt_section,
                 )
-
-                response = cast(
-                    ScenarioEvaluationWithMemory,
-                    await self._invoke_llm(
-                        formatted_prompt,
-                        ScenarioEvaluationWithMemory,
-                        **kwargs,
-                    ),
-                )
-
-                logger.info(
-                    "Scenario evaluation with memory generated successfully"
-                )
-                
-                # Validate and filter achieved competency IDs to prevent hallucinations
-                original_ids = response.achieved_competency_ids
-                validated_ids = [
-                    comp_id for comp_id in original_ids 
-                    if comp_id in valid_competency_ids
-                ]
-                
-                return {
-                    "improvements": response.improvements,
-                    "positives": response.positives,
-                    "achieved_competency_ids": validated_ids,
-                    "session_glimpse": response.session_glimpse,
-                    "cumulative_memory": response.cumulative_memory,
-                }
+                response_model = ScenarioEvaluationWithMemory
             else:
-                # Standard evaluation-only LLM call
                 formatted_prompt = SCENARIO_EVALUATION_PROMPT.format(
                     chat_history=chat_history_str,
                     competencies_list=competencies_list,
                 )
+                response_model = ScenarioEvaluation
 
-                response = cast(
-                    ScenarioEvaluation,
-                    await self._invoke_llm(
-                        formatted_prompt,
-                        ScenarioEvaluation,
-                        **kwargs,
-                    ),
-                )
+            response = cast(
+                response_model,
+                await self._invoke_llm(
+                    formatted_prompt,
+                    response_model,
+                    **kwargs,
+                ),
+            )
 
-                logger.info("Scenario evaluation generated successfully")
-                
-                # Validate and filter achieved competency IDs to prevent hallucinations
-                original_ids = response.achieved_competency_ids
-                validated_ids = [
-                    comp_id for comp_id in original_ids 
-                    if comp_id in valid_competency_ids
-                ]
-                
+            logger.info("Scenario evaluation generated successfully")
 
-                return {
-                    "improvements": response.improvements,
-                    "positives": response.positives,
-                    "achieved_competency_ids": validated_ids,
-                }
+            # Build result with validated fields
+            result: Dict[str, Any] = {
+                "improvements": response.improvements,
+                "positives": response.positives,
+                "achieved_competency_ids": filter_valid_ids(
+                    response.achieved_competency_ids, valid_competency_ids
+                ),
+                "message_tags": filter_message_tags(
+                    response.message_tags, counselor_message_ids
+                ),
+            }
+
+            if need_memory:
+                result["session_glimpse"] = response.session_glimpse
+                result["cumulative_memory"] = response.cumulative_memory
+
+            return result
 
         except LLMInvocationFailedException as e:
             logger.exception("Failed to generate scenario evaluation")

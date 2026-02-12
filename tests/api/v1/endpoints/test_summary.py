@@ -363,6 +363,12 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                 ],
                 "positives": ["Good rapport building", "Empathetic responses"],
                 "achieved_competency_ids": ["comp-1", "comp-2"],
+                "message_tags": [
+                    {
+                        "id": "msg-1",
+                        "tags": [{"label": "Pacing", "category": "POSITIVE"}],
+                    }
+                ],
             }
 
             response = client.post("/api/v1/summary/scenario/evaluation", json=request)
@@ -372,9 +378,12 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert "improvements" in data
             assert "positives" in data
             assert "achieved_competency_ids" in data
+            assert "message_tags" in data
             assert len(data["improvements"]) == 2
             assert len(data["positives"]) == 2
             assert len(data["achieved_competency_ids"]) == 2
+            assert len(data["message_tags"]) == 1
+            assert data["message_tags"][0]["id"] == "msg-1"
 
     def test_scenario_evaluation_missing_competencies(
         self, client: TestClient, sample_chat_messages

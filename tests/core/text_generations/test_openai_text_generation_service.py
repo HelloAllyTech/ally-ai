@@ -13,6 +13,9 @@ from app.core.text_generations.openai_text_generation_service import (
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
+    MessageTagItemOutput,
+    MessageTagLabelEnum,
+    MessageTagOutput,
     ScenarioEvaluation,
     ScenarioEvaluationWithMemory,
     SimulationAnalysis,
@@ -21,6 +24,7 @@ from app.core.text_generations.structured_output_models import (
     StructuredIdentifyUsers,
     StructuredSummaryNote,
     StructuredTag,
+    TagCategoryEnum,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -901,6 +905,16 @@ class TestOpenAITextGenerationService:
             improvements=["Ask more open-ended questions"],
             positives=["Good rapport building"],
             achieved_competency_ids=["comp-1", "comp-3"],
+            message_tags=[
+                MessageTagItemOutput(
+                    id="msg-1",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
+                ),
+                MessageTagItemOutput(
+                    id="msg-3",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
+                ),
+            ],
         )
 
         with patch.object(
@@ -910,12 +924,11 @@ class TestOpenAITextGenerationService:
                 sample_chat_messages, competencies
             )
 
-            expected = {
-                "improvements": ["Ask more open-ended questions"],
-                "positives": ["Good rapport building"],
-                "achieved_competency_ids": ["comp-1", "comp-3"],
-            }
-            assert result == expected
+            assert result["improvements"] == ["Ask more open-ended questions"]
+            assert result["positives"] == ["Good rapport building"]
+            assert result["achieved_competency_ids"] == ["comp-1", "comp-3"]
+            assert len(result["message_tags"]) == 2
+            assert result["message_tags"][0]["id"] == "msg-1"
             assert "session_glimpse" not in result
             assert "cumulative_memory" not in result
 
@@ -923,7 +936,7 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_with_memory_success(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test scenario evaluation with need_memory=True returns all 5 fields in a single LLM call."""
+        """Test scenario evaluation with need_memory=True returns all fields in a single LLM call."""
         competencies = [
             CompetencyItem(id="comp-1", competency="Socialising the Client to Counselling"),
             CompetencyItem(id="comp-2", competency="Explanation and Promotion of Ethics"),
@@ -933,6 +946,12 @@ class TestOpenAITextGenerationService:
             improvements=["Improve reflective listening"],
             positives=["Strong empathy demonstration"],
             achieved_competency_ids=["comp-1"],
+            message_tags=[
+                MessageTagItemOutput(
+                    id="msg-1",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.HOLD_EMOTIONAL_SPACE, category=TagCategoryEnum.POSITIVE)],
+                ),
+            ],
             session_glimpse="Brief session overview",
             cumulative_memory="Comprehensive memory narrative",
         )
@@ -948,14 +967,63 @@ class TestOpenAITextGenerationService:
                 memory_prompt="Custom instructions",
             )
 
-            expected = {
-                "improvements": ["Improve reflective listening"],
-                "positives": ["Strong empathy demonstration"],
-                "achieved_competency_ids": ["comp-1"],
-                "session_glimpse": "Brief session overview",
-                "cumulative_memory": "Comprehensive memory narrative",
-            }
-            assert result == expected
+            assert result["improvements"] == ["Improve reflective listening"]
+            assert result["positives"] == ["Strong empathy demonstration"]
+            assert result["achieved_competency_ids"] == ["comp-1"]
+            assert len(result["message_tags"]) == 1
+            assert result["session_glimpse"] == "Brief session overview"
+            assert result["cumulative_memory"] == "Comprehensive memory narrative"
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_filters_hallucinated_data(
+        self, text_generation_service, sample_chat_messages
+    ):
+        """Test that hallucinated competency IDs and client message tags are filtered out."""
+        competencies = [
+            CompetencyItem(id="comp-1", competency="Empathy"),
+            CompetencyItem(id="comp-2", competency="Pacing"),
+        ]
+
+        mock_evaluation = ScenarioEvaluation(
+            improvements=["Improve X"],
+            positives=["Good Y"],
+            # "comp-999" is hallucinated — not in the provided competencies
+            achieved_competency_ids=["comp-1", "comp-999"],
+            message_tags=[
+                # msg-1 = counselor → should be kept
+                MessageTagItemOutput(
+                    id="msg-1",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
+                ),
+                # msg-2 = client → should be filtered out
+                MessageTagItemOutput(
+                    id="msg-2",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
+                ),
+                # msg-3 = counselor → should be kept
+                MessageTagItemOutput(
+                    id="msg-3",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.AVOID_ADVICE_GIVING, category=TagCategoryEnum.NEGATIVE)],
+                ),
+            ],
+        )
+
+        with patch.object(
+            text_generation_service, "_invoke_llm", return_value=mock_evaluation
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages, competencies
+            )
+
+            # Hallucinated competency ID should be removed
+            assert result["achieved_competency_ids"] == ["comp-1"]
+
+            # Only counselor messages (msg-1, msg-3) should remain; client msg-2 filtered
+            assert len(result["message_tags"]) == 2
+            tag_ids = [t["id"] for t in result["message_tags"]]
+            assert "msg-1" in tag_ids
+            assert "msg-3" in tag_ids
+            assert "msg-2" not in tag_ids
 
     @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_failed(

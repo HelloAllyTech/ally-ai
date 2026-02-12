@@ -1,8 +1,39 @@
+from enum import Enum
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from app.core.constants import AgeRange, UserRole
+
+
+class TagCategoryEnum(str, Enum):
+    """Enum for message tag category in structured output."""
+
+    POSITIVE = "POSITIVE"
+    NEGATIVE = "NEGATIVE"
+
+
+class MessageTagLabelEnum(str, Enum):
+    """Static set of allowed message tag labels for structured output."""
+
+    AVOID_ADVICE_GIVING = "Avoid Advice Giving"
+    HOLD_EMOTIONAL_SPACE = "Hold Emotional Space"
+    PACING = "Pacing"
+    PARAPHRASES = "Paraphrases"
+
+
+class MessageTagOutput(BaseModel):
+    """A single tag produced by the LLM."""
+
+    label: MessageTagLabelEnum = Field(description="One of the allowed tag labels")
+    category: TagCategoryEnum = Field(description="POSITIVE if the technique is beneficial, NEGATIVE if it should be avoided or is harmful")
+
+
+class MessageTagItemOutput(BaseModel):
+    """Tags for a single message."""
+
+    id: str = Field(description="The message ID from the transcript")
+    tags: List[MessageTagOutput] = Field(description="List of tags for this message")
 
 DominantFeelingLiteral = Literal[
     "Betrayed:Let Down",
@@ -466,6 +497,11 @@ class ScenarioEvaluation(BaseModel):
         description="List of competency IDs that were successfully demonstrated in the conversation. "
         "Only include IDs from the provided competencies list."
     )
+    message_tags: List[MessageTagItemOutput] = Field(
+        description="Per-message tags for each counselor message in the transcript. "
+        "Only include entries for counselor messages, not client messages. "
+        "Each entry must use the exact message ID from the transcript."
+    )
 
 
 class ScenarioEvaluationWithMemory(BaseModel):
@@ -482,6 +518,11 @@ class ScenarioEvaluationWithMemory(BaseModel):
     achieved_competency_ids: List[str] = Field(
         description="List of competency IDs that were successfully demonstrated in the conversation. "
         "Only include IDs from the provided competencies list."
+    )
+    message_tags: List[MessageTagItemOutput] = Field(
+        description="Per-message tags for each counselor message in the transcript. "
+        "Only include entries for counselor messages, not client messages. "
+        "Each entry must use the exact message ID from the transcript."
     )
     session_glimpse: str = Field(
         description="Brief overview/snapshot of the current session (2-3 sentences). "
