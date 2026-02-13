@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import AgeRange, UserRole
 
@@ -34,6 +34,21 @@ class MessageTagItemOutput(BaseModel):
 
     id: str = Field(description="The message ID from the transcript")
     tags: List[MessageTagOutput] = Field(description="List of tags for this message")
+
+class EmotionalMovementItemOutput(BaseModel):
+    """Emotional level for a client message in the LLM response."""
+
+    message_id: str = Field(description="The client message ID from the transcript")
+    level: int = Field(
+        description="Emotional level from -5 (very negative/distressed) to +5 (very positive/happy). "
+        "Must be between -5 and 5.",
+    )
+
+    @field_validator("level")
+    @classmethod
+    def clamp_level(cls, v: int) -> int:
+        """Clamp to [-5, 5] — OpenAI structured outputs do not enforce numeric ranges."""
+        return max(-5, min(5, v))
 
 DominantFeelingLiteral = Literal[
     "Betrayed:Let Down",
@@ -460,17 +475,9 @@ class SimulationAnalysis(BaseModel):
     )
 
 
-class SimulationAnalysisWithMemory(BaseModel):
+class SimulationAnalysisWithMemory(SimulationAnalysis):
     """Structured output model for simulation analysis with memory tracking."""
 
-    improvements: List[str] = Field(
-        description="Specific, actionable areas that need improvement "
-        "during the simulation"
-    )
-    positives: List[str] = Field(
-        description="Strengths and positive aspects demonstrated "
-        "during the simulation by the counselor"
-    )
     session_glimpse: str = Field(
         description="Brief overview/snapshot of the current session (2-3 sentences). "
         "Highlight key takeaways, main topics discussed, and immediate observations."
@@ -502,28 +509,17 @@ class ScenarioEvaluation(BaseModel):
         "Only include entries for counselor messages, not client messages. "
         "Each entry must use the exact message ID from the transcript."
     )
+    emotional_movement: List[EmotionalMovementItemOutput] = Field(
+        description="Emotional trajectory for each client message. "
+        "Rate each client message on a scale from -5 (very negative/distressed) to +5 (very positive/happy). "
+        "Only include entries for client messages, not counselor messages. "
+        "Use the exact message ID from the transcript."
+    )
 
 
-class ScenarioEvaluationWithMemory(BaseModel):
+class ScenarioEvaluationWithMemory(ScenarioEvaluation):
     """Structured output model for scenario evaluation with competency tracking and memory."""
 
-    improvements: List[str] = Field(
-        description="Specific, actionable areas that need improvement "
-        "during the simulation"
-    )
-    positives: List[str] = Field(
-        description="Strengths and positive aspects demonstrated "
-        "during the simulation by the counselor"
-    )
-    achieved_competency_ids: List[str] = Field(
-        description="List of competency IDs that were successfully demonstrated in the conversation. "
-        "Only include IDs from the provided competencies list."
-    )
-    message_tags: List[MessageTagItemOutput] = Field(
-        description="Per-message tags for each counselor message in the transcript. "
-        "Only include entries for counselor messages, not client messages. "
-        "Each entry must use the exact message ID from the transcript."
-    )
     session_glimpse: str = Field(
         description="Brief overview/snapshot of the current session (2-3 sentences). "
         "Highlight key takeaways, main topics discussed, and immediate observations."

@@ -40,6 +40,18 @@ class MessageTagItem(BaseModel):
     )
 
 
+class EmotionalMovementItem(BaseModel):
+    """Emotional level for a client message."""
+
+    message_id: str = Field(..., description="The client message ID")
+    level: int = Field(
+        ...,
+        ge=-5,
+        le=5,
+        description="Emotional level from -5 (very negative/distressed) to +5 (very positive/happy)",
+    )
+
+
 class SummaryNoteAndTagsRequest(BaseModel):
     """
     A Pydantic model representing the request for summarizing chat messages.
@@ -484,6 +496,10 @@ class ScenarioEvaluationResponse(BaseModel):
     message_tags: List[MessageTagItem] = Field(
         default_factory=list,
         description="Per-message tags for counselor messages in the transcript",
+    )
+    emotional_movement: List[EmotionalMovementItem] = Field(
+        default_factory=list,
+        description="Emotional trajectory of client messages throughout the session",
     )
     session_glimpse: Optional[str] = Field(
         default=None,

@@ -13,6 +13,7 @@ from app.core.text_generations.openai_text_generation_service import (
 )
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
+    EmotionalMovementItemOutput,
     MessageTagItemOutput,
     MessageTagLabelEnum,
     MessageTagOutput,
@@ -915,6 +916,9 @@ class TestOpenAITextGenerationService:
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
                 ),
             ],
+            emotional_movement=[
+                EmotionalMovementItemOutput(message_id="msg-2", level=-2),
+            ],
         )
 
         with patch.object(
@@ -929,6 +933,9 @@ class TestOpenAITextGenerationService:
             assert result["achieved_competency_ids"] == ["comp-1", "comp-3"]
             assert len(result["message_tags"]) == 2
             assert result["message_tags"][0]["id"] == "msg-1"
+            assert len(result["emotional_movement"]) == 1
+            assert result["emotional_movement"][0]["message_id"] == "msg-2"
+            assert result["emotional_movement"][0]["level"] == -2
             assert "session_glimpse" not in result
             assert "cumulative_memory" not in result
 
@@ -952,6 +959,9 @@ class TestOpenAITextGenerationService:
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.HOLD_EMOTIONAL_SPACE, category=TagCategoryEnum.POSITIVE)],
                 ),
             ],
+            emotional_movement=[
+                EmotionalMovementItemOutput(message_id="msg-2", level=-1),
+            ],
             session_glimpse="Brief session overview",
             cumulative_memory="Comprehensive memory narrative",
         )
@@ -971,6 +981,8 @@ class TestOpenAITextGenerationService:
             assert result["positives"] == ["Strong empathy demonstration"]
             assert result["achieved_competency_ids"] == ["comp-1"]
             assert len(result["message_tags"]) == 1
+            assert len(result["emotional_movement"]) == 1
+            assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["session_glimpse"] == "Brief session overview"
             assert result["cumulative_memory"] == "Comprehensive memory narrative"
 
@@ -978,7 +990,7 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_filters_hallucinated_data(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test that hallucinated competency IDs and client message tags are filtered out."""
+        """Test that hallucinated data is filtered: competency IDs, client message tags, and counselor emotional ratings."""
         competencies = [
             CompetencyItem(id="comp-1", competency="Empathy"),
             CompetencyItem(id="comp-2", competency="Pacing"),
@@ -1006,6 +1018,14 @@ class TestOpenAITextGenerationService:
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.AVOID_ADVICE_GIVING, category=TagCategoryEnum.NEGATIVE)],
                 ),
             ],
+            emotional_movement=[
+                # msg-1 = counselor → should be filtered out
+                EmotionalMovementItemOutput(message_id="msg-1", level=0),
+                # msg-2 = client → should be kept
+                EmotionalMovementItemOutput(message_id="msg-2", level=-3),
+                # msg-3 = counselor → should be filtered out
+                EmotionalMovementItemOutput(message_id="msg-3", level=2),
+            ],
         )
 
         with patch.object(
@@ -1024,6 +1044,11 @@ class TestOpenAITextGenerationService:
             assert "msg-1" in tag_ids
             assert "msg-3" in tag_ids
             assert "msg-2" not in tag_ids
+
+            # Only client message (msg-2) should remain; counselor msg-1, msg-3 filtered
+            assert len(result["emotional_movement"]) == 1
+            assert result["emotional_movement"][0]["message_id"] == "msg-2"
+            assert result["emotional_movement"][0]["level"] == -3
 
     @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_failed(

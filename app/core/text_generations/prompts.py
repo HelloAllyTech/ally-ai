@@ -445,7 +445,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         Competencies to Evaluate:
         {competencies_list}
 
-        Evaluate the counselor's performance and return ONLY a JSON object with exactly four fields.
+        Evaluate the counselor's performance and return ONLY a JSON object with exactly five fields.
 
         Important rules:
         - Provide specific, actionable feedback points based on the competencies above.
@@ -453,12 +453,14 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - Each point should be concise but substantive.
         - For achieved_competency_ids: Only include IDs of competencies that were clearly demonstrated in this conversation. Be selective and evidence-based.
         - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
+        - For emotional_movement: Analyze ONLY the client's messages (not the counselor's messages). Rate each client message's emotional state on a scale from -5 (very negative/distressed) to +5 (very positive/happy). Consider the emotional tone, sentiment, and distress level expressed in each message. Use the exact message ID from the transcript.
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective techniques with specific examples from the conversation.
         - "improvements": Array of specific areas needing development with conversation examples.
         - "achieved_competency_ids": Array of competency IDs (strings) that were successfully demonstrated. Only include IDs from the provided list above.
         - "message_tags": Array of objects, one per counselor message, each with "id" (the message ID) and "tags" (array of objects with "label" and "category").
+        - "emotional_movement": Array of objects, one per client message, each with "message_id" (the message ID) and "level" (integer from -5 to +5).
 
         """
     ),
@@ -484,7 +486,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         {previous_summary}
         ```
 
-        Evaluate the counselor's performance and return ONLY a JSON object with exactly six fields.
+        Evaluate the counselor's performance and return ONLY a JSON object with exactly seven fields.
 
         Important rules:
         - Provide specific, actionable feedback points based on the competencies above.
@@ -492,6 +494,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - Each point should be concise but substantive.
         - For achieved_competency_ids: Only include IDs of competencies that were clearly demonstrated in this conversation. Be selective and evidence-based.
         - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
+        - For emotional_movement: Analyze ONLY the client's messages (not the counselor's messages). Rate each client message's emotional state on a scale from -5 (very negative/distressed) to +5 (very positive/happy). Consider the emotional tone, sentiment, and distress level expressed in each message. Use the exact message ID from the transcript.
         - For session_glimpse: Focus ONLY on the current session as a quick snapshot.
         - For cumulative_memory: If a previous summary exists, integrate the new conversation while maintaining historical context and identifying patterns or changes. If no previous summary exists, create a comprehensive initial summary. Track key themes, concerns, therapeutic interventions, progress, setbacks, and emerging patterns. Maintain a coherent narrative showing the evolution of the client's journey.
 
@@ -500,6 +503,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - "improvements": Array of specific areas needing development with conversation examples.
         - "achieved_competency_ids": Array of competency IDs (strings) that were successfully demonstrated. Only include IDs from the provided list above.
         - "message_tags": Array of objects, one per counselor message, each with "id" (the message ID) and "tags" (array of objects with "label" and "category").
+        - "emotional_movement": Array of objects, one per client message, each with "message_id" (the message ID) and "level" (integer from -5 to +5).
         - "session_glimpse": A brief overview (2-3 sentences) of THIS current session, highlighting main topics, key takeaways, and immediate observations.
         - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that integrates ALL sessions including the current one, showing progression, patterns, and evolution.
 

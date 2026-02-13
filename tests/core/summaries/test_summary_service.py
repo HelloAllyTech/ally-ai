@@ -492,13 +492,14 @@ class TestSummaryService:
             "positives": ["Test positive"],
             "achieved_competency_ids": ["comp-1"],
             "message_tags": [{"id": "msg-1", "tags": [{"label": "Pacing", "category": "POSITIVE"}]}],
+            "emotional_movement": [{"message_id": "msg-2", "level": -2}],
         }
 
         result = await summary_service.generate_scenario_evaluation(
             sample_chat_messages, competencies
         )
 
-        assert set(result.keys()) == {"improvements", "positives", "achieved_competency_ids", "message_tags"}
+        assert set(result.keys()) == {"improvements", "positives", "achieved_competency_ids", "message_tags", "emotional_movement"}
         assert isinstance(result["improvements"], list)
         assert isinstance(result["positives"], list)
         assert isinstance(result["achieved_competency_ids"], list)
@@ -524,6 +525,7 @@ class TestSummaryService:
             "positives": ["Test positive"],
             "achieved_competency_ids": ["comp-1"],
             "message_tags": [],
+            "emotional_movement": [],
             "session_glimpse": "Short glimpse text",
             "cumulative_memory": "Longer cumulative text",
         }
@@ -540,6 +542,7 @@ class TestSummaryService:
             "positives",
             "achieved_competency_ids",
             "message_tags",
+            "emotional_movement",
             "session_glimpse",
             "cumulative_memory",
         }
@@ -562,6 +565,7 @@ class TestSummaryService:
             "positives": ["Test"],
             "achieved_competency_ids": [],
             "message_tags": [],
+            "emotional_movement": [],
         }
 
         result = await summary_service.generate_scenario_evaluation(

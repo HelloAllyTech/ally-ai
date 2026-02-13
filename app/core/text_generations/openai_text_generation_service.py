@@ -53,7 +53,7 @@ from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
     Tag,
 )
-from app.utils.common import filter_message_tags, filter_valid_ids
+from app.utils.common import filter_emotional_movement, filter_message_tags, filter_valid_ids
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.counselor_interruption_calculator import (
@@ -1032,12 +1032,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ]
         )
 
-        # Collect counselor message IDs for validating message_tags
-        counselor_message_ids = {
-            msg.id
-            for msg in chat_history
-            if msg.role and msg.role.lower() not in ("client", "assistant")
-        }
+        counselor_message_ids: set[str] = set() # for message tagging
+        client_message_ids: list[str] = [] # for emotional movement
+        for msg in chat_history:
+            if msg.role and msg.role.lower() in ("client", "assistant"):
+                client_message_ids.append(msg.id)
+            else:
+                counselor_message_ids.add(msg.id)
 
         # Format competencies list for prompt
         competencies_list = "\n".join(
@@ -1092,6 +1093,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 ),
                 "message_tags": filter_message_tags(
                     response.message_tags, counselor_message_ids
+                ),
+                "emotional_movement": filter_emotional_movement(
+                    response.emotional_movement, client_message_ids
                 ),
             }
 

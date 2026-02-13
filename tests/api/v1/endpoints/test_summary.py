@@ -369,6 +369,9 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                         "tags": [{"label": "Pacing", "category": "POSITIVE"}],
                     }
                 ],
+                "emotional_movement": [
+                    {"message_id": "msg-2", "level": -2},
+                ],
             }
 
             response = client.post("/api/v1/summary/scenario/evaluation", json=request)
@@ -379,11 +382,15 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert "positives" in data
             assert "achieved_competency_ids" in data
             assert "message_tags" in data
+            assert "emotional_movement" in data
             assert len(data["improvements"]) == 2
             assert len(data["positives"]) == 2
             assert len(data["achieved_competency_ids"]) == 2
             assert len(data["message_tags"]) == 1
             assert data["message_tags"][0]["id"] == "msg-1"
+            assert len(data["emotional_movement"]) == 1
+            assert data["emotional_movement"][0]["message_id"] == "msg-2"
+            assert data["emotional_movement"][0]["level"] == -2
 
     def test_scenario_evaluation_missing_competencies(
         self, client: TestClient, sample_chat_messages

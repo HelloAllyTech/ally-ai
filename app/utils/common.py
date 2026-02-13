@@ -66,3 +66,40 @@ def filter_message_tags(
         for item in message_tags
         if item.id in valid_message_ids
     ]
+
+
+def filter_emotional_movement(
+    emotional_movement: List[Any],
+    client_message_ids: List[str],
+    default_level: int = 0,
+) -> List[Dict[str, Any]]:
+    """
+    Filter, serialise, and back-fill emotional movement so every client
+    message is guaranteed to have a rating in conversation order.
+
+    - Strips entries for non-client messages (e.g. counselor).
+    - Back-fills any missing client messages with *default_level* (neutral).
+
+    Parameters:
+        emotional_movement: List of EmotionalMovementItemOutput objects from LLM response.
+        client_message_ids: Ordered list of client message IDs (conversation order).
+        default_level: Level to assign to missing messages (default 0 = neutral).
+
+    Returns:
+        List of dicts with "message_id" and "level" for every client message,
+        in conversation order.
+    """
+    valid_ids = set(client_message_ids)
+
+    # Build lookup from LLM response, keeping only valid client messages
+    rated = {
+        item.message_id: item.level
+        for item in emotional_movement
+        if item.message_id in valid_ids
+    }
+
+    # Ensure every client message has a rating, preserving conversation order
+    return [
+        {"message_id": msg_id, "level": rated.get(msg_id, default_level)}
+        for msg_id in client_message_ids
+    ]

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from app.schemas.common import ChatMessage
 from app.utils.common import (
     convert_chat_messages_to_string,
+    filter_emotional_movement,
     filter_message_tags,
     filter_valid_ids,
 )
@@ -175,3 +176,88 @@ class TestFilterMessageTags:
         """All items filtered when none match valid set."""
         items = [_tag_item("msg-99", [_tag("Pacing", "POSITIVE")])]
         assert filter_message_tags(items, {"msg-1"}) == []
+
+
+def _emotional_item(message_id: str, level: int):
+    """Helper to build an EmotionalMovementItemOutput-like object."""
+    return SimpleNamespace(message_id=message_id, level=level)
+
+
+class TestFilterEmotionalMovement:
+    """Test cases for filter_emotional_movement utility."""
+
+    def test_keeps_only_valid_ids(self):
+        """Entries with IDs not in the valid list are dropped."""
+        items = [
+            _emotional_item("msg-1", -2),
+            _emotional_item("msg-2", 0),
+            _emotional_item("msg-3", 3),
+        ]
+        result = filter_emotional_movement(items, ["msg-1", "msg-3"])
+
+        assert len(result) == 2
+        assert result[0]["message_id"] == "msg-1"
+        assert result[0]["level"] == -2
+        assert result[1]["message_id"] == "msg-3"
+        assert result[1]["level"] == 3
+
+    def test_serialises_correctly(self):
+        """Items are serialised to dicts with message_id and level."""
+        items = [
+            _emotional_item("msg-2", -5),
+            _emotional_item("msg-4", 5),
+        ]
+        result = filter_emotional_movement(items, ["msg-2", "msg-4"])
+
+        assert result == [
+            {"message_id": "msg-2", "level": -5},
+            {"message_id": "msg-4", "level": 5},
+        ]
+
+    def test_empty_input(self):
+        """No LLM items — every client message back-filled with default 0."""
+        result = filter_emotional_movement([], ["msg-1", "msg-2"])
+
+        assert result == [
+            {"message_id": "msg-1", "level": 0},
+            {"message_id": "msg-2", "level": 0},
+        ]
+
+    def test_all_filtered_out(self):
+        """LLM rated wrong messages — client messages back-filled with default."""
+        items = [_emotional_item("msg-99", 2)]
+        result = filter_emotional_movement(items, ["msg-1"])
+
+        assert result == [{"message_id": "msg-1", "level": 0}]
+
+    def test_preserves_conversation_order(self):
+        """Output order matches conversation order, not LLM response order."""
+        items = [
+            _emotional_item("msg-8", 0),
+            _emotional_item("msg-2", -3),
+            _emotional_item("msg-5", 1),
+        ]
+        result = filter_emotional_movement(items, ["msg-2", "msg-5", "msg-8"])
+
+        assert [r["message_id"] for r in result] == ["msg-2", "msg-5", "msg-8"]
+        assert [r["level"] for r in result] == [-3, 1, 0]
+
+    def test_backfills_missing_messages(self):
+        """Client messages the LLM skipped are back-filled with default level."""
+        items = [
+            _emotional_item("msg-2", -3),
+            # msg-4 missing from LLM response
+        ]
+        result = filter_emotional_movement(items, ["msg-2", "msg-4", "msg-6"])
+
+        assert result == [
+            {"message_id": "msg-2", "level": -3},
+            {"message_id": "msg-4", "level": 0},
+            {"message_id": "msg-6", "level": 0},
+        ]
+
+    def test_custom_default_level(self):
+        """Custom default level is used for missing messages."""
+        result = filter_emotional_movement([], ["msg-1"], default_level=-1)
+
+        assert result == [{"message_id": "msg-1", "level": -1}]
