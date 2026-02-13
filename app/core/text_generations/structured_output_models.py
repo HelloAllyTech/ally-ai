@@ -489,6 +489,24 @@ class SimulationAnalysisWithMemory(SimulationAnalysis):
     )
 
 
+class SkillCoverageItemOutput(BaseModel):
+    """Coverage percentage for a skill category in the LLM response."""
+
+    category: str = Field(
+        description="The skill category name. Must be one of: Learning, Support, Standards."
+    )
+    percentage: float = Field(
+        description="Coverage percentage for this category (0-100). "
+        "Evaluate how well the counselor demonstrated skills in this category."
+    )
+
+    @field_validator("percentage")
+    @classmethod
+    def clamp_percentage(cls, v: float) -> float:
+        """Clamp to [0, 100] — OpenAI structured outputs do not enforce numeric ranges."""
+        return max(0.0, min(100.0, v))
+
+
 class ScenarioEvaluation(BaseModel):
     """Structured output model for scenario evaluation with competency tracking."""
 
@@ -514,6 +532,12 @@ class ScenarioEvaluation(BaseModel):
         "Rate each client message on a scale from -5 (very negative/distressed) to +5 (very positive/happy). "
         "Only include entries for client messages, not counselor messages. "
         "Use the exact message ID from the transcript."
+    )
+    skill_coverage: List[SkillCoverageItemOutput] = Field(
+        description="Skill coverage percentages for three categories. Always return exactly three items. "
+        "Learning: how well the counselor explored and understood the client's world (open-ended questions, reflective listening, curiosity, exploring feelings). "
+        "Support: how well the counselor created a safe, empathetic, validating environment (empathy, normalising emotions, affirming strengths, holding emotional space, warmth). "
+        "Standards: how well the counselor adhered to professional/ethical practices (boundaries, avoiding advice-giving, client-centred approach, evidence-based techniques, professional conduct)."
     )
 
 

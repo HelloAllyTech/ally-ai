@@ -445,7 +445,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         Competencies to Evaluate:
         {competencies_list}
 
-        Evaluate the counselor's performance and return ONLY a JSON object with exactly five fields.
+        Evaluate the counselor's performance and return ONLY a JSON object with exactly six fields.
 
         Important rules:
         - Provide specific, actionable feedback points based on the competencies above.
@@ -454,6 +454,10 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - For achieved_competency_ids: Only include IDs of competencies that were clearly demonstrated in this conversation. Be selective and evidence-based.
         - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
         - For emotional_movement: Analyze ONLY the client's messages (not the counselor's messages). Rate each client message's emotional state on a scale from -5 (very negative/distressed) to +5 (very positive/happy). Consider the emotional tone, sentiment, and distress level expressed in each message. Use the exact message ID from the transcript.
+        - For skill_coverage: Evaluate the counselor's overall skill demonstration across three categories. Assign a percentage (0-100) for each category. Always return exactly three items.
+          * "Learning" — Measures the counselor's ability to explore and understand the client's world. Includes: asking open-ended questions, using reflective listening, demonstrating curiosity about the client's experience, exploring underlying feelings, identifying patterns, and gathering relevant information without leading or assuming. Higher scores indicate the counselor actively sought to learn about the client rather than jumping to conclusions.
+          * "Support" — Measures the counselor's ability to create a safe, empathetic, and validating environment. Includes: expressing empathy, normalising the client's emotions, affirming the client's strengths, holding emotional space, appropriate pacing, conveying warmth and genuine care, and making the client feel heard and understood. Higher scores indicate the client would feel emotionally supported and not judged.
+          * "Standards" — Measures the counselor's adherence to professional and ethical counseling practices. Includes: maintaining appropriate boundaries, avoiding advice-giving or fixing, not projecting personal values, following evidence-based techniques, staying client-centred, using proper session structure, and demonstrating professional language and conduct. Higher scores indicate the counselor maintained high professional standards throughout.
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective techniques with specific examples from the conversation.
@@ -461,6 +465,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - "achieved_competency_ids": Array of competency IDs (strings) that were successfully demonstrated. Only include IDs from the provided list above.
         - "message_tags": Array of objects, one per counselor message, each with "id" (the message ID) and "tags" (array of objects with "label" and "category").
         - "emotional_movement": Array of objects, one per client message, each with "message_id" (the message ID) and "level" (integer from -5 to +5).
+        - "skill_coverage": Array of exactly 3 objects, each with "category" (one of "Learning", "Support", "Standards") and "percentage" (number from 0 to 100).
 
         """
     ),
@@ -486,7 +491,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         {previous_summary}
         ```
 
-        Evaluate the counselor's performance and return ONLY a JSON object with exactly seven fields.
+        Evaluate the counselor's performance and return ONLY a JSON object with exactly eight fields.
 
         Important rules:
         - Provide specific, actionable feedback points based on the competencies above.
@@ -495,6 +500,10 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - For achieved_competency_ids: Only include IDs of competencies that were clearly demonstrated in this conversation. Be selective and evidence-based.
         - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
         - For emotional_movement: Analyze ONLY the client's messages (not the counselor's messages). Rate each client message's emotional state on a scale from -5 (very negative/distressed) to +5 (very positive/happy). Consider the emotional tone, sentiment, and distress level expressed in each message. Use the exact message ID from the transcript.
+        - For skill_coverage: Evaluate the counselor's overall skill demonstration across three categories. Assign a percentage (0-100) for each category. Always return exactly three items.
+          * "Learning" — Measures the counselor's ability to explore and understand the client's world. Includes: asking open-ended questions, using reflective listening, demonstrating curiosity about the client's experience, exploring underlying feelings, identifying patterns, and gathering relevant information without leading or assuming. Higher scores indicate the counselor actively sought to learn about the client rather than jumping to conclusions.
+          * "Support" — Measures the counselor's ability to create a safe, empathetic, and validating environment. Includes: expressing empathy, normalising the client's emotions, affirming the client's strengths, holding emotional space, appropriate pacing, conveying warmth and genuine care, and making the client feel heard and understood. Higher scores indicate the client would feel emotionally supported and not judged.
+          * "Standards" — Measures the counselor's adherence to professional and ethical counseling practices. Includes: maintaining appropriate boundaries, avoiding advice-giving or fixing, not projecting personal values, following evidence-based techniques, staying client-centred, using proper session structure, and demonstrating professional language and conduct. Higher scores indicate the counselor maintained high professional standards throughout.
         - For session_glimpse: Focus ONLY on the current session as a quick snapshot.
         - For cumulative_memory: If a previous summary exists, integrate the new conversation while maintaining historical context and identifying patterns or changes. If no previous summary exists, create a comprehensive initial summary. Track key themes, concerns, therapeutic interventions, progress, setbacks, and emerging patterns. Maintain a coherent narrative showing the evolution of the client's journey.
 
@@ -504,6 +513,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - "achieved_competency_ids": Array of competency IDs (strings) that were successfully demonstrated. Only include IDs from the provided list above.
         - "message_tags": Array of objects, one per counselor message, each with "id" (the message ID) and "tags" (array of objects with "label" and "category").
         - "emotional_movement": Array of objects, one per client message, each with "message_id" (the message ID) and "level" (integer from -5 to +5).
+        - "skill_coverage": Array of exactly 3 objects, each with "category" (one of "Learning", "Support", "Standards") and "percentage" (number from 0 to 100).
         - "session_glimpse": A brief overview (2-3 sentences) of THIS current session, highlighting main topics, key takeaways, and immediate observations.
         - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that integrates ALL sessions including the current one, showing progression, patterns, and evolution.
 

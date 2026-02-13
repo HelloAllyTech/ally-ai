@@ -1097,6 +1097,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 "emotional_movement": filter_emotional_movement(
                     response.emotional_movement, client_message_ids
                 ),
+                "skill_coverage": [
+                    {"category": item.category, "percentage": item.percentage}
+                    for item in response.skill_coverage
+                ],
             }
 
             if need_memory:

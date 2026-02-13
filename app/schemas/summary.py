@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import AgeRange, Language
 from app.schemas.common import ChatMessage
@@ -50,6 +50,22 @@ class EmotionalMovementItem(BaseModel):
         le=5,
         description="Emotional level from -5 (very negative/distressed) to +5 (very positive/happy)",
     )
+
+
+class SkillCoverageItem(BaseModel):
+    """Coverage percentage for a skill category."""
+
+    category: str = Field(..., description="The skill category name (e.g. Learning, Support, Standards)")
+    percentage: float = Field(
+        ...,
+        description="Coverage percentage for this category (0-100)",
+    )
+
+    @field_validator("percentage")
+    @classmethod
+    def clamp_percentage(cls, v: float) -> float:
+        """Clamp to [0, 100]."""
+        return max(0.0, min(100.0, v))
 
 
 class SummaryNoteAndTagsRequest(BaseModel):
@@ -500,6 +516,10 @@ class ScenarioEvaluationResponse(BaseModel):
     emotional_movement: List[EmotionalMovementItem] = Field(
         default_factory=list,
         description="Emotional trajectory of client messages throughout the session",
+    )
+    skill_coverage: List[SkillCoverageItem] = Field(
+        default_factory=list,
+        description="Skill coverage percentages across categories (Learning, Support, Standards)",
     )
     session_glimpse: Optional[str] = Field(
         default=None,

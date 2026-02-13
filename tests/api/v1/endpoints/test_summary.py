@@ -372,6 +372,11 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                 "emotional_movement": [
                     {"message_id": "msg-2", "level": -2},
                 ],
+                "skill_coverage": [
+                    {"category": "Learning", "percentage": 60},
+                    {"category": "Support", "percentage": 90},
+                    {"category": "Standards", "percentage": 40},
+                ],
             }
 
             response = client.post("/api/v1/summary/scenario/evaluation", json=request)
@@ -383,6 +388,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert "achieved_competency_ids" in data
             assert "message_tags" in data
             assert "emotional_movement" in data
+            assert "skill_coverage" in data
             assert len(data["improvements"]) == 2
             assert len(data["positives"]) == 2
             assert len(data["achieved_competency_ids"]) == 2
@@ -391,6 +397,11 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert len(data["emotional_movement"]) == 1
             assert data["emotional_movement"][0]["message_id"] == "msg-2"
             assert data["emotional_movement"][0]["level"] == -2
+            assert len(data["skill_coverage"]) == 3
+            assert data["skill_coverage"][0]["category"] == "Learning"
+            assert data["skill_coverage"][0]["percentage"] == 60
+            assert data["skill_coverage"][1]["category"] == "Support"
+            assert data["skill_coverage"][2]["category"] == "Standards"
 
     def test_scenario_evaluation_missing_competencies(
         self, client: TestClient, sample_chat_messages

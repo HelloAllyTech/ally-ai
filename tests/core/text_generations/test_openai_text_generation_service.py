@@ -21,6 +21,7 @@ from app.core.text_generations.structured_output_models import (
     ScenarioEvaluationWithMemory,
     SimulationAnalysis,
     SimulationAnalysisWithMemory,
+    SkillCoverageItemOutput,
     StructuredDiarization,
     StructuredIdentifyUsers,
     StructuredSummaryNote,
@@ -919,6 +920,11 @@ class TestOpenAITextGenerationService:
             emotional_movement=[
                 EmotionalMovementItemOutput(message_id="msg-2", level=-2),
             ],
+            skill_coverage=[
+                SkillCoverageItemOutput(category="Learning", percentage=60),
+                SkillCoverageItemOutput(category="Support", percentage=90),
+                SkillCoverageItemOutput(category="Standards", percentage=40),
+            ],
         )
 
         with patch.object(
@@ -936,6 +942,10 @@ class TestOpenAITextGenerationService:
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["emotional_movement"][0]["level"] == -2
+            assert len(result["skill_coverage"]) == 3
+            assert result["skill_coverage"][0] == {"category": "Learning", "percentage": 60}
+            assert result["skill_coverage"][1] == {"category": "Support", "percentage": 90}
+            assert result["skill_coverage"][2] == {"category": "Standards", "percentage": 40}
             assert "session_glimpse" not in result
             assert "cumulative_memory" not in result
 
@@ -962,6 +972,11 @@ class TestOpenAITextGenerationService:
             emotional_movement=[
                 EmotionalMovementItemOutput(message_id="msg-2", level=-1),
             ],
+            skill_coverage=[
+                SkillCoverageItemOutput(category="Learning", percentage=70),
+                SkillCoverageItemOutput(category="Support", percentage=85),
+                SkillCoverageItemOutput(category="Standards", percentage=55),
+            ],
             session_glimpse="Brief session overview",
             cumulative_memory="Comprehensive memory narrative",
         )
@@ -983,6 +998,10 @@ class TestOpenAITextGenerationService:
             assert len(result["message_tags"]) == 1
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
+            assert len(result["skill_coverage"]) == 3
+            assert result["skill_coverage"][0]["category"] == "Learning"
+            assert result["skill_coverage"][1]["category"] == "Support"
+            assert result["skill_coverage"][2]["category"] == "Standards"
             assert result["session_glimpse"] == "Brief session overview"
             assert result["cumulative_memory"] == "Comprehensive memory narrative"
 
@@ -1025,6 +1044,11 @@ class TestOpenAITextGenerationService:
                 EmotionalMovementItemOutput(message_id="msg-2", level=-3),
                 # msg-3 = counselor → should be filtered out
                 EmotionalMovementItemOutput(message_id="msg-3", level=2),
+            ],
+            skill_coverage=[
+                SkillCoverageItemOutput(category="Learning", percentage=50),
+                SkillCoverageItemOutput(category="Support", percentage=75),
+                SkillCoverageItemOutput(category="Standards", percentage=30),
             ],
         )
 

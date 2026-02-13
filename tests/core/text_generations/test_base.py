@@ -80,6 +80,11 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
             "improvements": ["improvement1"],
             "positives": ["positive1"],
             "achieved_competency_ids": [comp.id for comp in competencies[:2]],
+            "skill_coverage": [
+                {"category": "Learning", "percentage": 50},
+                {"category": "Support", "percentage": 50},
+                {"category": "Standards", "percentage": 50},
+            ],
         }
         if need_memory:
             result["session_glimpse"] = "Test glimpse"

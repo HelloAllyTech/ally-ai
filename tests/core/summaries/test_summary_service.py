@@ -493,13 +493,18 @@ class TestSummaryService:
             "achieved_competency_ids": ["comp-1"],
             "message_tags": [{"id": "msg-1", "tags": [{"label": "Pacing", "category": "POSITIVE"}]}],
             "emotional_movement": [{"message_id": "msg-2", "level": -2}],
+            "skill_coverage": [
+                {"category": "Learning", "percentage": 60},
+                {"category": "Support", "percentage": 90},
+                {"category": "Standards", "percentage": 40},
+            ],
         }
 
         result = await summary_service.generate_scenario_evaluation(
             sample_chat_messages, competencies
         )
 
-        assert set(result.keys()) == {"improvements", "positives", "achieved_competency_ids", "message_tags", "emotional_movement"}
+        assert set(result.keys()) == {"improvements", "positives", "achieved_competency_ids", "message_tags", "emotional_movement", "skill_coverage"}
         assert isinstance(result["improvements"], list)
         assert isinstance(result["positives"], list)
         assert isinstance(result["achieved_competency_ids"], list)
@@ -526,6 +531,11 @@ class TestSummaryService:
             "achieved_competency_ids": ["comp-1"],
             "message_tags": [],
             "emotional_movement": [],
+            "skill_coverage": [
+                {"category": "Learning", "percentage": 70},
+                {"category": "Support", "percentage": 85},
+                {"category": "Standards", "percentage": 55},
+            ],
             "session_glimpse": "Short glimpse text",
             "cumulative_memory": "Longer cumulative text",
         }
@@ -543,6 +553,7 @@ class TestSummaryService:
             "achieved_competency_ids",
             "message_tags",
             "emotional_movement",
+            "skill_coverage",
             "session_glimpse",
             "cumulative_memory",
         }
@@ -566,6 +577,11 @@ class TestSummaryService:
             "achieved_competency_ids": [],
             "message_tags": [],
             "emotional_movement": [],
+            "skill_coverage": [
+                {"category": "Learning", "percentage": 0},
+                {"category": "Support", "percentage": 0},
+                {"category": "Standards", "percentage": 0},
+            ],
         }
 
         result = await summary_service.generate_scenario_evaluation(
