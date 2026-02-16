@@ -36,6 +36,12 @@ os.environ.update(
         "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL": (
             "http://localhost:4566/response-queue"
         ),
+        "QUEUE__TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL": (
+            "http://localhost:4566/requests-queue"
+        ),
+        "DEEPGRAM__API_KEY": "test-deepgram-key",
+        "SARVAM__API_KEY": "test-sarvam-key",
+        "TRANSCRIPTION__PROVIDER": "deepgram",
         "LLM__MAX_CONCURRENT_LLM_CALLS": "100",
         "API__X_API_KEY": "test-x-api-key",
         "SLACK_ALERTS__ENABLED": "false",
