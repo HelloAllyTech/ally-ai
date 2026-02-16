@@ -156,14 +156,13 @@ class BaseTextGenerationService[ModelT](ABC):
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],
-        competencies: List,
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Generate scenario evaluation with competency tracking.
+        Generate scenario evaluation.
 
         Uses a single LLM call. Returns improvements, positives, message_tags,
         emotional_movement, and skill_coverage.
@@ -171,7 +170,6 @@ class BaseTextGenerationService[ModelT](ABC):
 
         Parameters:
             chat_history (List[ChatMessage]): List of chat messages/exchanges
-            competencies (List): List of CompetencyItem objects with id and competency
             need_memory (bool): Whether to also generate memory fields
             previous_memory (Optional[str]): Previous memory to build upon
                 (when need_memory=True)

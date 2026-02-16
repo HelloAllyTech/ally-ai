@@ -69,7 +69,6 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],
-        competencies: List,
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,

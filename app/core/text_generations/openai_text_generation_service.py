@@ -995,14 +995,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],
-        competencies: List,
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Generate scenario evaluation with competency tracking.
+        Generate scenario evaluation.
 
         Uses a single LLM call. Returns improvements, positives, message_tags,
         emotional_movement, and skill_coverage.
@@ -1010,7 +1009,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         Parameters:
             chat_history (List[ChatMessage]): List of chat messages/exchanges
-            competencies (List[Dict[str, str]]): List of competencies with id and competency
             need_memory (bool): Whether to also generate memory fields
             previous_memory (Optional[str]): Previous memory to build upon
             memory_prompt (Optional[str]): Custom instructions for memory generation
@@ -1042,12 +1040,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             else:
                 counselor_message_ids.add(msg.id)
 
-        # Format competencies list for prompt
-        competencies_list = "\n".join(
-            [f"- ID: {comp.id}, Competency: {comp.competency}" 
-             for comp in competencies]
-        )
-        
         try:
             # Select prompt and response model based on memory requirement
             if need_memory:
@@ -1058,7 +1050,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 )
                 formatted_prompt = SCENARIO_EVALUATION_WITH_MEMORY_PROMPT.format(
                     chat_history=chat_history_str,
-                    competencies_list=competencies_list,
                     previous_summary=(
                         previous_memory or "No previous summary available."
                     ),
@@ -1068,7 +1059,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             else:
                 formatted_prompt = SCENARIO_EVALUATION_PROMPT.format(
                     chat_history=chat_history_str,
-                    competencies_list=competencies_list,
                 )
                 response_model = ScenarioEvaluation
 

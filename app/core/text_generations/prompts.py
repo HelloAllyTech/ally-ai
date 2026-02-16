@@ -434,7 +434,7 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
 )
 
 SCENARIO_EVALUATION_PROMPT = PromptTemplate(
-    input_variables=["chat_history", "competencies_list"],
+    input_variables=["chat_history"],
     template=textwrap.dedent(
         """
         You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
@@ -442,13 +442,10 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         Conversation Transcript:
         {chat_history}
 
-        Competencies to Evaluate:
-        {competencies_list}
-
         Evaluate the counselor's performance and return ONLY a JSON object with exactly five fields.
 
         Important rules:
-        - Provide specific, actionable feedback points based on the competencies above.
+        - Provide specific, actionable feedback points.
         - Reference exact examples or quotes from the conversation to support your points.
         - Each point should be concise but substantive.
         - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
@@ -470,7 +467,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
 )
 
 SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
-    input_variables=["chat_history", "competencies_list", "previous_summary", "custom_prompt_section"],
+    input_variables=["chat_history", "previous_summary", "custom_prompt_section"],
     template=textwrap.dedent(
         """
         You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
@@ -481,9 +478,6 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         Conversation Transcript:
         {chat_history}
 
-        Competencies to Evaluate:
-        {competencies_list}
-
         Previous Summary (if available):
         ```
         {previous_summary}
@@ -492,7 +486,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         Evaluate the counselor's performance and return ONLY a JSON object with exactly seven fields.
 
         Important rules:
-        - Provide specific, actionable feedback points based on the competencies above.
+        - Provide specific, actionable feedback points.
         - Reference exact examples or quotes from the conversation to support your points.
         - Each point should be concise but substantive.
         - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.

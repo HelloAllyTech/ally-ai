@@ -341,12 +341,11 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
     """Test cases for scenario evaluation endpoint (new endpoint with competencies)."""
 
     def test_scenario_evaluation_success(
-        self, client: TestClient, mock_summary_service, sample_chat_messages, sample_competencies
+        self, client: TestClient, mock_summary_service, sample_chat_messages
     ):
         """Test successful scenario evaluation generation."""
         request = {
             "chat_history": sample_chat_messages,
-            "competencies_to_evaluate": sample_competencies,
         }
 
         # Use the global mock directly
@@ -400,27 +399,12 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert data["skill_coverage"][1]["category"] == "Support"
             assert data["skill_coverage"][2]["category"] == "Standards"
 
-    def test_scenario_evaluation_missing_competencies(
-        self, client: TestClient, sample_chat_messages
-    ):
-        """Test scenario evaluation with missing competencies field."""
-        request = {
-            "chat_history": sample_chat_messages,
-            # Missing competencies_to_evaluate
-        }
-
-        response = client.post("/api/v1/summary/scenario/evaluation", json=request)
-        
-        # Should fail validation
-        assert response.status_code == 422
-
     def test_scenario_evaluation_methods(
-        self, client: TestClient, sample_chat_messages, sample_competencies
+        self, client: TestClient, sample_chat_messages
     ):
         """Test that scenario/evaluation endpoint only accepts POST requests."""
         request = {
             "chat_history": sample_chat_messages,
-            "competencies_to_evaluate": sample_competencies,
         }
 
         # Test POST (should work)

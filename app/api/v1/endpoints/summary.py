@@ -185,11 +185,10 @@ async def generate_scenario_evaluation(
     Generates comprehensive scenario evaluation based on chat history.
 
     Analyzes conversation performance to identify improvement areas and positives
-    based on provided clinical counseling competencies.
+    based on clinical counseling competencies.
 
     Requires:
     - chat_history: List of messages with unique IDs
-    - competencies_to_evaluate: List of competencies with IDs to evaluate
 
     Always returns:
     - improvements: Areas needing development
@@ -202,7 +201,6 @@ async def generate_scenario_evaluation(
     try:
         evaluation_response = await summary_service.generate_scenario_evaluation(
             chat_history=request.chat_history,
-            competencies=request.competencies_to_evaluate,
             need_memory=request.need_memory,
             previous_memory=request.previous_memory,
             memory_prompt=request.memory_prompt,

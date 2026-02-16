@@ -14,7 +14,6 @@ from app.exceptions.custom_exceptions import (
 )
 from app.schemas.common import ChatMessage
 from app.schemas.summary import (
-    CompetencyItem,
     DynamicSummaryNoteResponse,
     SummaryNoteAndTagsResponse,
     Tag,
@@ -482,11 +481,6 @@ class TestSummaryService:
         self, summary_service, mock_text_generation_service, sample_chat_messages
     ):
         """Test successful scenario evaluation generation."""
-        competencies = [
-            {"id": "comp-1", "competency": "Socialising the Client to Counselling"},
-            {"id": "comp-2", "competency": "Explanation and Promotion of Ethics"},
-        ]
-
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test improvement"],
             "positives": ["Test positive"],
@@ -500,7 +494,7 @@ class TestSummaryService:
         }
 
         result = await summary_service.generate_scenario_evaluation(
-            sample_chat_messages, competencies
+            sample_chat_messages
         )
 
         assert set(result.keys()) == {"improvements", "positives", "message_tags", "emotional_movement", "skill_coverage"}
@@ -510,7 +504,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.assert_called_once()
         call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
         assert call_args[0][0] == sample_chat_messages
-        assert call_args[1]["competencies"] == competencies
         assert call_args[1]["need_memory"] is False
 
     @pytest.mark.asyncio
@@ -518,10 +511,6 @@ class TestSummaryService:
         self, summary_service, mock_text_generation_service, sample_chat_messages
     ):
         """Test scenario evaluation with memory generation."""
-        competencies = [
-            {"id": "comp-1", "competency": "Test Competency"},
-        ]
-
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test improvement"],
             "positives": ["Test positive"],
@@ -538,7 +527,6 @@ class TestSummaryService:
 
         result = await summary_service.generate_scenario_evaluation(
             sample_chat_messages,
-            competencies,
             need_memory=True,
             previous_memory="Previous context",
         )
@@ -559,12 +547,10 @@ class TestSummaryService:
         assert call_args[1]["previous_memory"] == "Previous context"
 
     @pytest.mark.asyncio
-    async def test_generate_scenario_evaluation_with_empty_competencies(
-        self, summary_service, mock_text_generation_service, sample_chat_messages
+    async def test_generate_scenario_evaluation_with_empty_chat_history(
+        self, summary_service, mock_text_generation_service
     ):
-        """Test scenario evaluation with empty competencies list."""
-        competencies = []
-
+        """Test scenario evaluation with empty chat history."""
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test"],
             "positives": ["Test"],
@@ -577,9 +563,7 @@ class TestSummaryService:
             ],
         }
 
-        result = await summary_service.generate_scenario_evaluation(
-            sample_chat_messages, competencies
-        )
+        result = await summary_service.generate_scenario_evaluation([])
 
         assert result["message_tags"] == []
 
@@ -588,13 +572,11 @@ class TestSummaryService:
         self, summary_service, mock_text_generation_service, sample_chat_messages
     ):
         """Test scenario evaluation when LLM invocation fails."""
-        competencies = [{"id": "comp-1", "competency": "Test"}]
-
         mock_text_generation_service.generate_scenario_evaluation.side_effect = (
             LLMInvocationFailedException("LLM error")
         )
 
         with pytest.raises(CounselorTrainingAnalysisFailedException):
             await summary_service.generate_scenario_evaluation(
-                sample_chat_messages, competencies
+                sample_chat_messages
             )

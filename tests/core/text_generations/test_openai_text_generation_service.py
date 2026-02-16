@@ -38,7 +38,6 @@ from app.exceptions.custom_exceptions import (
 from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse, Nudge
 from app.schemas.summary import (
-    CompetencyItem,
     ContentEnhance,
     DynamicSummaryNoteResponse,
     Tag,
@@ -897,12 +896,6 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test successful scenario evaluation generation (need_memory=False)."""
-        competencies = [
-            CompetencyItem(id="comp-1", competency="Socialising the Client to Counselling"),
-            CompetencyItem(id="comp-2", competency="Explanation and Promotion of Ethics"),
-            CompetencyItem(id="comp-3", competency="Exploration & Normalisation of Feelings"),
-        ]
-
         mock_evaluation = ScenarioEvaluation(
             improvements=["Ask more open-ended questions"],
             positives=["Good rapport building"],
@@ -930,7 +923,7 @@ class TestOpenAITextGenerationService:
             text_generation_service, "_invoke_llm", return_value=mock_evaluation
         ):
             result = await text_generation_service.generate_scenario_evaluation(
-                sample_chat_messages, competencies
+                sample_chat_messages
             )
 
             assert result["improvements"] == ["Ask more open-ended questions"]
@@ -952,11 +945,6 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test scenario evaluation with need_memory=True returns all fields in a single LLM call."""
-        competencies = [
-            CompetencyItem(id="comp-1", competency="Socialising the Client to Counselling"),
-            CompetencyItem(id="comp-2", competency="Explanation and Promotion of Ethics"),
-        ]
-
         mock_response = ScenarioEvaluationWithMemory(
             improvements=["Improve reflective listening"],
             positives=["Strong empathy demonstration"],
@@ -983,7 +971,6 @@ class TestOpenAITextGenerationService:
         ):
             result = await text_generation_service.generate_scenario_evaluation(
                 sample_chat_messages,
-                competencies,
                 need_memory=True,
                 previous_memory="Previous context",
                 memory_prompt="Custom instructions",
@@ -1006,11 +993,6 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test that hallucinated data is filtered: client message tags and counselor emotional ratings."""
-        competencies = [
-            CompetencyItem(id="comp-1", competency="Empathy"),
-            CompetencyItem(id="comp-2", competency="Pacing"),
-        ]
-
         mock_evaluation = ScenarioEvaluation(
             improvements=["Improve X"],
             positives=["Good Y"],
@@ -1050,7 +1032,7 @@ class TestOpenAITextGenerationService:
             text_generation_service, "_invoke_llm", return_value=mock_evaluation
         ):
             result = await text_generation_service.generate_scenario_evaluation(
-                sample_chat_messages, competencies
+                sample_chat_messages
             )
 
             # Only counselor messages (msg-1, msg-3) should remain; client msg-2 filtered
@@ -1070,8 +1052,6 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test scenario evaluation generation failure."""
-        competencies = [CompetencyItem(id="comp-1", competency="Test")]
-
         with patch.object(
             text_generation_service,
             "_invoke_llm",
@@ -1079,6 +1059,6 @@ class TestOpenAITextGenerationService:
         ):
             with pytest.raises(LLMInvocationFailedException):
                 await text_generation_service.generate_scenario_evaluation(
-                    sample_chat_messages, competencies
+                    sample_chat_messages
                 )
 

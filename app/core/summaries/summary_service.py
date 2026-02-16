@@ -13,7 +13,6 @@ from app.exceptions.custom_exceptions import (
 )
 from app.schemas.common import ChatMessage
 from app.schemas.summary import (
-    CompetencyItem,
     DynamicSummaryNoteResponse,
     SummaryNoteAndTagsResponse,
     Tag,
@@ -354,18 +353,16 @@ class SummaryService:
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],
-        competencies: List[CompetencyItem],
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         chat_id: Optional[str] = None,
     ):
         """
-        Generate scenario evaluation with competency tracking.
+        Generate scenario evaluation.
 
         Parameters:
             chat_history (List[ChatMessage]): The conversation between AI client and counselor.
-            competencies (List[CompetencyItem]): List of competencies with id and competency.
             need_memory (bool): Whether to generate memory summary alongside evaluation.
             previous_memory (Optional[str]): Previous memory summary to build upon (when need_memory=True).
             memory_prompt (Optional[str]): Custom instructions for memory generation (when need_memory=True).
@@ -389,7 +386,6 @@ class SummaryService:
         try:
             result = await self.text_generation_service.generate_scenario_evaluation(
                 chat_history,
-                competencies=competencies,
                 need_memory=need_memory,
                 previous_memory=previous_memory,
                 memory_prompt=memory_prompt,
@@ -410,7 +406,6 @@ class SummaryService:
                         "component": "SummaryService",
                         "processing_time_ms": processing_time_ms,
                         "memory_generated": need_memory,
-                        "competencies_count": len(competencies),
                         "result_keys": (
                             list(result.keys()) if isinstance(result, dict) else []
                         ),
@@ -435,7 +430,6 @@ class SummaryService:
                         "method": "generate_scenario_evaluation",
                         "exception_type": type(e).__name__,
                         "chat_history_count": len(chat_history),
-                        "competencies_count": len(competencies),
                         "processing_time_ms": processing_time_ms,
                     },
                 )

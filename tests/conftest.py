@@ -71,16 +71,6 @@ def sample_chat_messages():
 
 
 @pytest.fixture
-def sample_competencies():
-    """Sample competencies for testing."""
-    return [
-        {"id": "comp-1", "competency": "Socialising the Client to Counselling"},
-        {"id": "comp-2", "competency": "Explanation and Promotion of Ethics"},
-        {"id": "comp-3", "competency": "Exploration & Normalisation of Feelings"},
-    ]
-
-
-@pytest.fixture
 def sample_affirmation_messages():
     """Sample messages with affirmations for testing."""
     return [

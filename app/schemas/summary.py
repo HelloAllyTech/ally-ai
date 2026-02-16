@@ -452,23 +452,6 @@ class SimulationAnalysisResponse(BaseModel):
         description="Comprehensive cumulative narrative across sessions (only when need_memory=True)",
     )
 
-class CompetencyItem(BaseModel):
-    """
-    A Pydantic model representing a competency to evaluate.
-    """
-
-    id: str = Field(..., description="Unique identifier for the competency")
-    competency: str = Field(..., description="Name/description of the competency")
-
-    class ConfigDict:
-        json_schema_extra = {
-            "example": {
-                "id": "comp-1",
-                "competency": "Demonstration of Empathy, Warmth, Paraphrasing & Genuineness",
-            }
-        }
-
-
 class ScenarioEvaluationRequest(BaseModel):
     """
     Request model for the /scenario/evaluation endpoint.
@@ -488,10 +471,6 @@ class ScenarioEvaluationRequest(BaseModel):
     memory_prompt: Optional[str] = Field(
         default=None,
         description="Custom instructions for memory generation (when need_memory=True)",
-    )
-    competencies_to_evaluate: List[CompetencyItem] = Field(
-        ...,
-        description="List of competencies to evaluate with their IDs",
     )
 
 
