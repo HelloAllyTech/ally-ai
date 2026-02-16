@@ -5,19 +5,19 @@ from enum import Enum
 from typing import Any, Dict
 
 import boto3
-from app.functions.transcriptions.core.config import settings
-from app.functions.transcriptions.core.message_models import (
+from app.core.config import settings
+from app.core.transcriptions.core.message_models import (
     TranscribeAndSummarizeRequestMessage,
     TranscriptionResultMessage,
 )
-from app.functions.transcriptions.services import (
+from app.core.transcriptions.services import (
     DeepgramTranscriptionService,
     OpenAITranscriptionService,
     SarvamTranscriptionService,
 )
-from app.functions.transcriptions.utils.logger import get_logger
-from app.functions.transcriptions.utils.phi_events import PHIEvents
-from app.functions.transcriptions.utils.phi_logger import PHILogEvent, log_sync, phi_logger
+from app.core.transcriptions.utils.logger import get_logger
+from app.core.transcriptions.utils.phi_events import PHIEvents
+from app.core.transcriptions.utils.phi_logger import PHILogEvent, log_sync, phi_logger
 
 logger = get_logger(__name__)
 

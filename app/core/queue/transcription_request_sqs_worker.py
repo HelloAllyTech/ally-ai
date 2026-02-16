@@ -4,11 +4,12 @@ Production SQS Worker with proper cleanup and shutdown.
 
 import asyncio
 
-from app.functions.transcriptions.core.config import settings
+from app.core.config import settings
 from app.core.constants import SQSWorkerConstants
 from app.core.queue.message_processor import MessageProcessor
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
+from app.core.queue.transcription_request_handler import TranscriptionRequestHandler
 
 from app.utils.logger import get_logger
 
@@ -31,7 +32,7 @@ async def main():
         transcription_request_processor = MessageProcessor(
             queue_service=queue_service,
             handler=transcription_request_handler.process_transcription_request,
-            queue_url=settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
+            queue_url=settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
             max_messages=SQSWorkerConstants.MAX_MESSAGES,
             wait_time_seconds=SQSWorkerConstants.WAIT_TIME_SECONDS,
             visibility_timeout=SQSWorkerConstants.VISIBILITY_TIMEOUT,
@@ -40,7 +41,7 @@ async def main():
         )
 
         logger.info(
-            f"Starting processor for: {settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL}"
+            f"Starting processor for: {settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL}"
         )
 
         # Start processor and wait for it to complete
