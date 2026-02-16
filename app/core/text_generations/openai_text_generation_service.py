@@ -53,7 +53,7 @@ from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
     Tag,
 )
-from app.utils.common import filter_emotional_movement, filter_message_tags
+from app.utils.common import build_id_mapping, filter_emotional_movement, filter_message_tags
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.counselor_interruption_calculator import (
@@ -1024,21 +1024,27 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Generating scenario evaluation using OpenAI")
 
-        # Convert chat history to string format with IDs and roles for message tagging
+        # Map UUIDs to compact keys to reduce token usage
+        uuid_to_key, key_to_uuid = build_id_mapping(chat_history)
+
+        # Convert chat history to string format using keys
         chat_history_str = "\n".join(
             [
-                f"[ID: {msg.id}] ({msg.role}): {msg.content}"
+                f"[ID: {uuid_to_key[msg.id]}] ({msg.role}): {msg.content}"
                 for msg in chat_history
             ]
         )
 
-        counselor_message_ids: set[str] = set() # for message tagging
-        client_message_ids: list[str] = [] # for emotional movement
+        # Track valid keys per role for post-processing validation
+        counselor_keys: set[str] = set()
+        client_keys: list[str] = []
+
         for msg in chat_history:
+            key = uuid_to_key[msg.id]
             if msg.role and msg.role.lower() in ("client", "assistant"):
-                client_message_ids.append(msg.id)
+                client_keys.append(key)
             else:
-                counselor_message_ids.add(msg.id)
+                counselor_keys.add(key)
 
         try:
             # Select prompt and response model based on memory requirement
@@ -1073,15 +1079,19 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             logger.info("Scenario evaluation generated successfully")
 
-            # Build result with validated fields
+            # Build result: validate keys and remap back to UUIDs
             result: Dict[str, Any] = {
                 "improvements": response.improvements,
                 "positives": response.positives,
                 "message_tags": filter_message_tags(
-                    response.message_tags, counselor_message_ids
+                    response.message_tags,
+                    counselor_keys,
+                    key_to_uuid,
                 ),
                 "emotional_movement": filter_emotional_movement(
-                    response.emotional_movement, client_message_ids
+                    response.emotional_movement,
+                    client_keys,
+                    key_to_uuid,
                 ),
                 "skill_coverage": [
                     {"category": item.category, "percentage": item.percentage}

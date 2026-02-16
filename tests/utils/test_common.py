@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from app.schemas.common import ChatMessage
 from app.utils.common import (
+    build_id_mapping,
     convert_chat_messages_to_string,
     filter_emotional_movement,
     filter_message_tags,
@@ -83,6 +84,51 @@ class TestCommonUtils:
 
 
 
+class TestBuildIdMapping:
+    """Test cases for build_id_mapping utility."""
+
+    def test_basic_mapping(self):
+        """UUIDs are mapped to sequential keys."""
+        messages = [
+            ChatMessage(id="aaa-111", role="counselor", content="Hi"),
+            ChatMessage(id="bbb-222", role="client", content="Hello"),
+            ChatMessage(id="ccc-333", role="counselor", content="How are you?"),
+        ]
+        uuid_to_key, key_to_uuid = build_id_mapping(messages)
+
+        assert uuid_to_key == {"aaa-111": "m1", "bbb-222": "m2", "ccc-333": "m3"}
+        assert key_to_uuid == {"m1": "aaa-111", "m2": "bbb-222", "m3": "ccc-333"}
+
+    def test_empty_messages(self):
+        """Empty input returns empty dicts."""
+        uuid_to_key, key_to_uuid = build_id_mapping([])
+        assert uuid_to_key == {}
+        assert key_to_uuid == {}
+
+    def test_duplicate_ids_mapped_once(self):
+        """If the same ID appears twice, it is only mapped once (first occurrence)."""
+        messages = [
+            ChatMessage(id="aaa-111", role="counselor", content="Hi"),
+            ChatMessage(id="aaa-111", role="counselor", content="Hi again"),
+            ChatMessage(id="bbb-222", role="client", content="Hello"),
+        ]
+        uuid_to_key, key_to_uuid = build_id_mapping(messages)
+
+        assert uuid_to_key == {"aaa-111": "m1", "bbb-222": "m3"}
+        assert key_to_uuid == {"m1": "aaa-111", "m3": "bbb-222"}
+
+    def test_bidirectional_consistency(self):
+        """Every mapping in uuid_to_key has a reverse in key_to_uuid."""
+        messages = [
+            ChatMessage(id="x-1", role="counselor", content="A"),
+            ChatMessage(id="x-2", role="client", content="B"),
+        ]
+        uuid_to_key, key_to_uuid = build_id_mapping(messages)
+
+        for uuid_val, key_val in uuid_to_key.items():
+            assert key_to_uuid[key_val] == uuid_val
+
+
 def _tag(label: str, category_value: str):
     """Helper to build a tag-like object with .label and .category.value."""
     cat = SimpleNamespace(value=category_value)
@@ -99,33 +145,35 @@ class TestFilterMessageTags:
 
     def test_keeps_only_valid_ids(self):
         """Entries with IDs not in the valid set are dropped."""
+        key_to_uuid = {"m1": "uuid-1", "m2": "uuid-2", "m3": "uuid-3"}
         items = [
-            _tag_item("msg-1", [_tag("Pacing", "POSITIVE")]),
-            _tag_item("msg-2", [_tag("Paraphrases", "POSITIVE")]),
-            _tag_item("msg-3", [_tag("Pacing", "POSITIVE")]),
+            _tag_item("m1", [_tag("Pacing", "POSITIVE")]),
+            _tag_item("m2", [_tag("Paraphrases", "POSITIVE")]),
+            _tag_item("m3", [_tag("Pacing", "POSITIVE")]),
         ]
-        result = filter_message_tags(items, {"msg-1", "msg-3"})
+        result = filter_message_tags(items, {"m1", "m3"}, key_to_uuid)
 
         assert len(result) == 2
-        assert result[0]["id"] == "msg-1"
-        assert result[1]["id"] == "msg-3"
+        assert result[0]["id"] == "uuid-1"
+        assert result[1]["id"] == "uuid-3"
 
     def test_serialises_tags_correctly(self):
         """Tags are serialised to dicts with label and category string."""
+        key_to_uuid = {"m1": "uuid-1"}
         items = [
             _tag_item(
-                "msg-1",
+                "m1",
                 [
                     _tag("Pacing", "POSITIVE"),
                     _tag("Avoid Advice Giving", "NEGATIVE"),
                 ],
             ),
         ]
-        result = filter_message_tags(items, {"msg-1"})
+        result = filter_message_tags(items, {"m1"}, key_to_uuid)
 
         assert result == [
             {
-                "id": "msg-1",
+                "id": "uuid-1",
                 "tags": [
                     {"label": "Pacing", "category": "POSITIVE"},
                     {"label": "Avoid Advice Giving", "category": "NEGATIVE"},
@@ -135,19 +183,48 @@ class TestFilterMessageTags:
 
     def test_empty_tags_list(self):
         """Message with no tags produces an empty tags array."""
-        items = [_tag_item("msg-1", [])]
-        result = filter_message_tags(items, {"msg-1"})
+        key_to_uuid = {"m1": "uuid-1"}
+        items = [_tag_item("m1", [])]
+        result = filter_message_tags(items, {"m1"}, key_to_uuid)
 
-        assert result == [{"id": "msg-1", "tags": []}]
+        assert result == [{"id": "uuid-1", "tags": []}]
 
     def test_empty_input(self):
         """No items in, no items out."""
-        assert filter_message_tags([], {"msg-1"}) == []
+        assert filter_message_tags([], {"m1"}, {"m1": "uuid-1"}) == []
 
     def test_all_filtered_out(self):
         """All items filtered when none match valid set."""
-        items = [_tag_item("msg-99", [_tag("Pacing", "POSITIVE")])]
-        assert filter_message_tags(items, {"msg-1"}) == []
+        key_to_uuid = {"m1": "uuid-1"}
+        items = [_tag_item("m99", [_tag("Pacing", "POSITIVE")])]
+        assert filter_message_tags(items, {"m1"}, key_to_uuid) == []
+
+    def test_remaps_keys_to_uuids(self):
+        """Output IDs are remapped from keys to original UUIDs."""
+        items = [
+            _tag_item("m1", [_tag("Pacing", "POSITIVE")]),
+            _tag_item("m3", [_tag("Paraphrases", "POSITIVE")]),
+        ]
+        key_to_uuid = {"m1": "aaa-111", "m2": "bbb-222", "m3": "ccc-333"}
+
+        result = filter_message_tags(items, {"m1", "m3"}, key_to_uuid)
+
+        assert len(result) == 2
+        assert result[0]["id"] == "aaa-111"
+        assert result[1]["id"] == "ccc-333"
+
+    def test_hallucinated_key_filtered(self):
+        """Keys not in the valid set are filtered out (hallucination guard)."""
+        items = [
+            _tag_item("m1", [_tag("Pacing", "POSITIVE")]),
+            _tag_item("m99", [_tag("Pacing", "POSITIVE")]),
+        ]
+        key_to_uuid = {"m1": "aaa-111"}
+
+        result = filter_message_tags(items, {"m1"}, key_to_uuid)
+
+        assert len(result) == 1
+        assert result[0]["id"] == "aaa-111"
 
 
 def _emotional_item(message_id: str, level: int):
@@ -160,76 +237,114 @@ class TestFilterEmotionalMovement:
 
     def test_keeps_only_valid_ids(self):
         """Entries with IDs not in the valid list are dropped."""
+        key_to_uuid = {"m1": "uuid-1", "m2": "uuid-2", "m3": "uuid-3"}
         items = [
-            _emotional_item("msg-1", -2),
-            _emotional_item("msg-2", 0),
-            _emotional_item("msg-3", 3),
+            _emotional_item("m1", -2),
+            _emotional_item("m2", 0),
+            _emotional_item("m3", 3),
         ]
-        result = filter_emotional_movement(items, ["msg-1", "msg-3"])
+        result = filter_emotional_movement(items, ["m1", "m3"], key_to_uuid)
 
         assert len(result) == 2
-        assert result[0]["message_id"] == "msg-1"
+        assert result[0]["message_id"] == "uuid-1"
         assert result[0]["level"] == -2
-        assert result[1]["message_id"] == "msg-3"
+        assert result[1]["message_id"] == "uuid-3"
         assert result[1]["level"] == 3
 
     def test_serialises_correctly(self):
         """Items are serialised to dicts with message_id and level."""
+        key_to_uuid = {"m2": "uuid-2", "m4": "uuid-4"}
         items = [
-            _emotional_item("msg-2", -5),
-            _emotional_item("msg-4", 5),
+            _emotional_item("m2", -5),
+            _emotional_item("m4", 5),
         ]
-        result = filter_emotional_movement(items, ["msg-2", "msg-4"])
+        result = filter_emotional_movement(items, ["m2", "m4"], key_to_uuid)
 
         assert result == [
-            {"message_id": "msg-2", "level": -5},
-            {"message_id": "msg-4", "level": 5},
+            {"message_id": "uuid-2", "level": -5},
+            {"message_id": "uuid-4", "level": 5},
         ]
 
     def test_empty_input(self):
         """No LLM items — every client message back-filled with default 0."""
-        result = filter_emotional_movement([], ["msg-1", "msg-2"])
+        key_to_uuid = {"m1": "uuid-1", "m2": "uuid-2"}
+        result = filter_emotional_movement([], ["m1", "m2"], key_to_uuid)
 
         assert result == [
-            {"message_id": "msg-1", "level": 0},
-            {"message_id": "msg-2", "level": 0},
+            {"message_id": "uuid-1", "level": 0},
+            {"message_id": "uuid-2", "level": 0},
         ]
 
     def test_all_filtered_out(self):
         """LLM rated wrong messages — client messages back-filled with default."""
-        items = [_emotional_item("msg-99", 2)]
-        result = filter_emotional_movement(items, ["msg-1"])
+        key_to_uuid = {"m1": "uuid-1"}
+        items = [_emotional_item("m99", 2)]
+        result = filter_emotional_movement(items, ["m1"], key_to_uuid)
 
-        assert result == [{"message_id": "msg-1", "level": 0}]
+        assert result == [{"message_id": "uuid-1", "level": 0}]
 
     def test_preserves_conversation_order(self):
         """Output order matches conversation order, not LLM response order."""
+        key_to_uuid = {"m2": "uuid-2", "m5": "uuid-5", "m8": "uuid-8"}
         items = [
-            _emotional_item("msg-8", 0),
-            _emotional_item("msg-2", -3),
-            _emotional_item("msg-5", 1),
+            _emotional_item("m8", 0),
+            _emotional_item("m2", -3),
+            _emotional_item("m5", 1),
         ]
-        result = filter_emotional_movement(items, ["msg-2", "msg-5", "msg-8"])
+        result = filter_emotional_movement(items, ["m2", "m5", "m8"], key_to_uuid)
 
-        assert [r["message_id"] for r in result] == ["msg-2", "msg-5", "msg-8"]
+        assert [r["message_id"] for r in result] == ["uuid-2", "uuid-5", "uuid-8"]
         assert [r["level"] for r in result] == [-3, 1, 0]
 
     def test_backfills_missing_messages(self):
-        """Client messages the LLM skipped are back-filled with default level."""
+        """Client messages the LLM skipped are back-filled with 0."""
+        key_to_uuid = {"m2": "uuid-2", "m4": "uuid-4", "m6": "uuid-6"}
         items = [
-            _emotional_item("msg-2", -3),
-            # msg-4 missing from LLM response
+            _emotional_item("m2", -3),
         ]
-        result = filter_emotional_movement(items, ["msg-2", "msg-4", "msg-6"])
+        result = filter_emotional_movement(items, ["m2", "m4", "m6"], key_to_uuid)
 
         assert result == [
-            {"message_id": "msg-2", "level": -3},
-            {"message_id": "msg-4", "level": 0},
-            {"message_id": "msg-6", "level": 0},
+            {"message_id": "uuid-2", "level": -3},
+            {"message_id": "uuid-4", "level": 0},
+            {"message_id": "uuid-6", "level": 0},
         ]
 
-    def test_custom_default_level(self):
-        """Custom default level is used for missing messages."""
-        result = filter_emotional_movement([], ["msg-1"], default_level=-1)
+    def test_remaps_keys_to_uuids(self):
+        """Output message_ids are remapped from keys to original UUIDs."""
+        items = [
+            _emotional_item("m2", -3),
+            _emotional_item("m4", 1),
+        ]
+        key_to_uuid = {"m2": "bbb-222", "m4": "ddd-444"}
 
-        assert result == [{"message_id": "msg-1", "level": -1}]
+        result = filter_emotional_movement(items, ["m2", "m4"], key_to_uuid)
+
+        assert result == [
+            {"message_id": "bbb-222", "level": -3},
+            {"message_id": "ddd-444", "level": 1},
+        ]
+
+    def test_backfill_with_remap(self):
+        """Missing messages are back-filled and remapped to UUIDs."""
+        items = [_emotional_item("m2", -3)]
+        key_to_uuid = {"m2": "bbb-222", "m4": "ddd-444"}
+
+        result = filter_emotional_movement(items, ["m2", "m4"], key_to_uuid)
+
+        assert result == [
+            {"message_id": "bbb-222", "level": -3},
+            {"message_id": "ddd-444", "level": 0},
+        ]
+
+    def test_hallucinated_key_filtered_in_emotional(self):
+        """Keys not in the valid list are filtered out (hallucination guard)."""
+        items = [
+            _emotional_item("m2", -3),
+            _emotional_item("m99", 5),
+        ]
+        key_to_uuid = {"m2": "bbb-222"}
+
+        result = filter_emotional_movement(items, ["m2"], key_to_uuid)
+
+        assert result == [{"message_id": "bbb-222", "level": -3}]

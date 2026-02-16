@@ -895,22 +895,27 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_success(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test successful scenario evaluation generation (need_memory=False)."""
+        """Test successful scenario evaluation generation (need_memory=False).
+
+        The LLM receives short IDs (m1, m2, m3) but the output should
+        contain the original UUIDs (msg-1, msg-2, msg-3).
+        """
+        # LLM mock uses short IDs (what the LLM sees in the prompt)
         mock_evaluation = ScenarioEvaluation(
             improvements=["Ask more open-ended questions"],
             positives=["Good rapport building"],
             message_tags=[
                 MessageTagItemOutput(
-                    id="msg-1",
+                    id="m1",
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
                 ),
                 MessageTagItemOutput(
-                    id="msg-3",
+                    id="m3",
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
                 ),
             ],
             emotional_movement=[
-                EmotionalMovementItemOutput(message_id="msg-2", level=-2),
+                EmotionalMovementItemOutput(message_id="m2", level=-2),
             ],
             skill_coverage=[
                 SkillCoverageItemOutput(category="Learning", percentage=60),
@@ -928,8 +933,10 @@ class TestOpenAITextGenerationService:
 
             assert result["improvements"] == ["Ask more open-ended questions"]
             assert result["positives"] == ["Good rapport building"]
+            # IDs should be remapped back to original UUIDs
             assert len(result["message_tags"]) == 2
             assert result["message_tags"][0]["id"] == "msg-1"
+            assert result["message_tags"][1]["id"] == "msg-3"
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["emotional_movement"][0]["level"] == -2
@@ -945,17 +952,18 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, sample_chat_messages
     ):
         """Test scenario evaluation with need_memory=True returns all fields in a single LLM call."""
+        # LLM mock uses short IDs
         mock_response = ScenarioEvaluationWithMemory(
             improvements=["Improve reflective listening"],
             positives=["Strong empathy demonstration"],
             message_tags=[
                 MessageTagItemOutput(
-                    id="msg-1",
+                    id="m1",
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.HOLD_EMOTIONAL_SPACE, category=TagCategoryEnum.POSITIVE)],
                 ),
             ],
             emotional_movement=[
-                EmotionalMovementItemOutput(message_id="msg-2", level=-1),
+                EmotionalMovementItemOutput(message_id="m2", level=-1),
             ],
             skill_coverage=[
                 SkillCoverageItemOutput(category="Learning", percentage=70),
@@ -979,6 +987,7 @@ class TestOpenAITextGenerationService:
             assert result["improvements"] == ["Improve reflective listening"]
             assert result["positives"] == ["Strong empathy demonstration"]
             assert len(result["message_tags"]) == 1
+            assert result["message_tags"][0]["id"] == "msg-1"
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert len(result["skill_coverage"]) == 3
@@ -992,34 +1001,42 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_filters_hallucinated_data(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test that hallucinated data is filtered: client message tags and counselor emotional ratings."""
+        """Test that hallucinated short IDs are filtered and valid ones remapped to UUIDs."""
+        # LLM uses short IDs; m99 is hallucinated (doesn't exist)
         mock_evaluation = ScenarioEvaluation(
             improvements=["Improve X"],
             positives=["Good Y"],
             message_tags=[
-                # msg-1 = counselor → should be kept
+                # m1 = counselor → should be kept and remapped to msg-1
                 MessageTagItemOutput(
-                    id="msg-1",
+                    id="m1",
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
                 ),
-                # msg-2 = client → should be filtered out
+                # m2 = client → should be filtered out (tags are for counselor only)
                 MessageTagItemOutput(
-                    id="msg-2",
+                    id="m2",
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
                 ),
-                # msg-3 = counselor → should be kept
+                # m3 = counselor → should be kept and remapped to msg-3
                 MessageTagItemOutput(
-                    id="msg-3",
+                    id="m3",
                     tags=[MessageTagOutput(label=MessageTagLabelEnum.AVOID_ADVICE_GIVING, category=TagCategoryEnum.NEGATIVE)],
+                ),
+                # m99 = hallucinated → should be filtered out
+                MessageTagItemOutput(
+                    id="m99",
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
                 ),
             ],
             emotional_movement=[
-                # msg-1 = counselor → should be filtered out
-                EmotionalMovementItemOutput(message_id="msg-1", level=0),
-                # msg-2 = client → should be kept
-                EmotionalMovementItemOutput(message_id="msg-2", level=-3),
-                # msg-3 = counselor → should be filtered out
-                EmotionalMovementItemOutput(message_id="msg-3", level=2),
+                # m1 = counselor → should be filtered out
+                EmotionalMovementItemOutput(message_id="m1", level=0),
+                # m2 = client → should be kept and remapped to msg-2
+                EmotionalMovementItemOutput(message_id="m2", level=-3),
+                # m3 = counselor → should be filtered out
+                EmotionalMovementItemOutput(message_id="m3", level=2),
+                # m99 = hallucinated → should be filtered out
+                EmotionalMovementItemOutput(message_id="m99", level=5),
             ],
             skill_coverage=[
                 SkillCoverageItemOutput(category="Learning", percentage=50),
@@ -1035,14 +1052,15 @@ class TestOpenAITextGenerationService:
                 sample_chat_messages
             )
 
-            # Only counselor messages (msg-1, msg-3) should remain; client msg-2 filtered
+            # Only counselor messages should remain, remapped to original UUIDs
             assert len(result["message_tags"]) == 2
             tag_ids = [t["id"] for t in result["message_tags"]]
             assert "msg-1" in tag_ids
             assert "msg-3" in tag_ids
             assert "msg-2" not in tag_ids
+            assert "m99" not in tag_ids
 
-            # Only client message (msg-2) should remain; counselor msg-1, msg-3 filtered
+            # Only client message should remain, remapped to original UUID
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["emotional_movement"][0]["level"] == -3

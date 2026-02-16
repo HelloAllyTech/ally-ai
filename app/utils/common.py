@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Union
+from typing import Any, Dict, List, Set, Tuple
 
 from app.schemas.common import ChatMessage
 
@@ -21,13 +21,39 @@ def convert_chat_messages_to_string(chat_messages: List[ChatMessage]) -> str:
     return "\n".join(f"{msg.role}: {msg.content}" for msg in chat_messages)
 
 
+def build_id_mapping(
+    chat_messages: List[ChatMessage],
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """
+    Build bidirectional mappings between original message UUIDs
+    and compact sequential keys (m1, m2, ...) to reduce token usage in LLM
+    prompts and responses.
+
+    Parameters:
+        chat_messages: List of ChatMessage objects with original IDs.
+
+    Returns:
+        A tuple of two dicts:
+        - uuid_to_key: Maps original UUID → key  (e.g. "abc-123..." → "m1")
+        - key_to_uuid: Maps key → original UUID  (e.g. "m1" → "abc-123...")
+    """
+    uuid_to_key: Dict[str, str] = {}
+    key_to_uuid: Dict[str, str] = {}
+    for idx, msg in enumerate(chat_messages, start=1):
+        if msg.id and msg.id not in uuid_to_key:
+            key = f"m{idx}"
+            uuid_to_key[msg.id] = key
+            key_to_uuid[key] = msg.id
+    return uuid_to_key, key_to_uuid
+
 
 def filter_message_tags(
     message_tags: List[Any],
-    valid_message_ids: Set[str],
+    valid_keys: Set[str],
+    key_to_uuid: Dict[str, str],
 ) -> List[Dict[str, Any]]:
     """
-    Filter and serialise message tags, keeping only entries whose ID
+    Filter and serialise message tags, keeping only entries whose key
     is in the valid set.
 
     Useful for post-processing LLM output to strip tags for messages
@@ -35,56 +61,60 @@ def filter_message_tags(
 
     Parameters:
         message_tags: List of MessageTagItemOutput objects from LLM response.
-        valid_message_ids: Set of message IDs that are allowed to have tags.
+        valid_keys: Set of message keys that are allowed to have tags.
+        key_to_uuid: Mapping of keys back to original UUIDs.
 
     Returns:
-        List of dicts with "id" and "tags" ready for the API response.
+        List of dicts with "id" (original UUID) and "tags" ready for the API response.
     """
     return [
         {
-            "id": item.id,
+            "id": key_to_uuid[item.id],
             "tags": [
                 {"label": t.label, "category": t.category.value}
                 for t in item.tags
             ],
         }
         for item in message_tags
-        if item.id in valid_message_ids
+        if item.id in valid_keys
     ]
 
 
 def filter_emotional_movement(
     emotional_movement: List[Any],
-    client_message_ids: List[str],
-    default_level: int = 0,
+    client_keys: List[str],
+    key_to_uuid: Dict[str, str],
 ) -> List[Dict[str, Any]]:
     """
     Filter, serialise, and back-fill emotional movement so every client
     message is guaranteed to have a rating in conversation order.
 
     - Strips entries for non-client messages (e.g. counselor).
-    - Back-fills any missing client messages with *default_level* (neutral).
+    - Back-fills any missing client messages with 0 (neutral).
 
     Parameters:
         emotional_movement: List of EmotionalMovementItemOutput objects from LLM response.
-        client_message_ids: Ordered list of client message IDs (conversation order).
-        default_level: Level to assign to missing messages (default 0 = neutral).
+        client_keys: Ordered list of client message keys (conversation order).
+        key_to_uuid: Mapping of keys back to original UUIDs.
 
     Returns:
-        List of dicts with "message_id" and "level" for every client message,
-        in conversation order.
+        List of dicts with "message_id" (original UUID) and "level" for every
+        client message, in conversation order.
     """
-    valid_ids = set(client_message_ids)
+    valid_keys = set(client_keys)
 
     # Build lookup from LLM response, keeping only valid client messages
     rated = {
         item.message_id: item.level
         for item in emotional_movement
-        if item.message_id in valid_ids
+        if item.message_id in valid_keys
     }
 
     # Ensure every client message has a rating, preserving conversation order
     return [
-        {"message_id": msg_id, "level": rated.get(msg_id, default_level)}
-        for msg_id in client_message_ids
+        {
+            "message_id": key_to_uuid[msg_key],
+            "level": rated.get(msg_key, 0),
+        }
+        for msg_key in client_keys
     ]
