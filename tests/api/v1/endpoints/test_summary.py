@@ -362,7 +362,6 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                     "Use reflective listening",
                 ],
                 "positives": ["Good rapport building", "Empathetic responses"],
-                "achieved_competency_ids": ["comp-1", "comp-2"],
                 "message_tags": [
                     {
                         "id": "msg-1",
@@ -385,13 +384,11 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             data = response.json()
             assert "improvements" in data
             assert "positives" in data
-            assert "achieved_competency_ids" in data
             assert "message_tags" in data
             assert "emotional_movement" in data
             assert "skill_coverage" in data
             assert len(data["improvements"]) == 2
             assert len(data["positives"]) == 2
-            assert len(data["achieved_competency_ids"]) == 2
             assert len(data["message_tags"]) == 1
             assert data["message_tags"][0]["id"] == "msg-1"
             assert len(data["emotional_movement"]) == 1

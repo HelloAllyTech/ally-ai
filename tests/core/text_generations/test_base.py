@@ -79,7 +79,6 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
         result: Dict[str, Any] = {
             "improvements": ["improvement1"],
             "positives": ["positive1"],
-            "achieved_competency_ids": [comp.id for comp in competencies[:2]],
             "skill_coverage": [
                 {"category": "Learning", "percentage": 50},
                 {"category": "Support", "percentage": 50},

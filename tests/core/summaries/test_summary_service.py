@@ -490,7 +490,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test improvement"],
             "positives": ["Test positive"],
-            "achieved_competency_ids": ["comp-1"],
             "message_tags": [{"id": "msg-1", "tags": [{"label": "Pacing", "category": "POSITIVE"}]}],
             "emotional_movement": [{"message_id": "msg-2", "level": -2}],
             "skill_coverage": [
@@ -504,11 +503,9 @@ class TestSummaryService:
             sample_chat_messages, competencies
         )
 
-        assert set(result.keys()) == {"improvements", "positives", "achieved_competency_ids", "message_tags", "emotional_movement", "skill_coverage"}
+        assert set(result.keys()) == {"improvements", "positives", "message_tags", "emotional_movement", "skill_coverage"}
         assert isinstance(result["improvements"], list)
         assert isinstance(result["positives"], list)
-        assert isinstance(result["achieved_competency_ids"], list)
-        assert result["achieved_competency_ids"] == ["comp-1"]
 
         mock_text_generation_service.generate_scenario_evaluation.assert_called_once()
         call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
@@ -528,7 +525,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test improvement"],
             "positives": ["Test positive"],
-            "achieved_competency_ids": ["comp-1"],
             "message_tags": [],
             "emotional_movement": [],
             "skill_coverage": [
@@ -550,14 +546,12 @@ class TestSummaryService:
         assert set(result.keys()) == {
             "improvements",
             "positives",
-            "achieved_competency_ids",
             "message_tags",
             "emotional_movement",
             "skill_coverage",
             "session_glimpse",
             "cumulative_memory",
         }
-        assert result["achieved_competency_ids"] == ["comp-1"]
 
         mock_text_generation_service.generate_scenario_evaluation.assert_called_once()
         call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
@@ -574,7 +568,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test"],
             "positives": ["Test"],
-            "achieved_competency_ids": [],
             "message_tags": [],
             "emotional_movement": [],
             "skill_coverage": [
@@ -588,7 +581,7 @@ class TestSummaryService:
             sample_chat_messages, competencies
         )
 
-        assert result["achieved_competency_ids"] == []
+        assert result["message_tags"] == []
 
     @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_failed(

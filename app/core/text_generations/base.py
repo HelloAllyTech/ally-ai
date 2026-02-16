@@ -165,7 +165,8 @@ class BaseTextGenerationService[ModelT](ABC):
         """
         Generate scenario evaluation with competency tracking.
 
-        Uses a single LLM call. Returns improvements, positives, and achieved_competency_ids.
+        Uses a single LLM call. Returns improvements, positives, message_tags,
+        emotional_movement, and skill_coverage.
         When need_memory is True, also returns session_glimpse and cumulative_memory.
 
         Parameters:
@@ -179,9 +180,9 @@ class BaseTextGenerationService[ModelT](ABC):
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
-            Dict[str, Any]: Dictionary with 'improvements', 'positives', and
-                'achieved_competency_ids' arrays. When need_memory=True, also includes
-                'session_glimpse' and 'cumulative_memory'.
+            Dict[str, Any]: Dictionary with 'improvements', 'positives', 'message_tags',
+                'emotional_movement', and 'skill_coverage'. When need_memory=True, also
+                includes 'session_glimpse' and 'cumulative_memory'.
 
         Raises:
             LLMInvocationFailedException: If LLM invocation fails

@@ -9,7 +9,6 @@ from app.utils.common import (
     convert_chat_messages_to_string,
     filter_emotional_movement,
     filter_message_tags,
-    filter_valid_ids,
 )
 
 
@@ -82,33 +81,6 @@ class TestCommonUtils:
         expected = "CLIENT: Hello\nCOUNSELOR: Hi there\nsystem: Session started"
         assert result == expected
 
-
-class TestFilterValidIds:
-    """Test cases for filter_valid_ids utility."""
-
-    def test_all_ids_valid(self):
-        """All IDs are in the valid set."""
-        assert filter_valid_ids(["a", "b"], {"a", "b", "c"}) == ["a", "b"]
-
-    def test_some_ids_invalid(self):
-        """Hallucinated IDs are stripped out."""
-        assert filter_valid_ids(["a", "x", "b"], {"a", "b"}) == ["a", "b"]
-
-    def test_all_ids_invalid(self):
-        """No IDs match — returns empty list."""
-        assert filter_valid_ids(["x", "y"], {"a", "b"}) == []
-
-    def test_empty_ids(self):
-        """Empty input list returns empty."""
-        assert filter_valid_ids([], {"a"}) == []
-
-    def test_empty_valid_set(self):
-        """Empty valid set rejects everything."""
-        assert filter_valid_ids(["a", "b"], set()) == []
-
-    def test_preserves_order(self):
-        """Output order matches input order."""
-        assert filter_valid_ids(["c", "a", "b"], {"a", "b", "c"}) == ["c", "a", "b"]
 
 
 def _tag(label: str, category_value: str):

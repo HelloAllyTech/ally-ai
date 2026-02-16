@@ -375,7 +375,9 @@ class SummaryService:
             Dict[str, Any]: Dictionary containing:
                 - "improvements": Array of areas needing development
                 - "positives": Array of demonstrated strengths
-                - "achieved_competency_ids": Array of competency IDs demonstrated
+                - "message_tags": Per-message tags for counselor messages
+                - "emotional_movement": Emotional trajectory of client messages
+                - "skill_coverage": Skill coverage percentages across categories
                 - "session_glimpse": Brief session overview (only if need_memory=True)
                 - "cumulative_memory": Cumulative narrative (only if need_memory=True)
 
@@ -409,7 +411,6 @@ class SummaryService:
                         "processing_time_ms": processing_time_ms,
                         "memory_generated": need_memory,
                         "competencies_count": len(competencies),
-                        "achieved_count": len(result.get("achieved_competency_ids", [])),
                         "result_keys": (
                             list(result.keys()) if isinstance(result, dict) else []
                         ),

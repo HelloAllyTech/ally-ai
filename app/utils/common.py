@@ -21,21 +21,6 @@ def convert_chat_messages_to_string(chat_messages: List[ChatMessage]) -> str:
     return "\n".join(f"{msg.role}: {msg.content}" for msg in chat_messages)
 
 
-def filter_valid_ids(ids: List[str], valid_ids: Set[str]) -> List[str]:
-    """
-    Filter a list of IDs, keeping only those present in the valid set.
-
-    Useful for post-processing LLM output to prevent hallucinated IDs.
-
-    Parameters:
-        ids: List of IDs to validate.
-        valid_ids: Set of allowed IDs.
-
-    Returns:
-        List of IDs that exist in the valid set.
-    """
-    return [id_ for id_ in ids if id_ in valid_ids]
-
 
 def filter_message_tags(
     message_tags: List[Any],

@@ -53,7 +53,7 @@ from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
     Tag,
 )
-from app.utils.common import filter_emotional_movement, filter_message_tags, filter_valid_ids
+from app.utils.common import filter_emotional_movement, filter_message_tags
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
 from app.utils.counselor_interruption_calculator import (
@@ -1004,7 +1004,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         Generate scenario evaluation with competency tracking.
 
-        Uses a single LLM call. Returns improvements, positives, and achieved_competency_ids.
+        Uses a single LLM call. Returns improvements, positives, message_tags,
+        emotional_movement, and skill_coverage.
         When need_memory is True, also returns session_glimpse and cumulative_memory.
 
         Parameters:
@@ -1016,7 +1017,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
-            Dict[str, Any]: Dictionary with improvements, positives, and achieved_competency_ids.
+            Dict[str, Any]: Dictionary with improvements, positives, message_tags,
+                emotional_movement, and skill_coverage.
                 When need_memory=True, also includes session_glimpse and cumulative_memory.
 
         Raises:
@@ -1046,9 +1048,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
              for comp in competencies]
         )
         
-        # Create set of valid competency IDs for post-processing validation
-        valid_competency_ids = {comp.id for comp in competencies}
-
         try:
             # Select prompt and response model based on memory requirement
             if need_memory:
@@ -1088,9 +1087,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             result: Dict[str, Any] = {
                 "improvements": response.improvements,
                 "positives": response.positives,
-                "achieved_competency_ids": filter_valid_ids(
-                    response.achieved_competency_ids, valid_competency_ids
-                ),
                 "message_tags": filter_message_tags(
                     response.message_tags, counselor_message_ids
                 ),

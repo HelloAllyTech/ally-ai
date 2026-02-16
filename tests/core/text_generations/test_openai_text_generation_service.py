@@ -906,7 +906,6 @@ class TestOpenAITextGenerationService:
         mock_evaluation = ScenarioEvaluation(
             improvements=["Ask more open-ended questions"],
             positives=["Good rapport building"],
-            achieved_competency_ids=["comp-1", "comp-3"],
             message_tags=[
                 MessageTagItemOutput(
                     id="msg-1",
@@ -936,7 +935,6 @@ class TestOpenAITextGenerationService:
 
             assert result["improvements"] == ["Ask more open-ended questions"]
             assert result["positives"] == ["Good rapport building"]
-            assert result["achieved_competency_ids"] == ["comp-1", "comp-3"]
             assert len(result["message_tags"]) == 2
             assert result["message_tags"][0]["id"] == "msg-1"
             assert len(result["emotional_movement"]) == 1
@@ -962,7 +960,6 @@ class TestOpenAITextGenerationService:
         mock_response = ScenarioEvaluationWithMemory(
             improvements=["Improve reflective listening"],
             positives=["Strong empathy demonstration"],
-            achieved_competency_ids=["comp-1"],
             message_tags=[
                 MessageTagItemOutput(
                     id="msg-1",
@@ -994,7 +991,6 @@ class TestOpenAITextGenerationService:
 
             assert result["improvements"] == ["Improve reflective listening"]
             assert result["positives"] == ["Strong empathy demonstration"]
-            assert result["achieved_competency_ids"] == ["comp-1"]
             assert len(result["message_tags"]) == 1
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
@@ -1009,7 +1005,7 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_filters_hallucinated_data(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test that hallucinated data is filtered: competency IDs, client message tags, and counselor emotional ratings."""
+        """Test that hallucinated data is filtered: client message tags and counselor emotional ratings."""
         competencies = [
             CompetencyItem(id="comp-1", competency="Empathy"),
             CompetencyItem(id="comp-2", competency="Pacing"),
@@ -1018,8 +1014,6 @@ class TestOpenAITextGenerationService:
         mock_evaluation = ScenarioEvaluation(
             improvements=["Improve X"],
             positives=["Good Y"],
-            # "comp-999" is hallucinated — not in the provided competencies
-            achieved_competency_ids=["comp-1", "comp-999"],
             message_tags=[
                 # msg-1 = counselor → should be kept
                 MessageTagItemOutput(
@@ -1058,9 +1052,6 @@ class TestOpenAITextGenerationService:
             result = await text_generation_service.generate_scenario_evaluation(
                 sample_chat_messages, competencies
             )
-
-            # Hallucinated competency ID should be removed
-            assert result["achieved_competency_ids"] == ["comp-1"]
 
             # Only counselor messages (msg-1, msg-3) should remain; client msg-2 filtered
             assert len(result["message_tags"]) == 2

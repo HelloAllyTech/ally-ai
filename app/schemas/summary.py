@@ -506,9 +506,6 @@ class ScenarioEvaluationResponse(BaseModel):
     positives: List[str] = Field(
         ..., description="Things that went well and positive aspects demonstrated"
     )
-    achieved_competency_ids: List[str] = Field(
-        ..., description="List of competency IDs that were successfully demonstrated"
-    )
     message_tags: List[MessageTagItem] = Field(
         default_factory=list,
         description="Per-message tags for counselor messages in the transcript",

@@ -518,10 +518,6 @@ class ScenarioEvaluation(BaseModel):
         description="Strengths and positive aspects demonstrated "
         "during the simulation by the counselor"
     )
-    achieved_competency_ids: List[str] = Field(
-        description="List of competency IDs that were successfully demonstrated in the conversation. "
-        "Only include IDs from the provided competencies list."
-    )
     message_tags: List[MessageTagItemOutput] = Field(
         description="Per-message tags for each counselor message in the transcript. "
         "Only include entries for counselor messages, not client messages. "
