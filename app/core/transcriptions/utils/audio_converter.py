@@ -6,9 +6,9 @@ from typing import List
 
 import ffmpeg
 import httpx
-from utils.logger import get_logger
-from utils.phi_events import PHIEvents
-from utils.phi_logger import PHILogEvent, phi_logger
+from app.core.transcriptions.utils.logger import get_logger
+from app.core.transcriptions.utils.phi_events import PHIEvents
+from app.core.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
 
 logger = get_logger(__name__)
 

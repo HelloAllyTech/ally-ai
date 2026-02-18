@@ -8,10 +8,10 @@ from typing import Any, Dict, Optional, Union
 
 import boto3
 from botocore.exceptions import ClientError
-from core.config import settings
-from utils.execution_manager import ExecutionManager
-from utils.logger import get_logger
-from utils.phi_events import PHIEvents
+from app.core.config import settings
+from app.core.transcriptions.utils.execution_manager import ExecutionManager
+from app.core.transcriptions.utils.logger import get_logger
+from app.core.transcriptions.utils.phi_events import PHIEvents
 
 logger = get_logger(__name__)
 
