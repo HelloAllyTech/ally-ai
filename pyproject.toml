@@ -27,6 +27,7 @@ deepgram-sdk = "^4.7.0"
 rapidfuzz = "^3.13.0"
 ffmpeg-python = "^0.2.0"
 httpx = "^0.28.1"
+sarvamai = "^0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 aiohttp = "^3.11.15"
