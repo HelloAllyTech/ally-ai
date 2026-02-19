@@ -58,7 +58,7 @@ class TranscriptionRequestHandler:
         """
         provider_str = provider
         if provider_str is None:
-            provider_str = settings.TRANSCRIPTION_PROVIDER.lower()
+            provider_str = settings.TRANSCRIPTION.PROVIDER.lower()
 
         try:
             provider_enum = TranscriptionProvider[provider_str.upper()]
@@ -72,25 +72,23 @@ class TranscriptionRequestHandler:
 
         # 3. Compare against Enum members
         if provider_enum == TranscriptionProvider.OPENAI:
-            if not settings.OPENAI_API_KEY:
+            if not settings.OPENAI.API_KEY:
                 raise ValueError(
-                    "OPENAI_API_KEY is required in settings for OpenAI provider"
+                    "OPENAI__API_KEY is required in settings for OpenAI provider"
                 )
             return OpenAITranscriptionService()
 
         elif provider_enum == TranscriptionProvider.DEEPGRAM:
-            if not settings.DEEPGRAM_API_KEY:
+            if not settings.DEEPGRAM.API_KEY:
                 raise ValueError(
-                    "DEEPGRAM_API_KEY is required in settings for Deepgram provider"
+                    "DEEPGRAM__API_KEY is required in settings for Deepgram provider"
                 )
-            if not settings.OPENAI_API_KEY:
-                raise ValueError("OPENAI_API_KEY is required in settings for summarization")
             return DeepgramTranscriptionService()
 
         elif provider_enum == TranscriptionProvider.SARVAM:
-            if not getattr(settings, "SARVAM_API_KEY", None):
+            if not settings.SARVAM.API_KEY:
                 raise ValueError(
-                    "SARVAM_API_KEY is required in settings for Sarvam provider"
+                    "SARVAM__API_KEY is required in settings for Sarvam provider"
                 )
             return SarvamTranscriptionService()
 

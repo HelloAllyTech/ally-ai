@@ -45,11 +45,11 @@ async def main():
         )
 
         # Start processor and wait for it to complete
-        await transcription_processor.start()
+        await transcription_request_processor.start()
 
         # Wait for the processor task to finish (it handles KeyboardInterrupt)
-        if transcription_processor._task:
-            await transcription_processor._task
+        if transcription_request_processor._task:
+            await transcription_request_processor._task
 
     except KeyboardInterrupt:
         logger.info("Worker interrupted by user")

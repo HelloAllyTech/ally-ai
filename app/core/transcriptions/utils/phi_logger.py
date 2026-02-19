@@ -50,7 +50,7 @@ class PHILoggerService:
 
     def _initialize_cloudwatch(self) -> None:
         try:
-            self.enabled = settings.HIPAA_AUDIT_ENABLED
+            self.enabled = settings.HIPAA_AUDIT.ENABLED
             if not self.enabled:
                 return
 
