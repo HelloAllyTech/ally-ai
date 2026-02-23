@@ -371,9 +371,9 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                     {"message_id": "msg-2", "level": -2},
                 ],
                 "skill_coverage": [
-                    {"category": "Learning", "percentage": 60},
-                    {"category": "Support", "percentage": 90},
-                    {"category": "Standards", "percentage": 40},
+                    {"category": "Listening Engagement", "percentage": 60},
+                    {"category": "Emotional Attunement", "percentage": 90},
+                    {"category": "Supportive engagement", "percentage": 40},
                 ],
             }
 
@@ -394,10 +394,10 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert data["emotional_movement"][0]["message_id"] == "msg-2"
             assert data["emotional_movement"][0]["level"] == -2
             assert len(data["skill_coverage"]) == 3
-            assert data["skill_coverage"][0]["category"] == "Learning"
+            assert data["skill_coverage"][0]["category"] == "Listening Engagement"
             assert data["skill_coverage"][0]["percentage"] == 60
-            assert data["skill_coverage"][1]["category"] == "Support"
-            assert data["skill_coverage"][2]["category"] == "Standards"
+            assert data["skill_coverage"][1]["category"] == "Emotional Attunement"
+            assert data["skill_coverage"][2]["category"] == "Supportive engagement"
 
     def test_scenario_evaluation_methods(
         self, client: TestClient, sample_chat_messages

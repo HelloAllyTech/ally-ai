@@ -493,7 +493,7 @@ class SkillCoverageItemOutput(BaseModel):
     """Coverage percentage for a skill category in the LLM response."""
 
     category: str = Field(
-        description="The skill category name. Must be one of: Learning, Support, Standards."
+        description="The skill category name. Must be one of: Listening Engagement, Emotional Attunement, Supportive engagement."
     )
     percentage: float = Field(
         description="Coverage percentage for this category (0-100). "
@@ -531,9 +531,9 @@ class ScenarioEvaluation(BaseModel):
     )
     skill_coverage: List[SkillCoverageItemOutput] = Field(
         description="Skill coverage percentages for three categories. Always return exactly three items. "
-        "Learning: how well the counselor explored and understood the client's world (open-ended questions, reflective listening, curiosity, exploring feelings). "
-        "Support: how well the counselor created a safe, empathetic, validating environment (empathy, normalising emotions, affirming strengths, holding emotional space, warmth). "
-        "Standards: how well the counselor adhered to professional/ethical practices (boundaries, avoiding advice-giving, client-centred approach, evidence-based techniques, professional conduct)."
+        "Listening Engagement: how well the counselor demonstrated active listening, attentiveness, and engagement with the client's words (paraphrasing, clarifying, reflecting back, showing understanding). "
+        "Emotional Attunement: how well the counselor recognized, validated, and responded to the client's emotional state (empathy, emotional validation, recognizing feelings, emotional resonance). "
+        "Supportive engagement: how well the counselor provided support, encouragement, and created a safe space (warmth, affirmation, normalizing, holding space, non-judgmental presence)."
     )
 
 

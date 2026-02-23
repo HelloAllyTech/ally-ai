@@ -79,9 +79,9 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
             "improvements": ["improvement1"],
             "positives": ["positive1"],
             "skill_coverage": [
-                {"category": "Learning", "percentage": 50},
-                {"category": "Support", "percentage": 50},
-                {"category": "Standards", "percentage": 50},
+                {"category": "Listening Engagement", "percentage": 50},
+                {"category": "Emotional Attunement", "percentage": 50},
+                {"category": "Supportive engagement", "percentage": 50},
             ],
         }
         if need_memory:

@@ -487,9 +487,9 @@ class TestSummaryService:
             "message_tags": [{"id": "msg-1", "tags": [{"label": "Pacing", "category": "POSITIVE"}]}],
             "emotional_movement": [{"message_id": "msg-2", "level": -2}],
             "skill_coverage": [
-                {"category": "Learning", "percentage": 60},
-                {"category": "Support", "percentage": 90},
-                {"category": "Standards", "percentage": 40},
+                {"category": "Listening Engagement", "percentage": 60},
+                {"category": "Emotional Attunement", "percentage": 90},
+                {"category": "Supportive engagement", "percentage": 40},
             ],
         }
 
@@ -517,9 +517,9 @@ class TestSummaryService:
             "message_tags": [],
             "emotional_movement": [],
             "skill_coverage": [
-                {"category": "Learning", "percentage": 70},
-                {"category": "Support", "percentage": 85},
-                {"category": "Standards", "percentage": 55},
+                {"category": "Listening Engagement", "percentage": 70},
+                {"category": "Emotional Attunement", "percentage": 85},
+                {"category": "Supportive engagement", "percentage": 55},
             ],
             "session_glimpse": "Short glimpse text",
             "cumulative_memory": "Longer cumulative text",
@@ -557,9 +557,9 @@ class TestSummaryService:
             "message_tags": [],
             "emotional_movement": [],
             "skill_coverage": [
-                {"category": "Learning", "percentage": 0},
-                {"category": "Support", "percentage": 0},
-                {"category": "Standards", "percentage": 0},
+                {"category": "Listening Engagement", "percentage": 0},
+                {"category": "Emotional Attunement", "percentage": 0},
+                {"category": "Supportive engagement", "percentage": 0},
             ],
         }
 

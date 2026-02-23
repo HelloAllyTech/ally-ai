@@ -918,9 +918,9 @@ class TestOpenAITextGenerationService:
                 EmotionalMovementItemOutput(message_id="m2", level=-2),
             ],
             skill_coverage=[
-                SkillCoverageItemOutput(category="Learning", percentage=60),
-                SkillCoverageItemOutput(category="Support", percentage=90),
-                SkillCoverageItemOutput(category="Standards", percentage=40),
+                SkillCoverageItemOutput(category="Listening Engagement", percentage=60),
+                SkillCoverageItemOutput(category="Emotional Attunement", percentage=90),
+                SkillCoverageItemOutput(category="Supportive engagement", percentage=40),
             ],
         )
 
@@ -941,9 +941,9 @@ class TestOpenAITextGenerationService:
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["emotional_movement"][0]["level"] == -2
             assert len(result["skill_coverage"]) == 3
-            assert result["skill_coverage"][0] == {"category": "Learning", "percentage": 60}
-            assert result["skill_coverage"][1] == {"category": "Support", "percentage": 90}
-            assert result["skill_coverage"][2] == {"category": "Standards", "percentage": 40}
+            assert result["skill_coverage"][0] == {"category": "Listening Engagement", "percentage": 60}
+            assert result["skill_coverage"][1] == {"category": "Emotional Attunement", "percentage": 90}
+            assert result["skill_coverage"][2] == {"category": "Supportive engagement", "percentage": 40}
             assert "session_glimpse" not in result
             assert "cumulative_memory" not in result
 
@@ -966,9 +966,9 @@ class TestOpenAITextGenerationService:
                 EmotionalMovementItemOutput(message_id="m2", level=-1),
             ],
             skill_coverage=[
-                SkillCoverageItemOutput(category="Learning", percentage=70),
-                SkillCoverageItemOutput(category="Support", percentage=85),
-                SkillCoverageItemOutput(category="Standards", percentage=55),
+                SkillCoverageItemOutput(category="Listening Engagement", percentage=70),
+                SkillCoverageItemOutput(category="Emotional Attunement", percentage=85),
+                SkillCoverageItemOutput(category="Supportive engagement", percentage=55),
             ],
             session_glimpse="Brief session overview",
             cumulative_memory="Comprehensive memory narrative",
@@ -991,9 +991,9 @@ class TestOpenAITextGenerationService:
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert len(result["skill_coverage"]) == 3
-            assert result["skill_coverage"][0]["category"] == "Learning"
-            assert result["skill_coverage"][1]["category"] == "Support"
-            assert result["skill_coverage"][2]["category"] == "Standards"
+            assert result["skill_coverage"][0]["category"] == "Listening Engagement"
+            assert result["skill_coverage"][1]["category"] == "Emotional Attunement"
+            assert result["skill_coverage"][2]["category"] == "Supportive engagement"
             assert result["session_glimpse"] == "Brief session overview"
             assert result["cumulative_memory"] == "Comprehensive memory narrative"
 
@@ -1039,9 +1039,9 @@ class TestOpenAITextGenerationService:
                 EmotionalMovementItemOutput(message_id="m99", level=5),
             ],
             skill_coverage=[
-                SkillCoverageItemOutput(category="Learning", percentage=50),
-                SkillCoverageItemOutput(category="Support", percentage=75),
-                SkillCoverageItemOutput(category="Standards", percentage=30),
+                SkillCoverageItemOutput(category="Listening Engagement", percentage=50),
+                SkillCoverageItemOutput(category="Emotional Attunement", percentage=75),
+                SkillCoverageItemOutput(category="Supportive engagement", percentage=30),
             ],
         )
 

@@ -55,7 +55,7 @@ class EmotionalMovementItem(BaseModel):
 class SkillCoverageItem(BaseModel):
     """Coverage percentage for a skill category."""
 
-    category: str = Field(..., description="The skill category name (e.g. Learning, Support, Standards)")
+    category: str = Field(..., description="The skill category name (e.g. Listening Engagement, Emotional Attunement, Supportive engagement)")
     percentage: float = Field(
         ...,
         description="Coverage percentage for this category (0-100)",
@@ -495,7 +495,7 @@ class ScenarioEvaluationResponse(BaseModel):
     )
     skill_coverage: List[SkillCoverageItem] = Field(
         default_factory=list,
-        description="Skill coverage percentages across categories (Learning, Support, Standards)",
+        description="Skill coverage percentages across categories (Listening Engagement, Emotional Attunement, Supportive engagement)",
     )
     session_glimpse: Optional[str] = Field(
         default=None,
