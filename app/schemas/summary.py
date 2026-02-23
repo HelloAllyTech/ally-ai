@@ -411,7 +411,7 @@ class TagPositivityRatingResponse(BaseModel):
 class SimulationAnalysisRequest(BaseModel):
     """
     Request model for the deprecated /scenario/feedback endpoint.
-    Use ScenarioEvaluationRequest for the new /scenario/evaluation endpoint.
+    Use ScenarioEvaluationRequest for the new /scenario/evaluate endpoint.
     """
 
     chat_history: List[ChatMessage] = Field(
@@ -434,7 +434,7 @@ class SimulationAnalysisRequest(BaseModel):
 class SimulationAnalysisResponse(BaseModel):
     """
     Response model for the deprecated /scenario/feedback endpoint.
-    Use ScenarioEvaluationResponse for the new /scenario/evaluation endpoint.
+    Use ScenarioEvaluationResponse for the new /scenario/evaluate endpoint.
     """
 
     improvements: List[str] = Field(
@@ -454,7 +454,7 @@ class SimulationAnalysisResponse(BaseModel):
 
 class ScenarioEvaluationRequest(BaseModel):
     """
-    Request model for the /scenario/evaluation endpoint.
+    Request model for the /scenario/evaluate endpoint.
     """
 
     chat_history: List[ChatMessage] = Field(
@@ -476,7 +476,7 @@ class ScenarioEvaluationRequest(BaseModel):
 
 class ScenarioEvaluationResponse(BaseModel):
     """
-    Response model for the /scenario/evaluation endpoint.
+    Response model for the /scenario/evaluate endpoint.
     """
 
     improvements: List[str] = Field(

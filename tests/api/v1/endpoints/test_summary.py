@@ -377,7 +377,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                 ],
             }
 
-            response = client.post("/api/v1/summary/scenario/evaluation", json=request)
+            response = client.post("/api/v1/summary/scenario/evaluate", json=request)
 
             assert response.status_code == 200
             data = response.json()
@@ -402,23 +402,23 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
     def test_scenario_evaluation_methods(
         self, client: TestClient, sample_chat_messages
     ):
-        """Test that scenario/evaluation endpoint only accepts POST requests."""
+        """Test that scenario/evaluate endpoint only accepts POST requests."""
         request = {
             "chat_history": sample_chat_messages,
         }
 
         # Test POST (should work)
-        response = client.post("/api/v1/summary/scenario/evaluation", json=request)
+        response = client.post("/api/v1/summary/scenario/evaluate", json=request)
         assert response.status_code in [200, 500]  # 500 due to mocking
 
         # Test GET (should fail)
-        response = client.get("/api/v1/summary/scenario/evaluation")
+        response = client.get("/api/v1/summary/scenario/evaluate")
         assert response.status_code == 405
 
         # Test PUT (should fail)
-        response = client.put("/api/v1/summary/scenario/evaluation", json=request)
+        response = client.put("/api/v1/summary/scenario/evaluate", json=request)
         assert response.status_code == 405
 
         # Test DELETE (should fail)
-        response = client.delete("/api/v1/summary/scenario/evaluation")
+        response = client.delete("/api/v1/summary/scenario/evaluate")
         assert response.status_code == 405

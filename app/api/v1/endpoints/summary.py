@@ -126,7 +126,7 @@ async def generate_simulation_analysis(
     summary_service: SummaryService = Depends(get_summary_service),
 ):
     """
-    [DEPRECATED] Use /scenario/evaluation instead.
+    [DEPRECATED] Use /scenario/evaluate instead.
 
     Generates simulation analysis based on chat history.
 
@@ -142,12 +142,12 @@ async def generate_simulation_analysis(
     - cumulative_memory: Comprehensive cumulative narrative across sessions
 
     **This endpoint is deprecated and will be removed in a future version.
-    Please use /scenario/evaluation instead.**
+    Please use /scenario/evaluate instead.**
     """
 
     logger.warning(
         "DEPRECATED: /scenario/feedback endpoint called. "
-        "Use /scenario/evaluation instead."
+        "Use /scenario/evaluate instead."
     )
 
     try:
@@ -173,7 +173,7 @@ async def generate_simulation_analysis(
 
 
 @router.post(
-    "/scenario/evaluation",
+    "/scenario/evaluate",
     tags=["simulation", "analysis"],
     response_model=ScenarioEvaluationResponse,
 )
