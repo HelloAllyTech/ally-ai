@@ -21,6 +21,7 @@ from app.core.text_generations.structured_output_models import (
     ScenarioEvaluationWithMemory,
     SimulationAnalysis,
     SimulationAnalysisWithMemory,
+    SkillCategoryEnum,
     SkillCoverageItemOutput,
     StructuredDiarization,
     StructuredIdentifyUsers,
@@ -37,11 +38,7 @@ from app.exceptions.custom_exceptions import (
 )
 from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse, Nudge
-from app.schemas.summary import (
-    ContentEnhance,
-    DynamicSummaryNoteResponse,
-    Tag,
-)
+from app.schemas.summary import ContentEnhance, DynamicSummaryNoteResponse, Tag
 
 
 class TestSplitTextByLength:
@@ -796,7 +793,9 @@ class TestOpenAITextGenerationService:
     async def test_generate_simulation_summary_with_memory_success(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test simulation summary with need_memory=True returns all 4 fields in a single LLM call."""
+        """Test simulation summary with need_memory=True returns all 4 fields in a
+        single LLM call.
+        """
         mock_response = SimulationAnalysisWithMemory(
             improvements=["Improve reflective listening"],
             positives=["Good empathy"],
@@ -818,14 +817,18 @@ class TestOpenAITextGenerationService:
                 "improvements": ["Improve reflective listening"],
                 "positives": ["Good empathy"],
                 "session_glimpse": "Client discussed work stress.",
-                "cumulative_memory": "Session 1: Client presented with work-related anxiety.",
+                "cumulative_memory": (
+                    "Session 1: Client presented with work-related anxiety."
+                ),
             }
 
     @pytest.mark.asyncio
     async def test_generate_simulation_summary_with_memory_uses_combined_model(
         self, text_generation_service, sample_chat_messages
     ):
-        """When need_memory=True, _invoke_llm is called with SimulationAnalysisWithMemory."""
+        """When need_memory=True, _invoke_llm is called with
+        SimulationAnalysisWithMemory.
+        """
         mock_response = SimulationAnalysisWithMemory(
             improvements=[],
             positives=[],
@@ -907,20 +910,36 @@ class TestOpenAITextGenerationService:
             message_tags=[
                 MessageTagItemOutput(
                     id="m1",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.PACING,
+                            category=TagCategoryEnum.POSITIVE,
+                        )
+                    ],
                 ),
                 MessageTagItemOutput(
                     id="m3",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.PARAPHRASES,
+                            category=TagCategoryEnum.POSITIVE,
+                        )
+                    ],
                 ),
             ],
             emotional_movement=[
                 EmotionalMovementItemOutput(message_id="m2", level=-2),
             ],
             skill_coverage=[
-                SkillCoverageItemOutput(category="Listening Engagement", percentage=60),
-                SkillCoverageItemOutput(category="Emotional Attunement", percentage=90),
-                SkillCoverageItemOutput(category="Supportive engagement", percentage=40),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.LISTENING_ENGAGEMENT, percentage=60
+                ),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.EMOTIONAL_ATTUNEMENT, percentage=90
+                ),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT, percentage=40
+                ),
             ],
         )
 
@@ -941,9 +960,18 @@ class TestOpenAITextGenerationService:
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["emotional_movement"][0]["level"] == -2
             assert len(result["skill_coverage"]) == 3
-            assert result["skill_coverage"][0] == {"category": "Listening Engagement", "percentage": 60}
-            assert result["skill_coverage"][1] == {"category": "Emotional Attunement", "percentage": 90}
-            assert result["skill_coverage"][2] == {"category": "Supportive engagement", "percentage": 40}
+            assert result["skill_coverage"][0] == {
+                "category": "Listening Engagement",
+                "percentage": 60,
+            }
+            assert result["skill_coverage"][1] == {
+                "category": "Emotional Attunement",
+                "percentage": 90,
+            }
+            assert result["skill_coverage"][2] == {
+                "category": "Supportive Engagement",
+                "percentage": 40,
+            }
             assert "session_glimpse" not in result
             assert "cumulative_memory" not in result
 
@@ -951,7 +979,9 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_with_memory_success(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test scenario evaluation with need_memory=True returns all fields in a single LLM call."""
+        """Test scenario evaluation with need_memory=True returns all fields in a
+        single LLM call.
+        """
         # LLM mock uses short IDs
         mock_response = ScenarioEvaluationWithMemory(
             improvements=["Improve reflective listening"],
@@ -959,16 +989,27 @@ class TestOpenAITextGenerationService:
             message_tags=[
                 MessageTagItemOutput(
                     id="m1",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.HOLD_EMOTIONAL_SPACE, category=TagCategoryEnum.POSITIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.HOLD_EMOTIONAL_SPACE,
+                            category=TagCategoryEnum.POSITIVE,
+                        )
+                    ],
                 ),
             ],
             emotional_movement=[
                 EmotionalMovementItemOutput(message_id="m2", level=-1),
             ],
             skill_coverage=[
-                SkillCoverageItemOutput(category="Listening Engagement", percentage=70),
-                SkillCoverageItemOutput(category="Emotional Attunement", percentage=85),
-                SkillCoverageItemOutput(category="Supportive engagement", percentage=55),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.LISTENING_ENGAGEMENT, percentage=70
+                ),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.EMOTIONAL_ATTUNEMENT, percentage=85
+                ),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT, percentage=55
+                ),
             ],
             session_glimpse="Brief session overview",
             cumulative_memory="Comprehensive memory narrative",
@@ -993,7 +1034,7 @@ class TestOpenAITextGenerationService:
             assert len(result["skill_coverage"]) == 3
             assert result["skill_coverage"][0]["category"] == "Listening Engagement"
             assert result["skill_coverage"][1]["category"] == "Emotional Attunement"
-            assert result["skill_coverage"][2]["category"] == "Supportive engagement"
+            assert result["skill_coverage"][2]["category"] == "Supportive Engagement"
             assert result["session_glimpse"] == "Brief session overview"
             assert result["cumulative_memory"] == "Comprehensive memory narrative"
 
@@ -1001,7 +1042,9 @@ class TestOpenAITextGenerationService:
     async def test_generate_scenario_evaluation_filters_hallucinated_data(
         self, text_generation_service, sample_chat_messages
     ):
-        """Test that hallucinated short IDs are filtered and valid ones remapped to UUIDs."""
+        """Test that hallucinated short IDs are filtered and valid ones remapped
+        to UUIDs.
+        """
         # LLM uses short IDs; m99 is hallucinated (doesn't exist)
         mock_evaluation = ScenarioEvaluation(
             improvements=["Improve X"],
@@ -1010,22 +1053,42 @@ class TestOpenAITextGenerationService:
                 # m1 = counselor → should be kept and remapped to msg-1
                 MessageTagItemOutput(
                     id="m1",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.PACING,
+                            category=TagCategoryEnum.POSITIVE,
+                        )
+                    ],
                 ),
                 # m2 = client → should be filtered out (tags are for counselor only)
                 MessageTagItemOutput(
                     id="m2",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASES, category=TagCategoryEnum.POSITIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.PARAPHRASES,
+                            category=TagCategoryEnum.POSITIVE,
+                        )
+                    ],
                 ),
                 # m3 = counselor → should be kept and remapped to msg-3
                 MessageTagItemOutput(
                     id="m3",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.AVOID_ADVICE_GIVING, category=TagCategoryEnum.NEGATIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.AVOID_ADVICE_GIVING,
+                            category=TagCategoryEnum.NEGATIVE,
+                        )
+                    ],
                 ),
                 # m99 = hallucinated → should be filtered out
                 MessageTagItemOutput(
                     id="m99",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PACING, category=TagCategoryEnum.POSITIVE)],
+                    tags=[
+                        MessageTagOutput(
+                            label=MessageTagLabelEnum.PACING,
+                            category=TagCategoryEnum.POSITIVE,
+                        )
+                    ],
                 ),
             ],
             emotional_movement=[
@@ -1039,9 +1102,15 @@ class TestOpenAITextGenerationService:
                 EmotionalMovementItemOutput(message_id="m99", level=5),
             ],
             skill_coverage=[
-                SkillCoverageItemOutput(category="Listening Engagement", percentage=50),
-                SkillCoverageItemOutput(category="Emotional Attunement", percentage=75),
-                SkillCoverageItemOutput(category="Supportive engagement", percentage=30),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.LISTENING_ENGAGEMENT, percentage=50
+                ),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.EMOTIONAL_ATTUNEMENT, percentage=75
+                ),
+                SkillCoverageItemOutput(
+                    category=SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT, percentage=30
+                ),
             ],
         )
 
@@ -1079,4 +1148,3 @@ class TestOpenAITextGenerationService:
                 await text_generation_service.generate_scenario_evaluation(
                     sample_chat_messages
                 )
-

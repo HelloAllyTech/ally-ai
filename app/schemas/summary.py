@@ -27,7 +27,9 @@ class MessageTag(BaseModel):
     """A single tag with a label and category."""
 
     label: MessageTagLabel = Field(..., description="The tag label")
-    category: TagCategory = Field(..., description="Whether the tag is POSITIVE or NEGATIVE")
+    category: TagCategory = Field(
+        ..., description="Whether the tag is POSITIVE or NEGATIVE"
+    )
 
 
 class MessageTagItem(BaseModel):
@@ -48,24 +50,33 @@ class EmotionalMovementItem(BaseModel):
         ...,
         ge=-5,
         le=5,
-        description="Emotional level from -5 (very negative/distressed) to +5 (very positive/happy)",
+        description=(
+            "Emotional level from -5 (very negative/distressed) to +5 (very "
+            "positive/happy)"
+        ),
     )
 
 
 class SkillCoverageItem(BaseModel):
     """Coverage percentage for a skill category."""
 
-    category: str = Field(..., description="The skill category name (e.g. Listening Engagement, Emotional Attunement, Supportive engagement)")
-    percentage: float = Field(
+    category: str = Field(
+        ...,
+        description=(
+            "The skill category name (e.g. Listening Engagement, Emotional "
+            "Attunement, Supportive engagement)"
+        ),
+    )
+    percentage: int = Field(
         ...,
         description="Coverage percentage for this category (0-100)",
     )
 
     @field_validator("percentage")
     @classmethod
-    def clamp_percentage(cls, v: float) -> float:
+    def clamp_percentage(cls, v: int) -> int:
         """Clamp to [0, 100]."""
-        return max(0.0, min(100.0, v))
+        return max(0, min(100, v))
 
 
 class SummaryNoteAndTagsRequest(BaseModel):
@@ -134,7 +145,9 @@ class SummaryNoteAndTagsResponse(BaseModel):
         None, description="Code of concern for the session."
     )
 
-    session_summary: Optional[str] = Field(None, description="Summary of the session as bullet points.")
+    session_summary: Optional[str] = Field(
+        None, description="Summary of the session as bullet points."
+    )
 
     counseling_process_flow: Optional[str] = Field(
         None, description="Flow of the counseling process."
@@ -445,12 +458,18 @@ class SimulationAnalysisResponse(BaseModel):
     )
     session_glimpse: Optional[str] = Field(
         default=None,
-        description="Brief overview of the current session (only when need_memory=True)",
+        description=(
+            "Brief overview of the current session (only when need_memory=True)"
+        ),
     )
     cumulative_memory: Optional[str] = Field(
         default=None,
-        description="Comprehensive cumulative narrative across sessions (only when need_memory=True)",
+        description=(
+            "Comprehensive cumulative narrative across sessions (only when "
+            "need_memory=True)"
+        ),
     )
+
 
 class ScenarioEvaluationRequest(BaseModel):
     """
@@ -495,13 +514,21 @@ class ScenarioEvaluationResponse(BaseModel):
     )
     skill_coverage: List[SkillCoverageItem] = Field(
         default_factory=list,
-        description="Skill coverage percentages across categories (Listening Engagement, Emotional Attunement, Supportive engagement)",
+        description=(
+            "Skill coverage percentages across categories (Listening Engagement, "
+            "Emotional Attunement, Supportive engagement)"
+        ),
     )
     session_glimpse: Optional[str] = Field(
         default=None,
-        description="Brief overview of the current session (only when need_memory=True)",
+        description=(
+            "Brief overview of the current session (only when need_memory=True)"
+        ),
     )
     cumulative_memory: Optional[str] = Field(
         default=None,
-        description="Comprehensive cumulative narrative across sessions (only when need_memory=True)",
+        description=(
+            "Comprehensive cumulative narrative across sessions (only when "
+            "need_memory=True)"
+        ),
     )

@@ -26,7 +26,12 @@ class MessageTagOutput(BaseModel):
     """A single tag produced by the LLM."""
 
     label: MessageTagLabelEnum = Field(description="One of the allowed tag labels")
-    category: TagCategoryEnum = Field(description="POSITIVE if the technique is beneficial, NEGATIVE if it should be avoided or is harmful")
+    category: TagCategoryEnum = Field(
+        description=(
+            "POSITIVE if the technique is beneficial, NEGATIVE if it should be avoided "
+            "or is harmful"
+        )
+    )
 
 
 class MessageTagItemOutput(BaseModel):
@@ -35,20 +40,26 @@ class MessageTagItemOutput(BaseModel):
     id: str = Field(description="The message ID from the transcript")
     tags: List[MessageTagOutput] = Field(description="List of tags for this message")
 
+
 class EmotionalMovementItemOutput(BaseModel):
     """Emotional level for a client message in the LLM response."""
 
     message_id: str = Field(description="The client message ID from the transcript")
     level: int = Field(
-        description="Emotional level from -5 (very negative/distressed) to +5 (very positive/happy). "
-        "Must be between -5 and 5.",
+        description=(
+            "Emotional level from -5 (very negative/distressed) to +5 "
+            "(very positive/happy). Must be between -5 and 5."
+        ),
     )
 
     @field_validator("level")
     @classmethod
     def clamp_level(cls, v: int) -> int:
-        """Clamp to [-5, 5] — OpenAI structured outputs do not enforce numeric ranges."""
+        """
+        Clamp to [-5, 5] — OpenAI structured outputs do not enforce numeric ranges.
+        """
         return max(-5, min(5, v))
+
 
 DominantFeelingLiteral = Literal[
     "Betrayed:Let Down",
@@ -303,10 +314,26 @@ class StructuredSummaryNote(BaseModel):
                 "relationship_status": "Single",
                 "location": "Mumbai",
                 "code_of_concern": "Work-life Concerns",
-                "session_summary": ["The client expressed feelings of exhaustion and overwhelm due to the pressures of work and home responsibilities. ",
-                "The session focused on identifying goals for managing emotions and setting boundaries.",
-                " The counselor guided the client through a breathing exercise and discussed practical steps for sharing household responsibilities with her husband and engaging in self-care activities.",
-                " The client expressed hope for implementing the strategies discussed."],
+                "session_summary": [
+                    (
+                        "The client expressed feelings of exhaustion and overwhelm due "
+                        "to the pressures of work and home responsibilities. "
+                    ),
+                    (
+                        "The session focused on identifying goals for managing "
+                        "emotions and setting boundaries."
+                    ),
+                    (
+                        " The counselor guided the client through a breathing exercise "
+                        "and discussed practical steps for sharing household "
+                        "responsibilities with her husband and engaging in self-care "
+                        "activities."
+                    ),
+                    (
+                        " The client expressed hope for implementing the strategies "
+                        "discussed."
+                    ),
+                ],
                 "counseling_process_flow": [
                     "Initial assessment",
                     "Discussion of concerns",
@@ -479,22 +506,68 @@ class SimulationAnalysisWithMemory(SimulationAnalysis):
     """Structured output model for simulation analysis with memory tracking."""
 
     session_glimpse: str = Field(
-        description="Brief overview/snapshot of the current session (2-3 sentences). "
-        "Highlight key takeaways, main topics discussed, and immediate observations."
+        description=(
+            "Brief overview/snapshot of the current session (2-3 sentences). "
+            "Highlight key takeaways, main topics discussed, and immediate "
+            "observations."
+        )
     )
     cumulative_memory: str = Field(
-        description="Comprehensive cumulative narrative (300-500 words) that integrates "
-        "current conversation with previous context, tracking the evolving therapeutic "
-        "relationship, client progress, patterns, and therapeutic interventions over time."
+        description=(
+            "Comprehensive cumulative narrative (300-500 words) that integrates "
+            "current conversation with previous context, tracking the evolving "
+            "therapeutic relationship, client progress, patterns, and therapeutic "
+            "interventions over time."
+        )
     )
+
+
+class SkillCategoryEnum(str, Enum):
+    """Enum for skill categories in counselor evaluation."""
+
+    LISTENING_ENGAGEMENT = "Listening Engagement"
+    EMOTIONAL_ATTUNEMENT = "Emotional Attunement"
+    SUPPORTIVE_ENGAGEMENT = "Supportive Engagement"
+
+
+SKILL_CATEGORY_DESCRIPTIONS = {
+    SkillCategoryEnum.LISTENING_ENGAGEMENT: (
+        "Measures the counselor's ability to actively listen and engage with "
+        "the client's words. "
+        "Includes: paraphrasing, clarifying, reflecting back what was said, "
+        "demonstrating "
+        "understanding, asking follow-up questions, and showing attentiveness to the "
+        "client's narrative. Higher scores indicate the counselor was fully present "
+        "and engaged with what the client was saying."
+    ),
+    SkillCategoryEnum.EMOTIONAL_ATTUNEMENT: (
+        "Measures the counselor's ability to recognize, validate, and respond to the "
+        "client's "
+        "emotional state. "
+        "Includes: identifying and naming emotions, validating feelings, demonstrating "
+        "empathy, "
+        "showing emotional resonance, and responding appropriately to emotional cues. "
+        "Higher scores indicate the counselor was highly attuned to the client's "
+        "emotional experience."
+    ),
+    SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT: (
+        "Measures the counselor's ability to provide support, encouragement, and "
+        "create "
+        "a safe "
+        "therapeutic space. "
+        "Includes: offering warmth, providing affirmation, normalizing experiences, "
+        "holding space "
+        "for difficult emotions, maintaining a non-judgmental presence, and "
+        "creating psychological safety. Higher scores indicate the client felt "
+        "supported and safe throughout the session."
+    ),
+}
 
 
 class SkillCoverageItemOutput(BaseModel):
     """Coverage percentage for a skill category in the LLM response."""
 
-    category: str = Field(
-        description="The skill category name. Must be one of: Listening Engagement, Emotional Attunement, Supportive engagement."
-    )
+    category: SkillCategoryEnum = Field(description="The skill category name.")
     percentage: float = Field(
         description="Coverage percentage for this category (0-100). "
         "Evaluate how well the counselor demonstrated skills in this category."
@@ -503,7 +576,9 @@ class SkillCoverageItemOutput(BaseModel):
     @field_validator("percentage")
     @classmethod
     def clamp_percentage(cls, v: float) -> float:
-        """Clamp to [0, 100] — OpenAI structured outputs do not enforce numeric ranges."""
+        """
+        Clamp to [0, 100] — OpenAI structured outputs do not enforce numeric ranges.
+        """
         return max(0.0, min(100.0, v))
 
 
@@ -525,27 +600,49 @@ class ScenarioEvaluation(BaseModel):
     )
     emotional_movement: List[EmotionalMovementItemOutput] = Field(
         description="Emotional trajectory for each client message. "
-        "Rate each client message on a scale from -5 (very negative/distressed) to +5 (very positive/happy). "
+        "Rate each client message on a scale from -5 (very negative/distressed) to +5 "
+        "(very positive/happy). "
         "Only include entries for client messages, not counselor messages. "
         "Use the exact message ID from the transcript."
     )
     skill_coverage: List[SkillCoverageItemOutput] = Field(
-        description="Skill coverage percentages for three categories. Always return exactly three items. "
-        "Listening Engagement: how well the counselor demonstrated active listening, attentiveness, and engagement with the client's words (paraphrasing, clarifying, reflecting back, showing understanding). "
-        "Emotional Attunement: how well the counselor recognized, validated, and responded to the client's emotional state (empathy, emotional validation, recognizing feelings, emotional resonance). "
-        "Supportive engagement: how well the counselor provided support, encouragement, and created a safe space (warmth, affirmation, normalizing, holding space, non-judgmental presence)."
+        description=(
+            "Skill coverage percentages for three categories. Always return exactly "
+            "three items. "
+            "Listening Engagement: how well the counselor demonstrated active "
+            "listening, "
+            "attentiveness, and engagement with the client's words (paraphrasing, "
+            "clarifying, reflecting back, showing understanding). "
+            "Emotional Attunement: how well the counselor recognized, validated, and "
+            "responded to the client's emotional state (empathy, emotional validation, "
+            "recognizing feelings, emotional resonance). "
+            "Supportive engagement: how well the counselor provided support, "
+            "encouragement, and "
+            "created a safe space (warmth, affirmation, normalizing, holding space, "
+            "non-judgmental presence)."
+        )
     )
 
 
 class ScenarioEvaluationWithMemory(ScenarioEvaluation):
-    """Structured output model for scenario evaluation with competency tracking and memory."""
+    """Structured output model for scenario evaluation with competency tracking and
+    memory.
+    """
 
     session_glimpse: str = Field(
-        description="Brief overview/snapshot of the current session (2-3 sentences). "
-        "Highlight key takeaways, main topics discussed, and immediate observations."
+        description=(
+            "Brief overview/snapshot of the current session (2-3 sentences). "
+            "Highlight key takeaways, main topics discussed, and immediate "
+            "observations."
+        )
     )
     cumulative_memory: str = Field(
-        description="Comprehensive cumulative narrative (300-500 words) that integrates "
-        "current conversation with previous context, tracking the evolving therapeutic "
-        "relationship, client progress, patterns, and therapeutic interventions over time."
+        description=(
+            "Comprehensive cumulative narrative (300-500 words) that integrates "
+            "current "
+            "conversation "
+            "with previous context, tracking the evolving therapeutic relationship, "
+            "client "
+            "progress, patterns, and therapeutic interventions over time."
+        )
     )

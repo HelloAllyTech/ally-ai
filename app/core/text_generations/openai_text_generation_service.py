@@ -53,9 +53,13 @@ from app.schemas.summary import (
     SummaryNoteAndTagsResponse,
     Tag,
 )
-from app.utils.common import build_id_mapping, filter_emotional_movement, filter_message_tags
 from app.utils.affirmation_counter import count_affirmations
 from app.utils.client_positivity_lift_calculator import calculate_client_positivity_lift
+from app.utils.common import (
+    build_id_mapping,
+    filter_emotional_movement,
+    filter_message_tags,
+)
 from app.utils.counselor_interruption_calculator import (
     calculate_counselor_interruptions,
 )
@@ -900,9 +904,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         Generate simulation summary analyzing chat history, with optional memory.
 
-        Uses a single LLM call. When need_memory is False, returns only improvements
-        and positives. When need_memory is True, a combined prompt asks for all four
-        fields (improvements, positives, session_glimpse, cumulative_memory) in one call.
+        Uses a single LLM call. When need_memory is False, returns only
+        improvements and positives. When need_memory is True, a combined prompt
+        asks for all four fields (improvements, positives, session_glimpse,
+        cumulative_memory) in one call.
 
         Parameters:
             chat_history (List[ChatMessage]): List of chat messages/exchanges
@@ -933,9 +938,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Single combined LLM call for analysis + memory
                 custom_prompt_section = ""
                 if memory_prompt:
-                    custom_prompt_section = (
-                        f"Additional Instructions:\n{memory_prompt}"
-                    )
+                    custom_prompt_section = f"Additional Instructions:\n{memory_prompt}"
 
                 formatted_prompt = SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT.format(
                     chat_history=chat_history_str,
@@ -954,9 +957,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ),
                 )
 
-                logger.info(
-                    "Simulation summary with memory generated successfully"
-                )
+                logger.info("Simulation summary with memory generated successfully")
 
                 return {
                     "improvements": response.improvements,
@@ -1015,9 +1016,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
-            Dict[str, Any]: Dictionary with improvements, positives, message_tags,
-                emotional_movement, and skill_coverage.
-                When need_memory=True, also includes session_glimpse and cumulative_memory.
+            Dict[str, Any]: Dictionary with improvements, positives,
+                message_tags, emotional_movement, and skill_coverage.
+                When need_memory=True, also includes session_glimpse and
+                cumulative_memory.
 
         Raises:
             LLMInvocationFailedException: If LLM invocation fails
@@ -1094,7 +1096,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     key_to_uuid,
                 ),
                 "skill_coverage": [
-                    {"category": item.category, "percentage": item.percentage}
+                    {
+                        "category": item.category.value,
+                        "percentage": int(item.percentage),
+                    }
                     for item in response.skill_coverage
                 ],
             }

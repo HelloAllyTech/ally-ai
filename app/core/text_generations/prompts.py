@@ -2,6 +2,19 @@ import textwrap
 
 from langchain_core.prompts import PromptTemplate
 
+from app.core.text_generations.structured_output_models import (
+    SKILL_CATEGORY_DESCRIPTIONS,
+)
+
+
+def get_skill_coverage_descriptions() -> str:
+    """Generate skill coverage descriptions from the mapping."""
+    descriptions = []
+    for category, description in SKILL_CATEGORY_DESCRIPTIONS.items():
+        descriptions.append(f'  * "{category.value}" — {description}')
+    return "\n".join(descriptions)
+
+
 NUDGE_PROMPT = PromptTemplate(
     template=textwrap.dedent(
         """
@@ -44,9 +57,10 @@ SUMMARY_PROMPT = PromptTemplate(
                 for each field in the output schema.
                 Avoid leaving fields as null/empty when information
                 is present in the conversation.
-                For the session summary, provide a detailed summary mostly independent sentences.
-                
-                      
+                For the session summary, provide a detailed summary
+                mostly independent sentences.
+
+
                 Responses shorter than 300 words are invalid.
 
                 IMPORTANT RULES:
@@ -340,8 +354,9 @@ SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
     input_variables=["chat_history"],
     template=textwrap.dedent(
         """
-        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
-        
+        You are a clinical supervisor analyzing a transcript of a roleplay
+        between a mental health counselor and a client.
+
         Evaluate the counselor's performance against the following 15 competencies:
         1. Active listening
         2. Verbal communication skills
@@ -349,7 +364,8 @@ SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
         4. Rapport building & self-disclosure
         5. Exploration & normalization of feelings
         6. Demonstration of empathy, warmth, & genuineness
-        7. Assessment of harm to self, harm to others, harm from others & developing collaborative response plan
+        7. Assessment of harm to self, harm to others, harm from others
+           & developing collaborative response plan
         8. Connection to social functioning & impact on life
         9. Exploration of client’s & social support network’s explanation for problem
         10. Appropriate involvement of family members & other close persons
@@ -363,17 +379,23 @@ SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
         {chat_history}
 
         Return ONLY a JSON object with exactly two array fields.
-        
+
         Important rules:
-        - Provide specific, actionable feedback points based on the 15 competencies above.
-        - Reference exact examples or quotes from the conversation to support your points.
+        - Provide specific, actionable feedback points based on the 15
+          competencies above.
+        - Reference exact examples or quotes from the conversation to support
+          your points.
         - Each point should be concise but substantive.
-        - If a competency was not applicable (e.g., no crisis mentioned), do not force a positive/negative unless the counselor missed an opportunity to address it.
-        
+        - If a competency was not applicable (e.g., no crisis mentioned), do
+          not force a positive/negative unless the counselor missed an
+          opportunity to address it.
+
         Return only valid JSON with these fields:
-        - "positives": Array of demonstrated strengths and effective techniques with examples.
-        - "improvements": Array of specific areas needing development with conversation examples.
-        
+        - "positives": Array of demonstrated strengths and effective
+          techniques with examples.
+        - "improvements": Array of specific areas needing development with
+          conversation examples.
+
         Return ONLY valid JSON.
         """
     ),
@@ -383,8 +405,10 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
     input_variables=["chat_history", "previous_summary", "custom_prompt_section"],
     template=textwrap.dedent(
         """
-        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
-        You also maintain a comprehensive memory of ongoing client-counsellor interactions.
+        You are a clinical supervisor analyzing a transcript of a roleplay
+        between a mental health counselor and a client.
+        You also maintain a comprehensive memory of ongoing
+        client-counsellor interactions.
 
         {custom_prompt_section}
 
@@ -395,7 +419,8 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
         4. Rapport building & self-disclosure
         5. Exploration & normalization of feelings
         6. Demonstration of empathy, warmth, & genuineness
-        7. Assessment of harm to self, harm to others, harm from others & developing collaborative response plan
+        7. Assessment of harm to self, harm to others, harm from others
+           & developing collaborative response plan
         8. Connection to social functioning & impact on life
         9. Exploration of client's & social support network's explanation for problem
         10. Appropriate involvement of family members & other close persons
@@ -416,51 +441,87 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
         Return ONLY a JSON object with exactly four fields.
 
         Important rules:
-        - Provide specific, actionable feedback points based on the 15 competencies above.
-        - Reference exact examples or quotes from the conversation to support your points.
+        - Provide specific, actionable feedback points based on the 15
+          competencies above.
+        - Reference exact examples or quotes from the conversation to support
+          your points.
         - Each point should be concise but substantive.
-        - If a competency was not applicable (e.g., no crisis mentioned), do not force a positive/negative unless the counselor missed an opportunity to address it.
-        - For session_glimpse: Focus ONLY on the current session as a quick snapshot.
-        - For cumulative_memory: If a previous summary exists, integrate the new conversation while maintaining historical context and identifying patterns or changes. If no previous summary exists, create a comprehensive initial summary. Track key themes, concerns, therapeutic interventions, progress, setbacks, and emerging patterns. Maintain a coherent narrative showing the evolution of the client's journey.
+        - If a competency was not applicable (e.g., no crisis mentioned), do
+          not force a positive/negative unless the counselor missed an
+          opportunity to address it.
+        - For session_glimpse: Focus ONLY on the current session as a quick
+          snapshot.
+        - For cumulative_memory: If a previous summary exists, integrate the
+          new conversation while maintaining historical context and identifying
+          patterns or changes. If no previous summary exists, create a
+          comprehensive initial summary.
+          Track key themes, concerns, therapeutic interventions, progress, setbacks, and
+          emerging patterns. Maintain a coherent narrative showing the evolution of the
+          client's journey.
 
         Return only valid JSON with these fields:
-        - "positives": Array of demonstrated strengths and effective techniques with examples.
-        - "improvements": Array of specific areas needing development with conversation examples.
-        - "session_glimpse": A brief overview (2-3 sentences) of THIS current session, highlighting main topics, key takeaways, and immediate observations.
-        - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that integrates ALL sessions including the current one, showing progression, patterns, and evolution.
+        - "positives": Array of demonstrated strengths and effective
+          techniques with examples.
+        - "improvements": Array of specific areas needing development with
+          conversation examples.
+        - "session_glimpse": A brief overview (2-3 sentences) of THIS current
+          session, highlighting main topics, key takeaways, and immediate
+          observations.
+        - "cumulative_memory": A comprehensive cumulative narrative
+          (300-500 words) that integrates ALL sessions including the current
+          one, showing progression, patterns, and evolution.
 
         """
     ),
 )
 
+_SKILL_COVERAGE_DESCRIPTIONS = get_skill_coverage_descriptions()
+
 SCENARIO_EVALUATION_PROMPT = PromptTemplate(
     input_variables=["chat_history"],
     template=textwrap.dedent(
-        """
-        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
+        f"""
+        You are a clinical supervisor analyzing a transcript of a roleplay
+        between a mental health counselor and a client.
 
         Conversation Transcript:
-        {chat_history}
+        {{chat_history}}
 
-        Evaluate the counselor's performance and return ONLY a JSON object with exactly five fields.
+        Evaluate the counselor's performance and return ONLY a JSON object with
+        exactly five fields.
 
         Important rules:
         - Provide specific, actionable feedback points.
-        - Reference exact examples or quotes from the conversation to support your points.
+        - Reference exact examples or quotes from the conversation to support
+          your points.
         - Each point should be concise but substantive.
-        - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
-        - For emotional_movement: Analyze ONLY the client's messages (not the counselor's messages). Rate each client message's emotional state on a scale from -5 (very negative/distressed) to +5 (very positive/happy). Consider the emotional tone, sentiment, and distress level expressed in each message. Use the exact message ID from the transcript.
-        - For skill_coverage: Evaluate the counselor's overall skill demonstration across three categories. Assign a percentage (0-100) for each category. Always return exactly three items.
-          * "Listening Engagement" — Measures the counselor's ability to actively listen and engage with the client's words. Includes: paraphrasing, clarifying, reflecting back what was said, demonstrating understanding, asking follow-up questions, and showing attentiveness to the client's narrative. Higher scores indicate the counselor was fully present and engaged with what the client was saying.
-          * "Emotional Attunement" — Measures the counselor's ability to recognize, validate, and respond to the client's emotional state. Includes: identifying and naming emotions, validating feelings, demonstrating empathy, showing emotional resonance, and responding appropriately to emotional cues. Higher scores indicate the counselor was highly attuned to the client's emotional experience.
-          * "Supportive engagement" — Measures the counselor's ability to provide support, encouragement, and create a safe therapeutic space. Includes: offering warmth, providing affirmation, normalizing experiences, holding space for difficult emotions, maintaining a non-judgmental presence, and creating psychological safety. Higher scores indicate the client felt supported and safe throughout the session.
+        - For message_tags: Tag ONLY the counselor's messages (not the
+          client's messages). For each counselor message, assign applicable
+          tags. Use the exact message ID from the transcript. Only include tags
+          that are clearly relevant to that message.
+        - For emotional_movement: Analyze ONLY the client's messages (not the
+          counselor's messages). Rate each client message's emotional state on
+          a scale from -5 (very negative/distressed) to +5 (very
+          positive/happy). Consider the emotional tone, sentiment, and distress
+          level expressed in each message. Use the exact message ID from the
+          transcript.
+        - For skill_coverage: Evaluate the counselor's overall skill
+          demonstration across three categories. Assign a percentage (0-100)
+          for each category. Always return exactly three items.
+{_SKILL_COVERAGE_DESCRIPTIONS}
 
         Return only valid JSON with these fields:
-        - "positives": Array of demonstrated strengths and effective techniques with specific examples from the conversation.
-        - "improvements": Array of specific areas needing development with conversation examples.
-        - "message_tags": Array of objects, one per counselor message, each with "id" (the message ID) and "tags" (array of objects with "label" and "category").
-        - "emotional_movement": Array of objects, one per client message, each with "message_id" (the message ID) and "level" (integer from -5 to +5).
-        - "skill_coverage": Array of exactly 3 objects, each with "category" (one of "Listening Engagement", "Emotional Attunement", "Supportive engagement") and "percentage" (number from 0 to 100).
+        - "positives": Array of demonstrated strengths and effective techniques with
+          specific examples from the conversation.
+        - "improvements": Array of specific areas needing development with conversation
+          examples.
+        - "message_tags": Array of objects, one per counselor message, each with "id"
+          (the message ID) and "tags" (array of objects with "label" and "category").
+        - "emotional_movement": Array of objects, one per client message, each with
+          "message_id" (the message ID) and "level" (integer from -5 to +5).
+        - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
+          "Listening Engagement", "Emotional Attunement", "Supportive engagement") and
+          "percentage" (number from 0 to 100).
 
         """
     ),
@@ -469,43 +530,71 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
 SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
     input_variables=["chat_history", "previous_summary", "custom_prompt_section"],
     template=textwrap.dedent(
-        """
-        You are a clinical supervisor analyzing a transcript of a roleplay between a mental health counselor and a client.
-        You also maintain a comprehensive memory of ongoing client-counselor interactions.
+        f"""
+        You are a clinical supervisor analyzing a transcript of a roleplay
+        between a mental health counselor and a client.
+        You also maintain a comprehensive memory of ongoing
+        client-counselor interactions.
 
-        {custom_prompt_section}
+        {{custom_prompt_section}}
 
         Conversation Transcript:
-        {chat_history}
+        {{chat_history}}
 
         Previous Summary (if available):
         ```
-        {previous_summary}
+        {{previous_summary}}
         ```
 
-        Evaluate the counselor's performance and return ONLY a JSON object with exactly seven fields.
+        Evaluate the counselor's performance and return ONLY a JSON object with
+        exactly seven fields.
 
         Important rules:
         - Provide specific, actionable feedback points.
-        - Reference exact examples or quotes from the conversation to support your points.
+        - Reference exact examples or quotes from the conversation to support
+          your points.
         - Each point should be concise but substantive.
-        - For message_tags: Tag ONLY the counselor's messages (not the client's messages). For each counselor message, assign applicable tags. Use the exact message ID from the transcript. Only include tags that are clearly relevant to that message.
-        - For emotional_movement: Analyze ONLY the client's messages (not the counselor's messages). Rate each client message's emotional state on a scale from -5 (very negative/distressed) to +5 (very positive/happy). Consider the emotional tone, sentiment, and distress level expressed in each message. Use the exact message ID from the transcript.
-        - For skill_coverage: Evaluate the counselor's overall skill demonstration across three categories. Assign a percentage (0-100) for each category. Always return exactly three items.
-          * "Listening Engagement" — Measures the counselor's ability to actively listen and engage with the client's words. Includes: paraphrasing, clarifying, reflecting back what was said, demonstrating understanding, asking follow-up questions, and showing attentiveness to the client's narrative. Higher scores indicate the counselor was fully present and engaged with what the client was saying.
-          * "Emotional Attunement" — Measures the counselor's ability to recognize, validate, and respond to the client's emotional state. Includes: identifying and naming emotions, validating feelings, demonstrating empathy, showing emotional resonance, and responding appropriately to emotional cues. Higher scores indicate the counselor was highly attuned to the client's emotional experience.
-          * "Supportive engagement" — Measures the counselor's ability to provide support, encouragement, and create a safe therapeutic space. Includes: offering warmth, providing affirmation, normalizing experiences, holding space for difficult emotions, maintaining a non-judgmental presence, and creating psychological safety. Higher scores indicate the client felt supported and safe throughout the session.
-        - For session_glimpse: Focus ONLY on the current session as a quick snapshot.
-        - For cumulative_memory: If a previous summary exists, integrate the new conversation while maintaining historical context and identifying patterns or changes. If no previous summary exists, create a comprehensive initial summary. Track key themes, concerns, therapeutic interventions, progress, setbacks, and emerging patterns. Maintain a coherent narrative showing the evolution of the client's journey.
+        - For message_tags: Tag ONLY the counselor's messages (not the
+          client's messages). For each counselor message, assign applicable
+          tags. Use the exact message ID from the transcript. Only include tags
+          that are clearly relevant to that message.
+        - For emotional_movement: Analyze ONLY the client's messages (not the
+          counselor's messages). Rate each client message's emotional state on
+          a scale from -5 (very negative/distressed) to +5 (very
+          positive/happy). Consider the emotional tone, sentiment, and distress
+          level expressed in each message. Use the exact message ID from the
+          transcript.
+        - For skill_coverage: Evaluate the counselor's overall skill
+          demonstration across three categories. Assign a percentage (0-100)
+          for each category. Always return exactly three items.
+{_SKILL_COVERAGE_DESCRIPTIONS}
+        - For session_glimpse: Focus ONLY on the current session as a quick
+          snapshot.
+        - For cumulative_memory: If a previous summary exists, integrate the
+          new conversation while maintaining historical context and identifying
+          patterns or changes. If no previous summary exists, create a
+          comprehensive initial summary.
+          Track key themes, concerns, therapeutic interventions, progress, setbacks, and
+          emerging patterns. Maintain a coherent narrative showing the evolution of the
+          client's journey.
 
         Return only valid JSON with these fields:
-        - "positives": Array of demonstrated strengths and effective techniques with specific examples from the conversation.
-        - "improvements": Array of specific areas needing development with conversation examples.
-        - "message_tags": Array of objects, one per counselor message, each with "id" (the message ID) and "tags" (array of objects with "label" and "category").
-        - "emotional_movement": Array of objects, one per client message, each with "message_id" (the message ID) and "level" (integer from -5 to +5).
-        - "skill_coverage": Array of exactly 3 objects, each with "category" (one of "Listening Engagement", "Emotional Attunement", "Supportive engagement") and "percentage" (number from 0 to 100).
-        - "session_glimpse": A brief overview (2-3 sentences) of THIS current session, highlighting main topics, key takeaways, and immediate observations.
-        - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that integrates ALL sessions including the current one, showing progression, patterns, and evolution.
+        - "positives": Array of demonstrated strengths and effective techniques with
+          specific examples from the conversation.
+        - "improvements": Array of specific areas needing development with conversation
+          examples.
+        - "message_tags": Array of objects, one per counselor message, each with "id"
+          (the message ID) and "tags" (array of objects with "label" and "category").
+        - "emotional_movement": Array of objects, one per client message, each with
+          "message_id" (the message ID) and "level" (integer from -5 to +5).
+        - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
+          "Listening Engagement", "Emotional Attunement", "Supportive engagement") and
+          "percentage" (number from 0 to 100).
+        - "session_glimpse": A brief overview (2-3 sentences) of THIS current session,
+          highlighting main topics, key takeaways, and immediate observations.
+        - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that
+          integrates ALL sessions including the current one, showing progression,
+          patterns, and evolution.
 
         """
     ),
