@@ -9,13 +9,11 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    ffmpeg \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry using its official installer
 RUN curl -sSL https://install.python-poetry.org | python3 -
-
-# Install ffmpeg
-RUN apt-get install ffmpeg
 
 # Add Poetry to the PATH
 ENV PATH="/root/.local/bin:$PATH"
