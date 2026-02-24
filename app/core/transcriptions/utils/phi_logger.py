@@ -57,8 +57,8 @@ class PHILoggerService:
             # Create boto3 client for AWS CloudWatch
             self.cloudwatch_client = boto3.client("logs")
 
-            self.log_group_name = settings.HIPAA_AUDIT_LOG_GROUP_NAME
-            base_stream_name = settings.HIPAA_AUDIT_LOG_STREAM_NAME
+            self.log_group_name = settings.HIPAA_AUDIT.LOG_GROUP_NAME
+            base_stream_name = settings.HIPAA_AUDIT.LOG_STREAM_NAME
             random_id = random.randint(100000, 999999)
             self.log_stream_name = f"{base_stream_name}-{random_id}"
 

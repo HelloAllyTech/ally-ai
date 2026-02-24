@@ -93,7 +93,7 @@ class TranscriptionRequestHandler:
             return SarvamTranscriptionService()
 
 
-    async def process_transcription_request(self, request_data: Dict[str, Any], receipt_handle: str) -> Dict[str, Any]:
+    async def process_transcription_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
     
         """
         Process a single transcription request.
@@ -106,6 +106,7 @@ class TranscriptionRequestHandler:
         """
         try:
             # Parse request message
+            print(f"REQUEST DATA {request_data}")
             request = TranscribeAndSummarizeRequestMessage(**request_data)
             chat_id = request.chat_id
 
@@ -127,7 +128,7 @@ class TranscriptionRequestHandler:
             )
 
             # Process transcription
-            _, segments_text = await transcription_service.transcribe_audio_from_url(
+            _, segments_text = await self.transcription_service.transcribe_audio_from_url(
                 audio_url=request.audio_url,
                 chat_id=request.chat_id,
                 sample_rate=request.sample_rate,
@@ -144,56 +145,9 @@ class TranscriptionRequestHandler:
             # Send the result message to the result queue
             await asyncio.to_thread(
                 sqs_client.send_message,
-                QueueUrl=settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                QueueUrl=settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
                 MessageBody=json.dumps(result_message.model_dump()),
             )
-
-            # Delete the message from the queue (best-effort in local testing)
-            try:
-                await asyncio.to_thread(
-                    sqs_client.delete_message,
-                    QueueUrl=settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
-                    ReceiptHandle=receipt_handle,
-                )
-
-                logger.info(
-                    f"Successfully deleted message from requests queue for chat_id: {chat_id}"
-                )
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.DATA_DELETED,
-                        chat_id=chat_id,
-                        audit_id=None,  # Will be set by external service,
-                        details={
-                            "message": f"Successfully deleted message from requests queue for chat_id: {chat_id}",  # noqa: E501
-                            "chat_id": chat_id,
-                            "receipt_handle": f"{receipt_handle[:20]}...",
-                            "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
-                            "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
-                            "component": "LambdaHandler",
-                            "method": "process_transcription_request",
-                        },
-                    )
-                )
-            except Exception as e:
-                logger.warning(
-                    f"DeleteMessage skipped (likely local invoke with synthetic receipt handle): {type(e).__name__}"
-                )
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.SYSTEM_ERROR,  # classify as system event but continue
-                        chat_id=chat_id,
-                        audit_id=None,
-                        details={
-                            "message": "DeleteMessage skipped during local run",
-                            "exception_type": type(e).__name__,
-                            "receipt_handle_prefix": f"{receipt_handle[:20]}...",
-                            "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,
-                            "component": "LambdaHandler",
-                            "method": "process_transcription_request",
-                        },
-                    )
-                )
 
             logger.info(f"Successfully processed chat_id: {chat_id}")
             await phi_logger.log(
@@ -206,8 +160,8 @@ class TranscriptionRequestHandler:
                         "chat_id": chat_id,
                         "segments_text_length": len(segments_text),
                         "timestamp": int(time.time() * 1000),
-                        "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
-                        "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                        "request_queue_url": settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
+                        "result_queue_url": settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
                         "component": "LambdaHandler",
                         "method": "process_transcription_request",
                     },
@@ -230,8 +184,8 @@ class TranscriptionRequestHandler:
                         "error": f"Error processing transcription request: {chat_id} {type(e).__name__}",  # noqa: E501
                         "chat_id": chat_id,
                         "exception_type": type(e).__name__,
-                        "request_queue_url": settings.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
-                        "result_queue_url": settings.TRANSCRIPTION_RESULTS_QUEUE_URL,
+                        "request_queue_url": settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
+                        "result_queue_url": settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
                         "component": "LambdaHandler",
                         "method": "process_transcription_request",
                     },
