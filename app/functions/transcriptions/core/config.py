@@ -30,5 +30,7 @@ class Settings(BaseSettings):
     HIPAA_AUDIT_ENABLE_CONSOLE_LOGS: bool = Field(default=False)
     SARVAM_API_KEY: str = Field(...)
 
+    AWS_REGION: str = Field(...)
+
 
 settings = Settings()

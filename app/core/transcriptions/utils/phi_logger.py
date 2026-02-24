@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 
 import boto3
 from botocore.exceptions import ClientError
+
 from app.core.config import settings
 from app.core.transcriptions.utils.execution_manager import ExecutionManager
 from app.core.transcriptions.utils.logger import get_logger
@@ -55,7 +56,9 @@ class PHILoggerService:
                 return
 
             # Create boto3 client for AWS CloudWatch
-            self.cloudwatch_client = boto3.client("logs")
+            self.cloudwatch_client = boto3.client(
+                "logs", region_name=settings.AWS.REGION
+            )
 
             self.log_group_name = settings.HIPAA_AUDIT.LOG_GROUP_NAME
             base_stream_name = settings.HIPAA_AUDIT.LOG_STREAM_NAME
