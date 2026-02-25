@@ -1,5 +1,5 @@
 import time
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
@@ -274,10 +274,14 @@ class SummaryService:
         Generate counselor training simulation analysis with optional memory summary.
 
         Parameters:
-            chat_history (List[ChatMessage]): The conversation between AI client and counselor.
-            need_memory (bool): Whether to generate memory summary alongside analysis.
-            previous_memory (Optional[str]): Previous memory summary to build upon (when need_memory=True).
-            memory_prompt (Optional[str]): Custom instructions for memory generation (when need_memory=True).
+            chat_history (List[ChatMessage]): The conversation between AI
+                client and counselor.
+            need_memory (bool): Whether to generate memory summary alongside
+                analysis.
+            previous_memory (Optional[str]): Previous memory summary to build
+                upon (when need_memory=True).
+            memory_prompt (Optional[str]): Custom instructions for memory
+                generation (when need_memory=True).
             chat_id (Optional[str]): The chat ID for PHI logging.
 
         Returns:
@@ -362,10 +366,14 @@ class SummaryService:
         Generate scenario evaluation.
 
         Parameters:
-            chat_history (List[ChatMessage]): The conversation between AI client and counselor.
-            need_memory (bool): Whether to generate memory summary alongside evaluation.
-            previous_memory (Optional[str]): Previous memory summary to build upon (when need_memory=True).
-            memory_prompt (Optional[str]): Custom instructions for memory generation (when need_memory=True).
+            chat_history (List[ChatMessage]): The conversation between AI
+                client and counselor.
+            need_memory (bool): Whether to generate memory summary alongside
+                evaluation.
+            previous_memory (Optional[str]): Previous memory summary to build
+                upon (when need_memory=True).
+            memory_prompt (Optional[str]): Custom instructions for memory
+                generation (when need_memory=True).
             chat_id (Optional[str]): The chat ID for PHI logging.
 
         Returns:
@@ -425,7 +433,10 @@ class SummaryService:
                     audit_id=None,  # Will be set by caller
                     event_type=PHIEvents.SYSTEM_ERROR,
                     details={
-                        "error": f"Failed to generate scenario evaluation: {type(e).__name__}",
+                        "error": (
+                            f"Failed to generate scenario evaluation: "
+                            f"{type(e).__name__}"
+                        ),
                         "component": "SummaryService",
                         "method": "generate_scenario_evaluation",
                         "exception_type": type(e).__name__,
@@ -437,6 +448,5 @@ class SummaryService:
 
             logger.error(f"Failed to generate scenario evaluation: {str(e)}")
             raise CounselorTrainingAnalysisFailedException(
-                "Failed to generate scenario evaluation. "
-                "Please try again later."
+                "Failed to generate scenario evaluation. " "Please try again later."
             ) from e

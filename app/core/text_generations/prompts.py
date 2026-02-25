@@ -4,6 +4,7 @@ from langchain_core.prompts import PromptTemplate
 
 from app.core.text_generations.structured_output_models import (
     SKILL_CATEGORY_DESCRIPTIONS,
+    get_message_tag_prompt_text,
 )
 
 
@@ -480,7 +481,7 @@ _SKILL_COVERAGE_DESCRIPTIONS = get_skill_coverage_descriptions()
 SCENARIO_EVALUATION_PROMPT = PromptTemplate(
     input_variables=["chat_history"],
     template=textwrap.dedent(
-        f"""
+        """
         You are a clinical supervisor analyzing a transcript of a roleplay
         between a mental health counselor and a client.
 
@@ -499,6 +500,11 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
           client's messages). For each counselor message, assign applicable
           tags. Use the exact message ID from the transcript. Only include tags
           that are clearly relevant to that message.
+          Each tag must use a "label" from the list below (provide only
+          the label; category is derived automatically).
+
+          {MESSAGE_TAG_PROMPT_TEXT}
+
         - For emotional_movement: Analyze ONLY the client's messages (not the
           counselor's messages). Rate each client message's emotional state on
           a scale from -5 (very negative/distressed) to +5 (very
@@ -508,7 +514,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - For skill_coverage: Evaluate the counselor's overall skill
           demonstration across three categories. Assign a percentage (0-100)
           for each category. Always return exactly three items.
-{_SKILL_COVERAGE_DESCRIPTIONS}
+{SKILL_COVERAGE_DESCRIPTIONS}
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective techniques with
@@ -516,7 +522,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - "improvements": Array of specific areas needing development with conversation
           examples.
         - "message_tags": Array of objects, one per counselor message, each with "id"
-          (the message ID) and "tags" (array of objects with "label" and "category").
+          (the message ID) and "tags" (array of objects with "label" only).
         - "emotional_movement": Array of objects, one per client message, each with
           "message_id" (the message ID) and "level" (integer from -5 to +5).
         - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
@@ -524,13 +530,16 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
           "percentage" (number from 0 to 100).
 
         """
+    ).format(
+        MESSAGE_TAG_PROMPT_TEXT=get_message_tag_prompt_text(),
+        SKILL_COVERAGE_DESCRIPTIONS=_SKILL_COVERAGE_DESCRIPTIONS,
     ),
 )
 
 SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
     input_variables=["chat_history", "previous_summary", "custom_prompt_section"],
     template=textwrap.dedent(
-        f"""
+        """
         You are a clinical supervisor analyzing a transcript of a roleplay
         between a mental health counselor and a client.
         You also maintain a comprehensive memory of ongoing
@@ -558,6 +567,11 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
           client's messages). For each counselor message, assign applicable
           tags. Use the exact message ID from the transcript. Only include tags
           that are clearly relevant to that message.
+          Each tag must use a "label" from the list below (provide only
+          the label; category is derived automatically).
+
+          {MESSAGE_TAG_PROMPT_TEXT}
+
         - For emotional_movement: Analyze ONLY the client's messages (not the
           counselor's messages). Rate each client message's emotional state on
           a scale from -5 (very negative/distressed) to +5 (very
@@ -567,7 +581,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - For skill_coverage: Evaluate the counselor's overall skill
           demonstration across three categories. Assign a percentage (0-100)
           for each category. Always return exactly three items.
-{_SKILL_COVERAGE_DESCRIPTIONS}
+{SKILL_COVERAGE_DESCRIPTIONS}
         - For session_glimpse: Focus ONLY on the current session as a quick
           snapshot.
         - For cumulative_memory: If a previous summary exists, integrate the
@@ -584,7 +598,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - "improvements": Array of specific areas needing development with conversation
           examples.
         - "message_tags": Array of objects, one per counselor message, each with "id"
-          (the message ID) and "tags" (array of objects with "label" and "category").
+          (the message ID) and "tags" (array of objects with "label" only).
         - "emotional_movement": Array of objects, one per client message, each with
           "message_id" (the message ID) and "level" (integer from -5 to +5).
         - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
@@ -597,5 +611,8 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
           patterns, and evolution.
 
         """
+    ).format(
+        MESSAGE_TAG_PROMPT_TEXT=get_message_tag_prompt_text(),
+        SKILL_COVERAGE_DESCRIPTIONS=_SKILL_COVERAGE_DESCRIPTIONS,
     ),
 )

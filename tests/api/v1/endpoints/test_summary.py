@@ -364,7 +364,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                 "message_tags": [
                     {
                         "id": "msg-1",
-                        "tags": [{"label": "Pacing", "category": "POSITIVE"}],
+                        "tags": [{"label": "Steady pacing", "category": "POSITIVE"}],
                     }
                 ],
                 "emotional_movement": [

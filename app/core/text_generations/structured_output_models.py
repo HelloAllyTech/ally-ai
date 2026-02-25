@@ -16,22 +16,257 @@ class TagCategoryEnum(str, Enum):
 class MessageTagLabelEnum(str, Enum):
     """Static set of allowed message tag labels for structured output."""
 
-    AVOID_ADVICE_GIVING = "Avoid Advice Giving"
-    HOLD_EMOTIONAL_SPACE = "Hold Emotional Space"
-    PACING = "Pacing"
-    PARAPHRASES = "Paraphrases"
+    # Helpful Skill Tags (POSITIVE)
+    ATTUNEMENT = "Attunement"
+    GENUINE_WARMTH = "Genuine warmth"
+    USE_OF_SILENCE = "Use of Silence"
+    STEADY_PACING = "Steady pacing"
+    ACTIVE_LISTENING = "Active listening"
+    REFLECTION_OF_FEELINGS = "Reflection of Feelings"
+    PARAPHRASING = "Paraphrasing"
+    INSIGHT_GENERATION = "Insight Generation"
+    SUMMARIZING = "Summarizing"
+    REFLECTION_OF_EMOTIONS = "Reflection of Emotions"
+    ACKNOWLEDGING = "Acknowledging"
+    NORMALISATION = "Normalisation"
+    VALIDATION = "Validation"
+    NON_JUDGMENTAL_RESPONSE = "Non-judgmental response"
+    OPEN_ENDED_QUESTION = "Open ended question"
+    CLARIFYING_RESPONSE = "Clarifying Response"
+    DEEPER_EXPLORATION = "Deeper Exploration"
+    IDENTIFYING_STRENGTHS = "Identifying Strengths"
+    AMBIVALENCE_REFLECTION = "Ambivalence reflection"
+    EMOTIONAL_CONTAINMENT = "Emotional containment"
+    GROUNDING_SUPPORT = "Grounding support"
+    AFFIRMATION = "Affirmation"
+    ADAPTIVE_COPING_EXPLORATION = "Adaptive coping exploration"
+    CURIOUS_APPROACH = "Curious Approach"
+    COLLABORATIVE_GOAL_SETTING = "Collaborative goal setting"
+    REALISTIC_HOPE_BUILDING = "Realistic Hope Building"
+
+    # Unhelpful Skill Tags (NEGATIVE)
+    MISSED_OPPORTUNITY_TO_DEEPEN = "Missed opportunity to deepen"
+    NEED_FOR_SLOWER_PACE = "Need for slower pace"
+    REDUCED_PACING_NEEDED = "Reduced pacing needed"
+    EXPAND_EMOTIONAL_VALIDATION = "Expand emotional validation"
+    AVOID_COMPARISON_OR_REASSURANCE = "Avoid comparison or reassurance"
+    AVOID_CLOSE_ENDED_QUESTIONS = "Avoid close ended questions"
+    PACE_QUESTIONS = "Pace questions"
+    ENHANCE_NON_DIRECTIVE_APPROACH = "Enhance Non-directive approach"
+    DELAY_PROBLEM_SOLVING = "Delay problem-solving"
+    INCREASE_USE_OF_SILENCE = "Increase use of silence"
+    ALIGN_WITH_CLIENT_READINESS = "Align with client readiness"
+    FACILITATE_COPING_EXPLORATION = "Facilitate Coping exploration"
+    COLLABORATIVE_DIRECTION_NEEDED = "Collaborative direction needed"
+    ALIGN_GOALS_WITH_READINESS = "Align goals with readiness"
+    ANCHOR_HOPE_IN_REALITY = "Anchor hope in reality"
+    AVOID_GENERAL_REASSURANCE = "Avoid general reassurance"
+    STRENGTHEN_VALUES_LINK = "Strengthen values link"
+    REINFORCE_AUTONOMY = "Reinforce autonomy"
+
+
+# Labels that are unhelpful (NEGATIVE); all others are helpful (POSITIVE)
+_MESSAGE_TAG_NEGATIVE_LABELS: frozenset[MessageTagLabelEnum] = frozenset(
+    {
+        MessageTagLabelEnum.MISSED_OPPORTUNITY_TO_DEEPEN,
+        MessageTagLabelEnum.NEED_FOR_SLOWER_PACE,
+        MessageTagLabelEnum.REDUCED_PACING_NEEDED,
+        MessageTagLabelEnum.EXPAND_EMOTIONAL_VALIDATION,
+        MessageTagLabelEnum.AVOID_COMPARISON_OR_REASSURANCE,
+        MessageTagLabelEnum.AVOID_CLOSE_ENDED_QUESTIONS,
+        MessageTagLabelEnum.PACE_QUESTIONS,
+        MessageTagLabelEnum.ENHANCE_NON_DIRECTIVE_APPROACH,
+        MessageTagLabelEnum.DELAY_PROBLEM_SOLVING,
+        MessageTagLabelEnum.INCREASE_USE_OF_SILENCE,
+        MessageTagLabelEnum.ALIGN_WITH_CLIENT_READINESS,
+        MessageTagLabelEnum.FACILITATE_COPING_EXPLORATION,
+        MessageTagLabelEnum.COLLABORATIVE_DIRECTION_NEEDED,
+        MessageTagLabelEnum.ALIGN_GOALS_WITH_READINESS,
+        MessageTagLabelEnum.ANCHOR_HOPE_IN_REALITY,
+        MessageTagLabelEnum.AVOID_GENERAL_REASSURANCE,
+        MessageTagLabelEnum.STRENGTHEN_VALUES_LINK,
+        MessageTagLabelEnum.REINFORCE_AUTONOMY,
+    }
+)
+
+
+def get_message_tag_category(label: MessageTagLabelEnum) -> TagCategoryEnum:
+    """
+    Map a message tag label to its category.
+
+    POSITIVE=helpful, NEGATIVE=unhelpful.
+    """
+    return (
+        TagCategoryEnum.NEGATIVE
+        if label in _MESSAGE_TAG_NEGATIVE_LABELS
+        else TagCategoryEnum.POSITIVE
+    )
+
+
+# Descriptions for each message tag label
+MESSAGE_TAG_DESCRIPTIONS: dict[MessageTagLabelEnum, str] = {
+    # Helpful Skills
+    MessageTagLabelEnum.ATTUNEMENT: (
+        "Helper maintains focus on the client's experience without "
+        "interruption or topic-shifting."
+    ),
+    MessageTagLabelEnum.GENUINE_WARMTH: (
+        "Helper's language and phrasing convey warmth, care, and " "non-judgement."
+    ),
+    MessageTagLabelEnum.USE_OF_SILENCE: (
+        "Helper pauses or allows silence to support reflection rather "
+        "than filling space."
+    ),
+    MessageTagLabelEnum.STEADY_PACING: (
+        "Helper responses match client's emotional pace; no rushing or "
+        "abrupt shifts."
+    ),
+    MessageTagLabelEnum.ACTIVE_LISTENING: (
+        "Helper accurately responds to what the client has said."
+    ),
+    MessageTagLabelEnum.REFLECTION_OF_FEELINGS: (
+        "Helper notices and follows emotional cues across turns."
+    ),
+    MessageTagLabelEnum.PARAPHRASING: (
+        "Helper paraphrases facts or events shared by the client."
+    ),
+    MessageTagLabelEnum.INSIGHT_GENERATION: (
+        "Helper reflects underlying meaning, beliefs, or emotional " "significance."
+    ),
+    MessageTagLabelEnum.SUMMARIZING: (
+        "Helper synthesises multiple points shared by the client."
+    ),
+    MessageTagLabelEnum.REFLECTION_OF_EMOTIONS: (
+        "Helper explicitly names an emotion expressed or implied by " "the client."
+    ),
+    MessageTagLabelEnum.ACKNOWLEDGING: (
+        "Helper acknowledges the client's experience as valid and real."
+    ),
+    MessageTagLabelEnum.NORMALISATION: (
+        "Helper frames the client's reaction as understandable or human."
+    ),
+    MessageTagLabelEnum.VALIDATION: (
+        "Helper affirms emotions without judgement, correction, or " "reassurance."
+    ),
+    MessageTagLabelEnum.NON_JUDGMENTAL_RESPONSE: (
+        "Helper avoids blame, criticism, or evaluation."
+    ),
+    MessageTagLabelEnum.OPEN_ENDED_QUESTION: (
+        "Helper uses what/how prompts that invite elaboration."
+    ),
+    MessageTagLabelEnum.CLARIFYING_RESPONSE: (
+        "Helper seeks understanding without pressure or interrogation."
+    ),
+    MessageTagLabelEnum.DEEPER_EXPLORATION: (
+        "Helper asks questions that deepen emotional or experiential " "understanding."
+    ),
+    MessageTagLabelEnum.IDENTIFYING_STRENGTHS: (
+        "Helper highlights strengths, efforts, or resilience."
+    ),
+    MessageTagLabelEnum.AMBIVALENCE_REFLECTION: (
+        "Helper reflects mixed or conflicting feelings."
+    ),
+    MessageTagLabelEnum.EMOTIONAL_CONTAINMENT: (
+        "Helper responds calmly to distress and helps regulate intensity."
+    ),
+    MessageTagLabelEnum.GROUNDING_SUPPORT: (
+        "Helper supports stabilisation or grounding through language."
+    ),
+    MessageTagLabelEnum.AFFIRMATION: ("Helper acknowledges effort or persistence."),
+    MessageTagLabelEnum.ADAPTIVE_COPING_EXPLORATION: (
+        "Helper explores coping strategies without judgement."
+    ),
+    MessageTagLabelEnum.CURIOUS_APPROACH: (
+        "Helper asks about coping with openness and interest."
+    ),
+    MessageTagLabelEnum.COLLABORATIVE_GOAL_SETTING: (
+        "Helper and client jointly identify goals or next steps."
+    ),
+    MessageTagLabelEnum.REALISTIC_HOPE_BUILDING: (
+        "Helper builds hope grounded in achievable change."
+    ),
+    # Unhelpful Skills
+    MessageTagLabelEnum.MISSED_OPPORTUNITY_TO_DEEPEN: (
+        "Helper response shows distraction, abrupt topic change, or " "missed cue."
+    ),
+    MessageTagLabelEnum.NEED_FOR_SLOWER_PACE: (
+        "Helper responds to facts while emotions remain unaddressed."
+    ),
+    MessageTagLabelEnum.REDUCED_PACING_NEEDED: (
+        "Helper moves faster than client's emotional readiness."
+    ),
+    MessageTagLabelEnum.EXPAND_EMOTIONAL_VALIDATION: (
+        "Emotion is present but not acknowledged or validated."
+    ),
+    MessageTagLabelEnum.AVOID_COMPARISON_OR_REASSURANCE: (
+        "Helper response includes comparison or reassurance that bypasses " "emotion."
+    ),
+    MessageTagLabelEnum.AVOID_CLOSE_ENDED_QUESTIONS: (
+        "Overuse of closed or directive questions detected."
+    ),
+    MessageTagLabelEnum.PACE_QUESTIONS: ("Multiple questions asked rapidly."),
+    MessageTagLabelEnum.ENHANCE_NON_DIRECTIVE_APPROACH: (
+        "Helper leads excessively rather than following client's lead."
+    ),
+    MessageTagLabelEnum.DELAY_PROBLEM_SOLVING: (
+        "Solutions introduced before emotional exploration."
+    ),
+    MessageTagLabelEnum.INCREASE_USE_OF_SILENCE: (
+        "Helper fills reflective space prematurely."
+    ),
+    MessageTagLabelEnum.ALIGN_WITH_CLIENT_READINESS: (
+        "Intervention does not match client readiness."
+    ),
+    MessageTagLabelEnum.FACILITATE_COPING_EXPLORATION: (
+        "Coping not explored when relevant."
+    ),
+    MessageTagLabelEnum.COLLABORATIVE_DIRECTION_NEEDED: (
+        "Goals or direction introduced not collaboratively."
+    ),
+    MessageTagLabelEnum.ALIGN_GOALS_WITH_READINESS: (
+        "Goals set without checking readiness."
+    ),
+    MessageTagLabelEnum.ANCHOR_HOPE_IN_REALITY: (
+        "Hope framed abstractly without linking to action."
+    ),
+    MessageTagLabelEnum.AVOID_GENERAL_REASSURANCE: (
+        "Broad optimism without acknowledging pain."
+    ),
+    MessageTagLabelEnum.STRENGTHEN_VALUES_LINK: (
+        "Values not referenced when motivating change."
+    ),
+    MessageTagLabelEnum.REINFORCE_AUTONOMY: (
+        "Client choice not explicitly supported, or excessive " "advice-giving."
+    ),
+}
+
+
+def get_message_tag_prompt_text() -> str:
+    """
+    Generate the message tag descriptions text for use in prompts.
+
+    Returns formatted text with all skill labels and their descriptions.
+    This ensures consistency across all prompts that need tag descriptions.
+    Category (helpful/unhelpful) is derived automatically from the label.
+    """
+    labels = []
+
+    for label in MessageTagLabelEnum:
+        description = MESSAGE_TAG_DESCRIPTIONS[label]
+        line = f'            "{label.value}" — {description}'
+        labels.append(line)
+
+    return "Available skill labels:\n" + "\n".join(labels)
 
 
 class MessageTagOutput(BaseModel):
-    """A single tag produced by the LLM."""
+    """
+    A single tag produced by the LLM.
+
+    Category is derived from label when building the response.
+    """
 
     label: MessageTagLabelEnum = Field(description="One of the allowed tag labels")
-    category: TagCategoryEnum = Field(
-        description=(
-            "POSITIVE if the technique is beneficial, NEGATIVE if it should be avoided "
-            "or is harmful"
-        )
-    )
 
 
 class MessageTagItemOutput(BaseModel):

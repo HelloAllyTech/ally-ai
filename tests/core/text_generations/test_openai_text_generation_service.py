@@ -27,7 +27,6 @@ from app.core.text_generations.structured_output_models import (
     StructuredIdentifyUsers,
     StructuredSummaryNote,
     StructuredTag,
-    TagCategoryEnum,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -910,21 +909,11 @@ class TestOpenAITextGenerationService:
             message_tags=[
                 MessageTagItemOutput(
                     id="m1",
-                    tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.PACING,
-                            category=TagCategoryEnum.POSITIVE,
-                        )
-                    ],
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.STEADY_PACING)],
                 ),
                 MessageTagItemOutput(
                     id="m3",
-                    tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.PARAPHRASES,
-                            category=TagCategoryEnum.POSITIVE,
-                        )
-                    ],
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASING)],
                 ),
             ],
             emotional_movement=[
@@ -989,12 +978,7 @@ class TestOpenAITextGenerationService:
             message_tags=[
                 MessageTagItemOutput(
                     id="m1",
-                    tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.HOLD_EMOTIONAL_SPACE,
-                            category=TagCategoryEnum.POSITIVE,
-                        )
-                    ],
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.USE_OF_SILENCE)],
                 ),
             ],
             emotional_movement=[
@@ -1053,42 +1037,24 @@ class TestOpenAITextGenerationService:
                 # m1 = counselor → should be kept and remapped to msg-1
                 MessageTagItemOutput(
                     id="m1",
-                    tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.PACING,
-                            category=TagCategoryEnum.POSITIVE,
-                        )
-                    ],
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.STEADY_PACING)],
                 ),
                 # m2 = client → should be filtered out (tags are for counselor only)
                 MessageTagItemOutput(
                     id="m2",
-                    tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.PARAPHRASES,
-                            category=TagCategoryEnum.POSITIVE,
-                        )
-                    ],
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASING)],
                 ),
                 # m3 = counselor → should be kept and remapped to msg-3
                 MessageTagItemOutput(
                     id="m3",
                     tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.AVOID_ADVICE_GIVING,
-                            category=TagCategoryEnum.NEGATIVE,
-                        )
+                        MessageTagOutput(label=MessageTagLabelEnum.REINFORCE_AUTONOMY)
                     ],
                 ),
                 # m99 = hallucinated → should be filtered out
                 MessageTagItemOutput(
                     id="m99",
-                    tags=[
-                        MessageTagOutput(
-                            label=MessageTagLabelEnum.PACING,
-                            category=TagCategoryEnum.POSITIVE,
-                        )
-                    ],
+                    tags=[MessageTagOutput(label=MessageTagLabelEnum.STEADY_PACING)],
                 ),
             ],
             emotional_movement=[

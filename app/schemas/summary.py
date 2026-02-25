@@ -15,12 +15,59 @@ class TagCategory(str, Enum):
 
 
 class MessageTagLabel(str, Enum):
-    """Static set of allowed message tag labels."""
+    """
+    Static set of allowed message tag labels.
 
-    AVOID_ADVICE_GIVING = "Avoid Advice Giving"
-    HOLD_EMOTIONAL_SPACE = "Hold Emotional Space"
-    PACING = "Pacing"
-    PARAPHRASES = "Paraphrases"
+    Must match MessageTagLabelEnum in structured_output_models.
+    """
+
+    # Helpful Skill Tags (POSITIVE)
+    ATTUNEMENT = "Attunement"
+    GENUINE_WARMTH = "Genuine warmth"
+    USE_OF_SILENCE = "Use of Silence"
+    STEADY_PACING = "Steady pacing"
+    ACTIVE_LISTENING = "Active listening"
+    REFLECTION_OF_FEELINGS = "Reflection of Feelings"
+    PARAPHRASING = "Paraphrasing"
+    INSIGHT_GENERATION = "Insight Generation"
+    SUMMARIZING = "Summarizing"
+    REFLECTION_OF_EMOTIONS = "Reflection of Emotions"
+    ACKNOWLEDGING = "Acknowledging"
+    NORMALISATION = "Normalisation"
+    VALIDATION = "Validation"
+    NON_JUDGMENTAL_RESPONSE = "Non-judgmental response"
+    OPEN_ENDED_QUESTION = "Open ended question"
+    CLARIFYING_RESPONSE = "Clarifying Response"
+    DEEPER_EXPLORATION = "Deeper Exploration"
+    IDENTIFYING_STRENGTHS = "Identifying Strengths"
+    AMBIVALENCE_REFLECTION = "Ambivalence reflection"
+    EMOTIONAL_CONTAINMENT = "Emotional containment"
+    GROUNDING_SUPPORT = "Grounding support"
+    AFFIRMATION = "Affirmation"
+    ADAPTIVE_COPING_EXPLORATION = "Adaptive coping exploration"
+    CURIOUS_APPROACH = "Curious Approach"
+    COLLABORATIVE_GOAL_SETTING = "Collaborative goal setting"
+    REALISTIC_HOPE_BUILDING = "Realistic Hope Building"
+
+    # Unhelpful Skill Tags (NEGATIVE)
+    MISSED_OPPORTUNITY_TO_DEEPEN = "Missed opportunity to deepen"
+    NEED_FOR_SLOWER_PACE = "Need for slower pace"
+    REDUCED_PACING_NEEDED = "Reduced pacing needed"
+    EXPAND_EMOTIONAL_VALIDATION = "Expand emotional validation"
+    AVOID_COMPARISON_OR_REASSURANCE = "Avoid comparison or reassurance"
+    AVOID_CLOSE_ENDED_QUESTIONS = "Avoid close ended questions"
+    PACE_QUESTIONS = "Pace questions"
+    ENHANCE_NON_DIRECTIVE_APPROACH = "Enhance Non-directive approach"
+    DELAY_PROBLEM_SOLVING = "Delay problem-solving"
+    INCREASE_USE_OF_SILENCE = "Increase use of silence"
+    ALIGN_WITH_CLIENT_READINESS = "Align with client readiness"
+    FACILITATE_COPING_EXPLORATION = "Facilitate Coping exploration"
+    COLLABORATIVE_DIRECTION_NEEDED = "Collaborative direction needed"
+    ALIGN_GOALS_WITH_READINESS = "Align goals with readiness"
+    ANCHOR_HOPE_IN_REALITY = "Anchor hope in reality"
+    AVOID_GENERAL_REASSURANCE = "Avoid general reassurance"
+    STRENGTHEN_VALUES_LINK = "Strengthen values link"
+    REINFORCE_AUTONOMY = "Reinforce autonomy"
 
 
 class MessageTag(BaseModel):

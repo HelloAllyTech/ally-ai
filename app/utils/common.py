@@ -1,5 +1,9 @@
 from typing import Any, Dict, List, Set, Tuple
 
+from app.core.text_generations.structured_output_models import (
+    MessageTagLabelEnum,
+    get_message_tag_category,
+)
 from app.schemas.common import ChatMessage
 
 
@@ -59,6 +63,9 @@ def filter_message_tags(
     Useful for post-processing LLM output to strip tags for messages
     that shouldn't have been tagged (e.g. client messages).
 
+    Also validates that tag labels are in the allowed enum set, filtering out
+    any hallucinated or invalid labels.
+
     Parameters:
         message_tags: List of MessageTagItemOutput objects from LLM response.
         valid_keys: Set of message keys that are allowed to have tags.
@@ -67,12 +74,18 @@ def filter_message_tags(
     Returns:
         List of dicts with "id" (original UUID) and "tags" ready for the API response.
     """
+    valid_labels = set(MessageTagLabelEnum)
+
     return [
         {
             "id": key_to_uuid[item.id],
             "tags": [
-                {"label": t.label, "category": t.category.value}
+                {
+                    "label": t.label.value,
+                    "category": get_message_tag_category(t.label).value,
+                }
                 for t in item.tags
+                if t.label in valid_labels
             ],
         }
         for item in message_tags
@@ -93,7 +106,8 @@ def filter_emotional_movement(
     - Back-fills any missing client messages with 0 (neutral).
 
     Parameters:
-        emotional_movement: List of EmotionalMovementItemOutput objects from LLM response.
+        emotional_movement: List of EmotionalMovementItemOutput objects
+            from LLM response.
         client_keys: Ordered list of client message keys (conversation order).
         key_to_uuid: Mapping of keys back to original UUIDs.
 
