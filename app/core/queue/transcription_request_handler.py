@@ -141,7 +141,7 @@ class TranscriptionRequestHandler:
                 timestamp=int(time.time() * 1000),
             )
 
-            sqs_client = boto3.client("sqs")
+            sqs_client = boto3.client("sqs", region_name=settings.AWS.REGION)
             # Send the result message to the result queue
             await asyncio.to_thread(
                 sqs_client.send_message,
