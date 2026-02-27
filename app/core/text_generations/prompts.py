@@ -390,12 +390,23 @@ SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
         - If a competency was not applicable (e.g., no crisis mentioned), do
           not force a positive/negative unless the counselor missed an
           opportunity to address it.
+        - CRITICAL: Base your evaluation ONLY on what actually appears in the
+          transcript. Do NOT invent, assume, or hallucinate counselor behaviors
+          that are not explicitly present in the conversation.
+        - For "positives": Only include strengths that the counselor clearly
+          demonstrated with specific evidence from the transcript. If the
+          counselor has not spoken much or demonstrated few skills, return fewer
+          items or an empty array. DO NOT praise behaviors that didn't occur.
+        - For "improvements": Focus on missed opportunities, areas where the
+          counselor could have done better, or skills not yet demonstrated.
+        - If the conversation is very short or the counselor barely participated,
+          acknowledge this in your evaluation rather than inventing feedback.
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective
-          techniques with examples.
+          techniques with examples. ONLY include what actually occurred.
         - "improvements": Array of specific areas needing development with
-          conversation examples.
+          conversation examples. Focus on what could be better or was missing.
 
         Return ONLY valid JSON.
         """
@@ -450,6 +461,17 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
         - If a competency was not applicable (e.g., no crisis mentioned), do
           not force a positive/negative unless the counselor missed an
           opportunity to address it.
+        - CRITICAL: Base your evaluation ONLY on what actually appears in the
+          transcript. Do NOT invent, assume, or hallucinate counselor behaviors
+          that are not explicitly present in the conversation.
+        - For "positives": Only include strengths that the counselor clearly
+          demonstrated with specific evidence from the transcript. If the
+          counselor has not spoken much or demonstrated few skills, return fewer
+          items or an empty array. DO NOT praise behaviors that didn't occur.
+        - For "improvements": Focus on missed opportunities, areas where the
+          counselor could have done better, or skills not yet demonstrated.
+        - If the conversation is very short or the counselor barely participated,
+          acknowledge this in your evaluation rather than inventing feedback.
         - For session_glimpse: Focus ONLY on the current session as a quick
           snapshot.
         - For cumulative_memory: If a previous summary exists, integrate the
@@ -462,9 +484,9 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective
-          techniques with examples.
+          techniques with examples. ONLY include what actually occurred.
         - "improvements": Array of specific areas needing development with
-          conversation examples.
+          conversation examples. Focus on what could be better or was missing.
         - "session_glimpse": A brief overview (2-3 sentences) of THIS current
           session, highlighting main topics, key takeaways, and immediate
           observations.
@@ -472,7 +494,7 @@ SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT = PromptTemplate(
           (300-500 words) that integrates ALL sessions including the current
           one, showing progression, patterns, and evolution.
 
-        """
+"""
     ),
 )
 
@@ -496,6 +518,18 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - Reference exact examples or quotes from the conversation to support
           your points.
         - Each point should be concise but substantive.
+        - CRITICAL: Base your evaluation ONLY on what actually appears in the
+          transcript. Do NOT invent, assume, or hallucinate counselor behaviors
+          that are not explicitly present in the conversation.
+        - For "positives": Only include strengths that the counselor clearly
+          demonstrated with specific evidence from the transcript. If the
+          counselor has not spoken much or demonstrated few skills, return fewer
+          items or an empty array. DO NOT praise behaviors that didn't occur.
+        - For "improvements": Focus on missed opportunities, areas where the
+          counselor could have done better, or skills not yet demonstrated.
+          Be specific about what could be improved and why.
+        - If the conversation is very short or the counselor barely participated,
+          acknowledge this in your evaluation rather than inventing feedback.
         - For message_tags: Tag ONLY the counselor's messages (not the
           client's messages). For each counselor message, assign applicable
           tags. Use the exact message ID from the transcript. Only include tags
@@ -518,18 +552,19 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective techniques with
-          specific examples from the conversation.
+          specific examples from the conversation. ONLY include what the counselor
+          actually did. If minimal counselor participation, return empty array [].
         - "improvements": Array of specific areas needing development with conversation
-          examples.
+          examples. Focus on what could be better or was missing.
         - "message_tags": Array of objects, one per counselor message, each with "id"
           (the message ID) and "tags" (array of objects with "label" only).
         - "emotional_movement": Array of objects, one per client message, each with
           "message_id" (the message ID) and "level" (integer from -5 to +5).
         - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
           "Listening Engagement", "Emotional Attunement", "Supportive engagement") and
-          "percentage" (number from 0 to 100).
+          "percentage" (number from 0 to 100). Base percentages on actual demonstration.
 
-        """
+"""
     ).format(
         MESSAGE_TAG_PROMPT_TEXT=get_message_tag_prompt_text(),
         SKILL_COVERAGE_DESCRIPTIONS=_SKILL_COVERAGE_DESCRIPTIONS,
@@ -563,6 +598,18 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - Reference exact examples or quotes from the conversation to support
           your points.
         - Each point should be concise but substantive.
+        - CRITICAL: Base your evaluation ONLY on what actually appears in the
+          transcript. Do NOT invent, assume, or hallucinate counselor behaviors
+          that are not explicitly present in the conversation.
+        - For "positives": Only include strengths that the counselor clearly
+          demonstrated with specific evidence from the transcript. If the
+          counselor has not spoken much or demonstrated few skills, return fewer
+          items or an empty array. DO NOT praise behaviors that didn't occur.
+        - For "improvements": Focus on missed opportunities, areas where the
+          counselor could have done better, or skills not yet demonstrated.
+          Be specific about what could be improved and why.
+        - If the conversation is very short or the counselor barely participated,
+          acknowledge this in your evaluation rather than inventing feedback.
         - For message_tags: Tag ONLY the counselor's messages (not the
           client's messages). For each counselor message, assign applicable
           tags. Use the exact message ID from the transcript. Only include tags
@@ -594,16 +641,17 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective techniques with
-          specific examples from the conversation.
+          specific examples from the conversation. ONLY include what the counselor
+          actually did. If minimal counselor participation, return empty array [].
         - "improvements": Array of specific areas needing development with conversation
-          examples.
+          examples. Focus on what could be better or was missing.
         - "message_tags": Array of objects, one per counselor message, each with "id"
           (the message ID) and "tags" (array of objects with "label" only).
         - "emotional_movement": Array of objects, one per client message, each with
           "message_id" (the message ID) and "level" (integer from -5 to +5).
         - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
           "Listening Engagement", "Emotional Attunement", "Supportive engagement") and
-          "percentage" (number from 0 to 100).
+          "percentage" (number from 0 to 100). Base percentages on actual demonstration.
         - "session_glimpse": A brief overview (2-3 sentences) of THIS current session,
           highlighting main topics, key takeaways, and immediate observations.
         - "cumulative_memory": A comprehensive cumulative narrative (300-500 words) that
