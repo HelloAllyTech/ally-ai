@@ -538,6 +538,9 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
           client's messages). For each counselor message, assign applicable
           tags. Use the exact message ID from the transcript. Only include tags
           that are clearly relevant to that message.
+          IMPORTANT: Prioritize providing BOTH helpful and unhelpful tags to give
+          balanced feedback. Don't only focus on positives - identify areas for
+          improvement as well.
           Each tag must use a "label" from the list below (provide only
           the label; category is derived automatically).
 
@@ -552,7 +555,7 @@ SCENARIO_EVALUATION_PROMPT = PromptTemplate(
         - For skill_coverage: Evaluate the counselor's overall skill
           demonstration across three categories. Assign a percentage (0-100)
           for each category. Always return exactly three items.
-{SKILL_COVERAGE_DESCRIPTIONS}
+          {SKILL_COVERAGE_DESCRIPTIONS}
 
         Return only valid JSON with these fields:
         - "positives": Array of demonstrated strengths and effective techniques with
@@ -620,6 +623,9 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
           client's messages). For each counselor message, assign applicable
           tags. Use the exact message ID from the transcript. Only include tags
           that are clearly relevant to that message.
+          IMPORTANT: Prioritize providing BOTH helpful and unhelpful tags to give
+          balanced feedback. Don't only focus on positives - identify areas for
+          improvement as well.
           Each tag must use a "label" from the list below (provide only
           the label; category is derived automatically).
 
@@ -634,7 +640,7 @@ SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
         - For skill_coverage: Evaluate the counselor's overall skill
           demonstration across three categories. Assign a percentage (0-100)
           for each category. Always return exactly three items.
-{SKILL_COVERAGE_DESCRIPTIONS}
+          {SKILL_COVERAGE_DESCRIPTIONS}
         - For session_glimpse: Focus ONLY on the current session as a quick
           snapshot.
         - For cumulative_memory: If a previous summary exists, integrate the

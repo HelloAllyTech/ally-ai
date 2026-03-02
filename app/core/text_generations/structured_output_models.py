@@ -246,17 +246,28 @@ def get_message_tag_prompt_text() -> str:
     Generate the message tag descriptions text for use in prompts.
 
     Returns formatted text with all skill labels and their descriptions.
-    This ensures consistency across all prompts that need tag descriptions.
     Category (helpful/unhelpful) is derived automatically from the label.
     """
-    labels = []
+    helpful_labels = []
+    unhelpful_labels = []
 
     for label in MessageTagLabelEnum:
         description = MESSAGE_TAG_DESCRIPTIONS[label]
         line = f'            "{label.value}" — {description}'
-        labels.append(line)
 
-    return "Available skill labels:\n" + "\n".join(labels)
+        if label in _MESSAGE_TAG_NEGATIVE_LABELS:
+            unhelpful_labels.append(line)
+        else:
+            helpful_labels.append(line)
+
+    return (
+        "Available skill labels:\n\n"
+        "          HELPFUL TAGS (Positive Counselor Behaviors):\n"
+        + "\n".join(helpful_labels)
+        + "\n\n"
+        + "          UNHELPFUL TAGS (Areas for Improvement):\n"
+        + "\n".join(unhelpful_labels)
+    )
 
 
 class MessageTagOutput(BaseModel):
