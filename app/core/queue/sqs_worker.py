@@ -52,8 +52,6 @@ async def main():
             ally_core_service=ally_core_service,
             request_queue_url=settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
             text_generation_service=text_generation_service,
-            storage_service=S3Service(),
-            bucket_name=settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET,
         )
 
         # Use direct handler instead of router

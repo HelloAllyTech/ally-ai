@@ -1,4 +1,5 @@
 import httpx
+from typing import Any, Dict, List
 
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -16,8 +17,8 @@ class AllyCoreService:
     async def process_transcript(
         self,
         chat_id: int,
-        download_presigned_url: str | None = None,
-        delete_presigned_url: str | None = None,
+        transcription: List[Dict[str, Any]] | None,
+        summary: Dict[str, Any] | None,
         error: str | None = None,
     ) -> None:
         url = f"{self._base_url}/api/v1/chats/process-transcript"
@@ -34,11 +35,11 @@ class AllyCoreService:
         }
 
         # Optional fields (only added if present)
-        if download_presigned_url is not None:
-            payload["downloadPresignedUrl"] = download_presigned_url
+        if transcription is not None:
+            payload["transcription"] = transcription
 
-        if delete_presigned_url is not None:
-            payload["deletePresignedUrl"] = delete_presigned_url
+        if summary is not None:
+            payload["summary"] = summary
 
         if error is not None:
             payload["error"] = error

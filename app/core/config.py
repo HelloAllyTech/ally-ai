@@ -69,9 +69,7 @@ class AWSSettings(BaseModel):
 
 
 class QueueSettings(BaseModel):
-    TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET: str = Field(...)
     TRANSCRIPTION_RESULTS_QUEUE_URL: str = Field(...)
-    TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL: str = Field(...)
     TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL: str = Field(...)
 
 

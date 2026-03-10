@@ -18,23 +18,17 @@ class TestTranscriptionHandler:
         return AsyncMock()
 
     @pytest.fixture
-    def mock_storage_service(self):
-        return AsyncMock()
-
-    @pytest.fixture
     def mock_text_generation_service(self):
         return AsyncMock()
 
     @pytest.fixture
     def handler(
-        self, mock_ally_core_service, mock_storage_service, mock_text_generation_service
+        self, mock_ally_core_service, mock_text_generation_service
     ):
         return TranscriptionHandler(
             ally_core_service=mock_ally_core_service,
             request_queue_url="http://localhost:4566/test-queue",
             text_generation_service=mock_text_generation_service,
-            storage_service=mock_storage_service,
-            bucket_name="test-bucket",
         )
 
     # ---------------- process_request ----------------
@@ -100,7 +94,6 @@ class TestTranscriptionHandler:
         self,
         handler,
         mock_text_generation_service: AsyncMock,
-        mock_storage_service: AsyncMock,
         mock_ally_core_service: AsyncMock,
     ):
         # Arrange diarization result with lowercase roles to verify uppercasing
@@ -194,7 +187,6 @@ class TestTranscriptionHandler:
     async def test_send_combined_result_to_ally_core_success(
         self,
         handler,
-        mock_storage_service: AsyncMock,
         mock_ally_core_service: AsyncMock,
     ):
         # Arrange
@@ -202,44 +194,15 @@ class TestTranscriptionHandler:
         transcription = [{"role": "CLIENT", "content": "hi"}]
         summary = {"summary": "great"}
 
-        mock_storage_service.generate_presigned_download_url.return_value = (
-            "https://dl/url"
-        )
-        mock_storage_service.generate_presigned_delete_url.return_value = (
-            "https://del/url"
-        )
-
         # Act
         await handler.send_combined_result_to_ally_core(chat_id, transcription, summary)
-
-        # Assert upload and presigned generation
-        mock_storage_service.upload_to_s3.assert_awaited_once()
-        mock_storage_service.generate_presigned_download_url.assert_awaited_once()
-        mock_storage_service.generate_presigned_delete_url.assert_awaited_once()
 
         # Assert queue send with proper body
         assert mock_ally_core_service.process_transcript.await_count == 1
         called_kwargs = mock_ally_core_service.process_transcript.await_args.kwargs
         assert called_kwargs["chat_id"] == chat_id
-        assert called_kwargs["download_presigned_url"].startswith("https://dl/")
-        assert called_kwargs["delete_presigned_url"].startswith("https://del/")
-
-    @pytest.mark.asyncio
-    async def test_send_combined_result_to_ally_core_missing_presigned_triggers_error(
-        self, handler, mock_storage_service: AsyncMock
-    ):
-        # Arrange
-        mock_storage_service.generate_presigned_download_url.return_value = None
-        mock_storage_service.generate_presigned_delete_url.return_value = (
-            "https://del/url"
-        )
-        handler._send_error_response = AsyncMock()
-
-        # Act
-        await handler.send_combined_result_to_ally_core(666, [], {})
-
-        # Assert: error path sends error response
-        handler._send_error_response.assert_awaited_once_with(666, "Processing failed")
+        assert called_kwargs["transcription"] == transcription
+        assert called_kwargs["summary"] == summary
 
     # ---------------- _send_error_response ----------------
     @pytest.mark.asyncio

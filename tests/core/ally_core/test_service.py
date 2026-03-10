@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
@@ -44,11 +44,11 @@ def service(mock_client, mock_settings):
 
 @pytest.mark.asyncio
 async def test_process_transcript_required_only(service, mock_client):
-    mock_response = AsyncMock()
-    mock_response.raise_for_status.return_value = None
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock(return_value=None)
     mock_client.post.return_value = mock_response
 
-    await service.process_transcript(chat_id=123)
+    await service.process_transcript(chat_id=123, transcription=None, summary=None)
 
     mock_client.post.assert_awaited_once()
     args, kwargs = mock_client.post.call_args
@@ -68,14 +68,17 @@ async def test_process_transcript_required_only(service, mock_client):
 
 @pytest.mark.asyncio
 async def test_process_transcript_with_optional_fields(service, mock_client):
-    mock_response = AsyncMock()
-    mock_response.raise_for_status.return_value = None
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock(return_value=None)
     mock_client.post.return_value = mock_response
 
     await service.process_transcript(
         chat_id=1,
-        download_presigned_url="https://download.url",
-        delete_presigned_url="https://delete.url",
+        transcription=[
+            {"speaker": "client", "text": "hello"},
+            {"speaker": "coach", "text": "hi"},
+        ],
+        summary={"topics": ["rapport"], "score": 0.9},
         error="some error",
     )
 
@@ -83,8 +86,11 @@ async def test_process_transcript_with_optional_fields(service, mock_client):
 
     assert kwargs["json"] == {
         "chatId": 1,
-        "downloadPresignedUrl": "https://download.url",
-        "deletePresignedUrl": "https://delete.url",
+        "transcription": [
+            {"speaker": "client", "text": "hello"},
+            {"speaker": "coach", "text": "hi"},
+        ],
+        "summary": {"topics": ["rapport"], "score": 0.9},
         "error": "some error",
     }
 
@@ -107,7 +113,7 @@ async def test_process_transcript_http_error(service, mock_client):
     )
 
     with pytest.raises(httpx.HTTPStatusError):
-        await service.process_transcript(chat_id=99)
+        await service.process_transcript(chat_id=99, transcription=None, summary=None)
 
 
 @pytest.mark.asyncio
@@ -121,4 +127,4 @@ async def test_process_transcript_request_error(service, mock_client):
     )
 
     with pytest.raises(httpx.RequestError):
-        await service.process_transcript(chat_id=99)
+        await service.process_transcript(chat_id=99, transcription=None, summary=None)

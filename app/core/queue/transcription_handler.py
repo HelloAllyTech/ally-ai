@@ -4,7 +4,6 @@ from app.core.ally_core import AllyCoreService
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
 from app.core.queue.message_models import TranscriptionResultMessage
-from app.core.storage.s3_service import S3Service
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
 )
@@ -24,8 +23,6 @@ class TranscriptionHandler:
         ally_core_service: AllyCoreService = None,
         request_queue_url: str = None,
         text_generation_service: Optional[OpenAITextGenerationService] = None,
-        storage_service: Optional[S3Service] = None,
-        bucket_name: str = None,
     ):
         """
         Initialize the transcription handler.
@@ -35,15 +32,10 @@ class TranscriptionHandler:
             ally backend (core).
             text_generation_service (Optional[OpenAITextGenerationService]): The text
             generation service for diarization and summary.
-            storage_service (Optional[S3Service]): The storage service to use for
-            uploading results.
-            bucket_name (str): The name of the bucket to use for uploading results.
         """
         self.ally_core_service = ally_core_service
         self.request_queue_url = request_queue_url
         self.text_generation_service = text_generation_service  # Use passed service
-        self.storage_service = storage_service
-        self.bucket_name = bucket_name
 
     async def process_request(self, message_data: Dict[str, Any]) -> None:
         """
@@ -66,7 +58,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "process_request",
                         "request_queue_url": self.request_queue_url,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -94,7 +85,6 @@ class TranscriptionHandler:
                             "method": "process_request",
                             "status": "success",
                             "request_queue_url": self.request_queue_url,
-                            "bucket_name": self.bucket_name,
                         },
                     )
                 )
@@ -112,7 +102,6 @@ class TranscriptionHandler:
                             "method": "process_request",
                             "status": "failed",
                             "request_queue_url": self.request_queue_url,
-                            "bucket_name": self.bucket_name,
                         },
                     )
                 )
@@ -137,7 +126,6 @@ class TranscriptionHandler:
                         "method": "process_request",
                         "exception_type": type(e).__name__,
                         "request_queue_url": self.request_queue_url,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -174,7 +162,6 @@ class TranscriptionHandler:
                             len(segments_text) if segments_text else 0
                         ),
                         "request_queue_url": self.request_queue_url,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -209,7 +196,7 @@ class TranscriptionHandler:
                 summary.model_dump() if hasattr(summary, "model_dump") else summary
             )
 
-            # Send the results to bucket and ally core
+            # Send the results to ally core
             await self.send_combined_result_to_ally_core(
                 chat_id, transcription_data, summary_data
             )
@@ -228,7 +215,6 @@ class TranscriptionHandler:
                         "messages_count": len(messages),
                         "transcription_data_length": len(transcription_data),
                         "request_queue_url": self.request_queue_url,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -252,7 +238,6 @@ class TranscriptionHandler:
                         "method": "_process_transcription",
                         "exception_type": type(e).__name__,
                         "request_queue_url": self.request_queue_url,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -296,7 +281,6 @@ class TranscriptionHandler:
                         "exception_type": type(e).__name__,
                         "messages_count": len(messages),
                         "request_queue_url": self.request_queue_url,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -308,8 +292,8 @@ class TranscriptionHandler:
         self, chat_id: int, transcription: List[Dict[str, Any]], summary: Dict[str, Any]
     ) -> None:
         """
-        Upload transcription and summary results to bucket and send
-        presigned URLs to the ally core using its process-transcript API.
+        Send transcription and summary results to ally core using its
+        process-transcript API.
 
         Parameters:
             chat_id (int): The chat ID.
@@ -317,71 +301,14 @@ class TranscriptionHandler:
             summary (Dict[str, Any]): The summary data.
         """
         try:
-            # Create the result payload
-            result_payload = {
-                "chat_id": chat_id,
-                "transcription": transcription,
-                "summary": summary,
-            }
-
-            # Create the bucket object key
-            bucket_object_key = f"transcription-results/result_{chat_id}.json"
-
-            # Upload results to bucket
-            await self.storage_service.upload_to_s3(
-                bucket_name=self.bucket_name,
-                object_key=bucket_object_key,
-                payload=result_payload,
-            )
-
-            # Generate presigned URLs for download and delete
-            download_presigned_url = (
-                await self.storage_service.generate_presigned_download_url(
-                    bucket_name=self.bucket_name,
-                    object_key=bucket_object_key,
-                    expiration=3600,  # 1 hour
-                )
-            )
-
-            delete_presigned_url = (
-                await self.storage_service.generate_presigned_delete_url(
-                    bucket_name=self.bucket_name,
-                    object_key=bucket_object_key,
-                    expiration=3600,  # 1 hour
-                )
-            )
-
-            if not download_presigned_url or not delete_presigned_url:
-                logger.error(
-                    f"Failed to generate presigned URLs for chat_id: {chat_id}"
-                )
-                await phi_logger.log(
-                    PHILogEvent(
-                        event_type=PHIEvents.SYSTEM_ERROR,
-                        chat_id=str(chat_id),
-                        audit_id=None,
-                        details={
-                            "error": f"Failed to generate presigned URLs for chat_id: {chat_id}",
-                            "chat_id": chat_id,
-                            "component": "TranscriptionHandler",
-                            "method": "send_combined_result_to_ally_core",
-                            "bucket_object_key": bucket_object_key,
-                            "bucket_name": self.bucket_name,
-                            "download_url_generated": bool(download_presigned_url),
-                            "delete_url_generated": bool(delete_presigned_url),
-                        },
-                    )
-                )
-                raise Exception("Failed to generate presigned URLs")
-
             # Create message with presigned URLs
             await self.ally_core_service.process_transcript(
                 chat_id=chat_id,
-                download_presigned_url=download_presigned_url,
-                delete_presigned_url=delete_presigned_url,
+                transcription=transcription,
+                summary=summary,
             )
 
-            logger.info(f"Sent presigned URLs to queue for chat_id: {chat_id}")
+            logger.info(f"Sent transcription and summary to core for chat_id: {chat_id}")
             await phi_logger.log(
                 PHILogEvent(
                     event_type=PHIEvents.DATA_MODIFIED,
@@ -392,46 +319,8 @@ class TranscriptionHandler:
                         "chat_id": chat_id,
                         "component": "TranscriptionHandler",
                         "method": "send_combined_result_to_ally_core",
-                        "bucket_object_key": bucket_object_key,
-                        "bucket_name": self.bucket_name,
-                        "download_url_length": len(download_presigned_url),
-                        "delete_url_length": len(delete_presigned_url),
                         "transcription_count": len(transcription),
                         "summary_keys": list(summary.keys()) if summary else [],
-                    },
-                )
-            )
-            logger.info(f"  - Download URL: {download_presigned_url[:50]}...")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_ACCESSED,
-                    chat_id=str(chat_id),
-                    audit_id=None,
-                    details={
-                        "message": f"  - Download URL: {download_presigned_url[:50]}...",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_ally_core",
-                        "url_type": "download",
-                        "url_preview": download_presigned_url[:50] + "...",
-                        "bucket_name": self.bucket_name,
-                    },
-                )
-            )
-            logger.info(f"  - Delete URL: {delete_presigned_url[:50]}...")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_ACCESSED,
-                    chat_id=str(chat_id),
-                    audit_id=None,
-                    details={
-                        "message": f"  - Delete URL: {delete_presigned_url[:50]}...",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "send_combined_result_to_ally_core",
-                        "url_type": "delete",
-                        "url_preview": delete_presigned_url[:50] + "...",
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -452,7 +341,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "send_combined_result_to_ally_core",
                         "exception_type": type(e).__name__,
-                        "bucket_name": self.bucket_name,
                         "transcription_count": len(transcription),
                         "summary_keys": list(summary.keys()) if summary else [],
                     },
@@ -481,7 +369,6 @@ class TranscriptionHandler:
                         "component": "TranscriptionHandler",
                         "method": "_send_error_response",
                         "error_message": error_message,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )
@@ -503,7 +390,6 @@ class TranscriptionHandler:
                         "method": "_send_error_response",
                         "exception_type": type(e).__name__,
                         "error_message": error_message,
-                        "bucket_name": self.bucket_name,
                     },
                 )
             )

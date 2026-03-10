@@ -35,11 +35,7 @@ os.environ.update(
         "AWS__ACCESS_KEY_ID": "test-key",
         "AWS__SECRET_ACCESS_KEY": "test-secret",
         "AWS__ENDPOINT_URL": "http://localhost:4566",
-        "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET": "test-bucket",
         "QUEUE__TRANSCRIPTION_RESULTS_QUEUE_URL": "http://localhost:4566/test-queue",
-        "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL": (
-            "http://localhost:4566/response-queue"
-        ),
         "LLM__MAX_CONCURRENT_LLM_CALLS": "10",
         "SLACK_ALERTS__ENABLED": "false",
         "SLACK_ALERTS__API_TOKEN": "test-token",

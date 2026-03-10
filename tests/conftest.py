@@ -31,11 +31,7 @@ os.environ.update(
         "AWS__ACCESS_KEY_ID": "test-key",
         "AWS__SECRET_ACCESS_KEY": "test-secret",
         "AWS__ENDPOINT_URL": "http://localhost:4566",
-        "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESULTS_BUCKET": "test-bucket",
         "QUEUE__TRANSCRIPTION_RESULTS_QUEUE_URL": "http://localhost:4566/test-queue",
-        "QUEUE__TRANSCRIBE_AND_SUMMARIZE_RESPONSE_QUEUE_URL": (
-            "http://localhost:4566/response-queue"
-        ),
         "QUEUE__TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL": (
             "http://localhost:4566/requests-queue"
         ),
