@@ -4,14 +4,24 @@ Production SQS Worker with proper cleanup and shutdown.
 
 import asyncio
 
+from app.core.ally_core import AllyCoreClient, AllyCoreService
 from app.core.config import settings
 from app.core.constants import SQSWorkerConstants
 from app.core.queue.message_processor import MessageProcessor
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
 from app.core.queue.transcription_request_handler import TranscriptionRequestHandler
+from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
+from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.core.text_generations.openai_text_generation_client import (
+    OpenAITextGenerationClient,
+)
+from app.core.text_generations.openai_text_generation_service import (
+    OpenAITextGenerationService,
+)
 
 from app.utils.logger import get_logger
+from app.utils.startup import initialize_openai_clients
 
 logger = get_logger(__name__)
 
@@ -25,8 +35,25 @@ async def main():
         SQSQueueClient.create_client()
         queue_service = SQSQueueService(client=SQSQueueClient.get_client())
 
+        await AllyCoreClient.create_client()
+        ally_core_service = AllyCoreService(AllyCoreClient.get_client())
+
+        # Initialize OpenAI clients
+        initialize_openai_clients()
+
+        text_generation_service = OpenAITextGenerationService(
+            client=OpenAITextGenerationClient.get_client(),
+            embedding_service=OpenAIEmbeddingService(
+                OpenAIEmbeddingClient.get_client()
+            ),
+        )
+
         # Pass text_generation_service to the handler
-        transcription_request_handler = TranscriptionRequestHandler()
+        transcription_request_handler = TranscriptionRequestHandler(
+            ally_core_service=ally_core_service,
+            text_generation_service=text_generation_service
+
+        )
 
         # Use direct handler instead of router
         transcription_request_processor = MessageProcessor(
