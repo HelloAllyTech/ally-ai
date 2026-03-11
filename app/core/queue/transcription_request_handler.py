@@ -49,6 +49,9 @@ class TranscriptionRequestHandler:
         """
         logger.info("Initializing transcription services...")
         self.transcription_service = self.create_transcription_service()
+        self.ally_core_service = ally_core_service
+        self.text_generation_service = text_generation_service
+
         logger.info("Transcription services initialized successfully")
 
     def create_transcription_service(self, provider: str | None = None):
@@ -149,7 +152,7 @@ class TranscriptionRequestHandler:
                 timestamp=int(time.time() * 1000),
             )
 
-            await _process_transcription(result_message)
+            await self._process_transcription(result_message)
 
             return {"status": "success", "chat_id": chat_id}
 
@@ -192,6 +195,7 @@ class TranscriptionRequestHandler:
             bool: True if processing was successful.
         """
         try:
+            print(request)
             chat_id = request.chat_id
             segments_text = request.segments_text
 
@@ -271,7 +275,7 @@ class TranscriptionRequestHandler:
             chat_id = getattr(request, "chat_id", "unknown")
             logger.error(
                 f"Error in diarization/summary for chat_id {chat_id}: "
-                f"{type(e).__name__}"
+                f"{e}"
             )
             await phi_logger.log(
                 PHILogEvent(
