@@ -119,40 +119,6 @@ class BaseTextGenerationService[ModelT](ABC):
         pass
 
     @abstractmethod
-    async def generate_simulation_summary(
-        self,
-        chat_history: List[ChatMessage],
-        need_memory: bool = False,
-        previous_memory: Optional[str] = None,
-        memory_prompt: Optional[str] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Generate simulation summary analyzing chat history, with optional memory.
-
-        Uses a single LLM call. When need_memory is False, returns only improvements
-        and positives. When need_memory is True, returns all four fields in one call.
-
-        Parameters:
-            chat_history (List[ChatMessage]): List of chat messages/exchanges
-            need_memory (bool): Whether to also generate memory fields
-            previous_memory (Optional[str]): Previous memory to build upon
-                (when need_memory=True)
-            memory_prompt (Optional[str]): Custom instructions for memory generation
-                (when need_memory=True)
-            **kwargs: Additional arguments for LLM invocation
-
-        Returns:
-            Dict[str, Any]: Dictionary with 'improvements' and 'positives' arrays.
-                When need_memory=True, also includes 'session_glimpse' and
-                'cumulative_memory'.
-
-        Raises:
-            LLMInvocationFailedException: If LLM invocation fails
-        """
-        pass
-
-    @abstractmethod
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],

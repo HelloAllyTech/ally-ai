@@ -23,8 +23,6 @@ from app.core.text_generations.prompts import (
     NUDGE_PROMPT,
     SCENARIO_EVALUATION_PROMPT,
     SCENARIO_EVALUATION_WITH_MEMORY_PROMPT,
-    SIMULATION_ANALYSIS_PROMPT,
-    SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT,
     SUMMARY_PROMPT,
     TAG_POSITIVITY_RATING_PROMPT,
 )
@@ -32,8 +30,6 @@ from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
     ScenarioEvaluation,
     ScenarioEvaluationWithMemory,
-    SimulationAnalysis,
-    SimulationAnalysisWithMemory,
     StructuredDiarization,
     StructuredIdentifyUsers,
     StructuredSummaryNote,
@@ -892,106 +888,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             totals["back_channel_cues"] += result["back_channel_cues"]
 
         return totals
-
-    async def generate_simulation_summary(
-        self,
-        chat_history: List[ChatMessage],
-        need_memory: bool = False,
-        previous_memory: Optional[str] = None,
-        memory_prompt: Optional[str] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Generate simulation summary analyzing chat history, with optional memory.
-
-        Uses a single LLM call. When need_memory is False, returns only
-        improvements and positives. When need_memory is True, a combined prompt
-        asks for all four fields (improvements, positives, session_glimpse,
-        cumulative_memory) in one call.
-
-        Parameters:
-            chat_history (List[ChatMessage]): List of chat messages/exchanges
-            need_memory (bool): Whether to also generate memory fields
-            previous_memory (Optional[str]): Previous memory to build upon
-                (when need_memory=True)
-            memory_prompt (Optional[str]): Custom instructions for memory generation
-                (when need_memory=True)
-            **kwargs: Additional arguments for LLM invocation
-
-        Returns:
-            Dict[str, Any]: Dictionary with 'improvements' and 'positives' arrays.
-                When need_memory=True, also includes 'session_glimpse' and
-                'cumulative_memory'.
-
-        Raises:
-            LLMInvocationFailedException: If LLM invocation fails
-        """
-        logger.info("Generating simulation summary using OpenAI")
-
-        # Convert chat history to string format
-        chat_history_str = "\n".join(
-            [f"Message {i + 1}: {msg}" for i, msg in enumerate(chat_history)]
-        )
-
-        try:
-            if need_memory:
-                # Single combined LLM call for analysis + memory
-                custom_prompt_section = ""
-                if memory_prompt:
-                    custom_prompt_section = f"Additional Instructions:\n{memory_prompt}"
-
-                formatted_prompt = SIMULATION_ANALYSIS_WITH_MEMORY_PROMPT.format(
-                    chat_history=chat_history_str,
-                    previous_summary=(
-                        previous_memory or "No previous summary available."
-                    ),
-                    custom_prompt_section=custom_prompt_section,
-                )
-
-                response = cast(
-                    SimulationAnalysisWithMemory,
-                    await self._invoke_llm(
-                        formatted_prompt,
-                        SimulationAnalysisWithMemory,
-                        **kwargs,
-                    ),
-                )
-
-                logger.info("Simulation summary with memory generated successfully")
-
-                return {
-                    "improvements": response.improvements,
-                    "positives": response.positives,
-                    "session_glimpse": response.session_glimpse,
-                    "cumulative_memory": response.cumulative_memory,
-                }
-            else:
-                # Standard analysis-only LLM call
-                formatted_prompt = SIMULATION_ANALYSIS_PROMPT.format(
-                    chat_history=chat_history_str
-                )
-
-                response = cast(
-                    SimulationAnalysis,
-                    await self._invoke_llm(
-                        formatted_prompt,
-                        SimulationAnalysis,
-                        **kwargs,
-                    ),
-                )
-
-                logger.info("Simulation summary generated successfully")
-
-                return {
-                    "improvements": response.improvements,
-                    "positives": response.positives,
-                }
-
-        except LLMInvocationFailedException as e:
-            logger.exception("Failed to generate simulation summary")
-            raise LLMInvocationFailedException(
-                "Failed to generate simulation summary"
-            ) from e
 
     async def generate_scenario_evaluation(
         self,

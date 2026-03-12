@@ -15,8 +15,6 @@ from app.schemas.summary import (
     DynamicSummaryNoteResponse,
     ScenarioEvaluationRequest,
     ScenarioEvaluationResponse,
-    SimulationAnalysisRequest,
-    SimulationAnalysisResponse,
     SummaryNoteAndTagsRequest,
     SummaryNoteAndTagsResponse,
     TagPositivityRatingRequest,
@@ -116,63 +114,6 @@ async def get_tag_positivity_ratings(
 
 
 @router.post(
-    "/scenario/feedback",
-    tags=["simulation", "analysis"],
-    response_model=SimulationAnalysisResponse,
-    deprecated=True,
-)
-async def generate_simulation_analysis(
-    request: SimulationAnalysisRequest,
-    summary_service: SummaryService = Depends(get_summary_service),
-):
-    """
-    [DEPRECATED] Use /scenario/evaluate instead.
-
-    Generates simulation analysis based on chat history.
-
-    Analyzes conversation performance to identify improvement areas and positives
-    based on clinical counseling competencies.
-
-    Always returns:
-    - improvements: Areas needing development
-    - positives: Demonstrated strengths
-
-    When need_memory=True, additionally returns:
-    - session_glimpse: Brief overview of the current session
-    - cumulative_memory: Comprehensive cumulative narrative across sessions
-
-    **This endpoint is deprecated and will be removed in a future version.
-    Please use /scenario/evaluate instead.**
-    """
-
-    logger.warning(
-        "DEPRECATED: /scenario/feedback endpoint called. "
-        "Use /scenario/evaluate instead."
-    )
-
-    try:
-        analysis_response = await summary_service.generate_simulation_summary(
-            chat_history=request.chat_history,
-            need_memory=request.need_memory,
-            previous_memory=request.previous_memory,
-            memory_prompt=request.memory_prompt,
-        )
-
-        return SimulationAnalysisResponse(**analysis_response)
-    except CounselorTrainingAnalysisFailedException:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Counselor training analysis generation failed",
-        )
-    except Exception as e:
-        logger.exception(f"Unexpected error: {type(e).__name__}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Something went wrong. Please try again later.",
-        )
-
-
-@router.post(
     "/scenario/evaluate",
     tags=["simulation", "analysis"],
     response_model=ScenarioEvaluationResponse,
@@ -205,8 +146,6 @@ async def generate_scenario_evaluation(
             previous_memory=request.previous_memory,
             memory_prompt=request.memory_prompt,
         )
-
-
 
         return ScenarioEvaluationResponse(**evaluation_response)
     except CounselorTrainingAnalysisFailedException:

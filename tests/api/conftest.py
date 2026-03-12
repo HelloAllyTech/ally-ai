@@ -87,10 +87,6 @@ def mock_openai_clients():
             "SummaryService.get_tag_positivity_ratings"
         ) as mock_get_tag_ratings,
         patch(
-            "app.core.summaries.summary_service."
-            "SummaryService.generate_simulation_summary"
-        ) as mock_generate_simulation,
-        patch(
             "app.core.reference_documents.reference_document_service."
             "ReferenceDocumentService.create_document"
         ) as mock_create_document,
@@ -157,10 +153,6 @@ def mock_openai_clients():
         )
         mock_enhance_content.return_value = "Enhanced content"
         mock_get_tag_ratings.return_value = [Tag(tag="anxiety", positivity_rating=2)]
-        mock_generate_simulation.return_value = {
-            "improvements": ["Ask more open-ended questions"],
-            "positives": ["Good rapport building"],
-        }
 
         # Mock the reference document service methods directly - set default return
         # values

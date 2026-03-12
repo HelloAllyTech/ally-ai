@@ -48,24 +48,6 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
         """Concrete implementation of analyze_counselor_messages."""
         return {"reflective": 1, "open_ended": 2, "back_channel": 3}
 
-    async def generate_simulation_summary(
-        self,
-        chat_history: List[ChatMessage],
-        need_memory: bool = False,
-        previous_memory: Optional[str] = None,
-        memory_prompt: Optional[str] = None,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Concrete implementation of generate_simulation_summary."""
-        result: Dict[str, Any] = {
-            "improvements": ["improvement1"],
-            "positives": ["positive1"],
-        }
-        if need_memory:
-            result["session_glimpse"] = "Test glimpse"
-            result["cumulative_memory"] = "Test memory"
-        return result
-
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],
@@ -108,7 +90,11 @@ class TestBaseTextGenerationService:
         """Sample chat messages for testing."""
         return [
             ChatMessage(
-                id="msg-1", role="client", content="Hello", start_time=None, end_time=None
+                id="msg-1",
+                role="client",
+                content="Hello",
+                start_time=None,
+                end_time=None,
             ),
             ChatMessage(
                 id="msg-2",
@@ -233,34 +219,6 @@ class TestBaseTextGenerationService:
         assert result["reflective"] == 1
         assert result["open_ended"] == 2
         assert result["back_channel"] == 3
-
-    @pytest.mark.asyncio
-    async def test_generate_simulation_summary(
-        self, text_generation_service, sample_chat_messages
-    ):
-        """Test generate_simulation_summary method."""
-        result = await text_generation_service.generate_simulation_summary(
-            sample_chat_messages
-        )
-
-        assert isinstance(result, dict)
-        assert "improvements" in result
-        assert "positives" in result
-        assert result["improvements"] == ["improvement1"]
-        assert result["positives"] == ["positive1"]
-
-    @pytest.mark.asyncio
-    async def test_generate_simulation_summary_with_kwargs(
-        self, text_generation_service, sample_chat_messages
-    ):
-        """Test generate_simulation_summary method with additional kwargs."""
-        result = await text_generation_service.generate_simulation_summary(
-            sample_chat_messages, extra_param="extra"
-        )
-
-        assert isinstance(result, dict)
-        assert "improvements" in result
-        assert "positives" in result
 
     def test_abstract_methods_not_implemented(self):
         """Test that abstract methods raise NotImplementedError when not implemented."""
