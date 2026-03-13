@@ -139,6 +139,7 @@ class TranscriptionRequestHandler:
             )
 
             # Process transcription
+            logger.info(f"Transcribing audio for chat_id: {chat_id}")
             _, segments_text = await self.transcription_service.transcribe_audio_from_url(
                 audio_url=request.audio_url,
                 chat_id=request.chat_id,
@@ -152,7 +153,7 @@ class TranscriptionRequestHandler:
                 timestamp=int(time.time() * 1000),
             )
 
-            await self._process_transcription(result_message)
+            await self._process_transcription_result(result_message)
 
             return {"status": "success", "chat_id": chat_id}
 
@@ -167,12 +168,11 @@ class TranscriptionRequestHandler:
                     chat_id=chat_id,
                     audit_id=None,  # Will be set by external service,
                     details={
-                        "error": f"Error processing transcription request: {chat_id} {type(e).__name__}",  # noqa: E501
+                        "error": f"Error processing transcription request: {chat_id} {e}",  # noqa: E501
                         "chat_id": chat_id,
                         "exception_type": type(e).__name__,
                         "request_queue_url": settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL,  # noqa: E501
-                        "result_queue_url": settings.QUEUE.TRANSCRIPTION_RESULTS_QUEUE_URL,
-                        "component": "LambdaHandler",
+                        "component": "TranscriptionRequestHandler",
                         "method": "process_transcription_request",
                     },
                 )
@@ -183,7 +183,7 @@ class TranscriptionRequestHandler:
                 "chat_id": chat_id,
             }
 
-    async def _process_transcription(self, request: TranscriptionResultMessage) -> bool:
+    async def _process_transcription_result(self, request: TranscriptionResultMessage) -> bool:
         """
         Process the transcription result from Lambda and do diarization + summary.
 
@@ -208,8 +208,8 @@ class TranscriptionRequestHandler:
                     details={
                         "message": f"Processing diarization and summary for chat_id: {chat_id}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "_process_transcription",
+                        "component": "TranscriptionRequestHandler",
+                        "method": "_process_transcription_result",
                         "segments_text_length": (
                             len(segments_text) if segments_text else 0
                         ),
@@ -263,7 +263,7 @@ class TranscriptionRequestHandler:
                         "message": f"Diarization and summary completed for chat_id {chat_id}",
                         "chat_id": chat_id,
                         "component": "TranscriptionHandler",
-                        "method": "_process_transcription",
+                        "method": "_process_transcription_result",
                         "messages_count": len(messages),
                         "transcription_data_length": len(transcription_data),
                     },
@@ -285,8 +285,8 @@ class TranscriptionRequestHandler:
                     details={
                         "error": f"Error in diarization/summary for chat_id {chat_id}: {type(e).__name__}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
-                        "method": "_process_transcription",
+                        "component": "TranscriptionRequestHandler",
+                        "method": "_process_transcription_result",
                         "exception_type": type(e).__name__,
                     },
                 )
@@ -314,7 +314,7 @@ class TranscriptionRequestHandler:
 
         except Exception as e:
             logger.error(
-                f"Error generating summary for chat_id {chat_id}: {type(e).__name__}"
+                f"Error generating summary for chat_id {chat_id}: {e}"
             )
             await phi_logger.log(
                 PHILogEvent(
@@ -322,9 +322,9 @@ class TranscriptionRequestHandler:
                     chat_id=str(chat_id),
                     audit_id=None,  # Will be set by caller
                     details={
-                        "error": f"Error generating summary for chat_id {chat_id}: {type(e).__name__}",
+                        "error": f"Error generating summary for chat_id {chat_id}: {e}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
+                        "component": "TranscriptionReqeustHandler",
                         "method": "_generate_summary",
                         "exception_type": type(e).__name__,
                         "messages_count": len(messages),
@@ -362,7 +362,7 @@ class TranscriptionRequestHandler:
                     details={
                         "message": f"Sent presigned URLs to queue for chat_id: {chat_id}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
+                        "component": "TranscriptionRequestHandler",
                         "method": "send_combined_result_to_ally_core",
                         "transcription_count": len(transcription),
                         "summary_keys": list(summary.keys()) if summary else [],
@@ -381,9 +381,9 @@ class TranscriptionRequestHandler:
                     chat_id=str(chat_id),
                     audit_id=None,
                     details={
-                        "error": f"Error sending combined result to queue for chat_id {chat_id}: {type(e).__name__}",
+                        "error": f"Error sending combined result to queue for chat_id {chat_id}: {e}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
+                        "component": "TranscriptionRequestHandler",
                         "method": "send_combined_result_to_ally_core",
                         "exception_type": type(e).__name__,
                         "transcription_count": len(transcription),
@@ -411,7 +411,7 @@ class TranscriptionRequestHandler:
                     details={
                         "message": f"Error response sent for chat_id: {chat_id}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
+                        "component": "TranscriptionRequestHandler",
                         "method": "_send_error_response",
                         "error_message": error_message,
                     },
@@ -429,9 +429,9 @@ class TranscriptionRequestHandler:
                     chat_id=str(chat_id),
                     audit_id=None,
                     details={
-                        "error": f"Failed to send error response for chat_id {chat_id}: {type(e).__name__}",
+                        "error": f"Failed to send error response for chat_id {chat_id}: {e}",
                         "chat_id": chat_id,
-                        "component": "TranscriptionHandler",
+                        "component": "TranscriptionRequestHandler",
                         "method": "_send_error_response",
                         "exception_type": type(e).__name__,
                         "error_message": error_message,
