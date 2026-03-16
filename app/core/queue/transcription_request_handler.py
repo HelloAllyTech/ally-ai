@@ -26,7 +26,7 @@ from app.core.transcriptions.utils.phi_logger import PHILogEvent, log_sync, phi_
 
 logger = get_logger(__name__)
 
-class TranscriptionProvider(str, Enum):
+class TranscriptionServiceProvider(str, Enum):
     """Enumeration of supported transcription providers."""
 
     OPENAI = "openai"
@@ -42,6 +42,7 @@ class TranscriptionRequestHandler:
         self,
         ally_core_service: AllyCoreService = None,
         text_generation_service: Optional[OpenAITextGenerationService] = None,
+        transcription_service: SarvamTranscriptionService | DeepgramTranscriptionService | OpenAITranscriptionService = None
     ):
         """
         Initialize the transcription request worker.
@@ -54,56 +55,7 @@ class TranscriptionRequestHandler:
 
         logger.info("Transcription services initialized successfully")
 
-    def create_transcription_service(self, provider: str | None = None):
-        """
-        Create a transcription service based on the specified provider.
-
-        Args:
-            provider (str, optional): Provider to use ('openai', 'deepgram', 'sarvam').
-                If None, will use settings.TRANSCRIPTION_PROVIDER.
-
-        Returns:
-            The transcription service instance
-
-        Raises:
-            ValueError: If provider is not supported or required API keys are missing
-        """
-        provider_str = provider
-        if provider_str is None:
-            provider_str = settings.TRANSCRIPTION.PROVIDER.lower()
-
-        try:
-            provider_enum = TranscriptionProvider[provider_str.upper()]
-        except KeyError:
-            raise ValueError(
-                f"Unsupported transcription provider: {provider_str}. Supported providers: "
-                "'openai', 'deepgram', 'sarvam'"
-            )
-
-        logger.info(f"Creating transcription service with provider: {provider_str}")
-
-        # 3. Compare against Enum members
-        if provider_enum == TranscriptionProvider.OPENAI:
-            if not settings.OPENAI.API_KEY:
-                raise ValueError(
-                    "OPENAI__API_KEY is required in settings for OpenAI provider"
-                )
-            return OpenAITranscriptionService()
-
-        elif provider_enum == TranscriptionProvider.DEEPGRAM:
-            if not settings.DEEPGRAM.API_KEY:
-                raise ValueError(
-                    "DEEPGRAM__API_KEY is required in settings for Deepgram provider"
-                )
-            return DeepgramTranscriptionService()
-
-        elif provider_enum == TranscriptionProvider.SARVAM:
-            if not settings.SARVAM.API_KEY:
-                raise ValueError(
-                    "SARVAM__API_KEY is required in settings for Sarvam provider"
-                )
-            return SarvamTranscriptionService()
-
+ 
 
     async def process_transcription_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
     

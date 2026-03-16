@@ -76,6 +76,18 @@ class TestTranscriptionRequestSQSWorker:
             def __init__(self, client):
                 self.client = client
 
+        class FakeDeepgramTranscriptionService:
+            def __init__(cls):
+                return None
+
+        class FakeSarvamTranscriptionService:
+            def __init__(cls):
+                return None
+
+        class FakeOpenAITranscriptionService:
+            def __init__(cls):
+                return None
+
         class FakeEmbeddingClient:
             @classmethod
             def get_client(cls):
@@ -100,9 +112,11 @@ class TestTranscriptionRequestSQSWorker:
                 self,
                 ally_core_service,
                 text_generation_service,
+                transcription_service,
              ):
                 self.ally_core_service = ally_core_service
                 self.text_generation_service = text_generation_service
+                self.transcription_service = transcription_service
 
             async def process_transcription_request(
                 self, payload
@@ -151,6 +165,9 @@ class TestTranscriptionRequestSQSWorker:
             MessageProcessor=FakeMessageProcessor,
             AllyCoreClient=FakeAllyCoreClient,
             AllyCoreService=FakeAllyCoreService,
+            DeepgramTranscriptionService=FakeDeepgramTranscriptionService,
+            OpenAITranscriptionService=FakeOpenAITranscriptionService,
+            SarvamTranscriptionService=FakeSarvamTranscriptionService
         )
 
     @pytest.fixture
@@ -174,6 +191,18 @@ class TestTranscriptionRequestSQSWorker:
             transcription_request_sqs_worker, "TranscriptionRequestHandler", fakes.TranscriptionRequestHandler
         )
         monkeypatch.setattr(transcription_request_sqs_worker, "MessageProcessor", fakes.MessageProcessor)
+
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "DeepgramTranscriptionService", fakes.DeepgramTranscriptionService
+        )
+
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "SarvamTranscriptionService", fakes.SarvamTranscriptionService
+        )
+
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "OpenAITranscriptionService", fakes.OpenAITranscriptionService
+        )
         # No-op client initializer
         monkeypatch.setattr(transcription_request_sqs_worker, "initialize_openai_clients", lambda: None)
 
