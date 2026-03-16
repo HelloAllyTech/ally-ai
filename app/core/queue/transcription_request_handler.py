@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import boto3
 from app.core.ally_core import AllyCoreService
 from app.core.config import settings
-from app.core.transcriptions.core.message_models import (
+from app.core.queue.message_models import (
     TranscribeAndSummarizeRequestMessage,
     TranscriptionResultMessage,
 )
@@ -49,7 +49,7 @@ class TranscriptionRequestHandler:
 
         """
         logger.info("Initializing transcription services...")
-        self.transcription_service = self.create_transcription_service()
+        self.transcription_service = transcription_service
         self.ally_core_service = ally_core_service
         self.text_generation_service = text_generation_service
 
@@ -90,7 +90,7 @@ class TranscriptionRequestHandler:
                 )
             )
 
-            # Process transcription
+            # Transcribe Audio
             logger.info(f"Transcribing audio for chat_id: {chat_id}")
             _, segments_text = await self.transcription_service.transcribe_audio_from_url(
                 audio_url=request.audio_url,

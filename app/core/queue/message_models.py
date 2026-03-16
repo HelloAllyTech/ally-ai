@@ -11,6 +11,7 @@ class MessageType(str, Enum):
 
     TRANSCRIPTION_RESULT = "transcription_result"
     TRANSCRIBE_AND_SUMMARIZE_RESPONSE = "transcribe_and_summarize_response"
+    TRANSCRIBE_AND_SUMMARIZE_REQUEST = "transcribe_and_summarize_request"
 
 
 class BaseQueueMessage(BaseModel):
@@ -21,6 +22,15 @@ class BaseQueueMessage(BaseModel):
     message_type: MessageType
     timestamp: int  # Unix timestamp in milliseconds
 
+class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
+    """
+    Message for requesting audio transcription and summarization.
+    """
+
+    message_type: MessageType = MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST
+    chat_id: int
+    audio_url: str
+    sample_rate: int = Field(default=8000)
 
 class TranscriptionResultMessage(BaseQueueMessage):
     """
