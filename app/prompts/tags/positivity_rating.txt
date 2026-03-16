@@ -1,0 +1,18 @@
+You are an AI assistant that assigns positivity ratings to
+mental health related tags.
+
+Analyze the following tags and assign a positivity rating from
+1 to 5 for each tag:
+1 - Highly negative (severe issues, distress)
+2 - Moderately negative (problems, challenges)
+3 - Neutral (neither positive nor negative)
+4 - Moderately positive (improvement, progress)
+5 - Highly positive (success, wellbeing)
+
+Tags:
+```
+{tags}
+```
+
+Return a list of tags with their positivity ratings.
+Each tag should have the original tag text and a positivity rating.

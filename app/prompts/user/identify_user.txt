@@ -1,0 +1,23 @@
+You are an AI assistant that identifies whether speaker0 and speaker1
+are client or counselor.
+Analyze the following chat history and determine the role of each speaker.
+
+Chat History:
+```
+{conversations}
+```
+
+Rules:
+1. If the speaker is seeking help, advice, or expressing their
+feelings/concerns, they are the CLIENT
+2. If the speaker is providing support, asking questions to
+understand better, or giving professional advice, they are
+the COUNSELOR
+3. If you cannot determine with confidence, mark as UNKNOWN
+4. Each speaker should be consistently identified throughout the conversation
+5. Look for patterns in the conversation to determine roles
+
+Important:
+- Each speaker must be identified as either "client", "counselor", or "unknown"
+- Return only the JSON object, no markdown formatting, no code blocks,
+no additional text

@@ -1,0 +1,49 @@
+Available skill labels:
+
+          HELPFUL TAGS (Positive Counselor Behaviors):
+            "Attunement" — Helper maintains focus on the client's experience without interruption or topic-shifting.
+            "Genuine warmth" — Helper's language and phrasing convey warmth, care, and non-judgement.
+            "Use of Silence" — Helper pauses or allows silence to support reflection rather than filling space.
+            "Steady pacing" — Helper responses match client's emotional pace; no rushing or abrupt shifts.
+            "Active listening" — Helper accurately responds to what the client has said.
+            "Reflection of Feelings" — Helper notices and follows emotional cues across turns.
+            "Paraphrasing" — Helper paraphrases facts or events shared by the client.
+            "Insight Generation" — Helper reflects underlying meaning, beliefs, or emotional significance.
+            "Summarizing" — Helper synthesises multiple points shared by the client.
+            "Reflection of Emotions" — Helper explicitly names an emotion expressed or implied by the client.
+            "Acknowledging" — Helper acknowledges the client's experience as valid and real.
+            "Normalisation" — Helper frames the client's reaction as understandable or human.
+            "Validation" — Helper affirms emotions without judgement, correction, or reassurance.
+            "Non-judgmental response" — Helper avoids blame, criticism, or evaluation.
+            "Open ended question" — Helper uses what/how prompts that invite elaboration.
+            "Clarifying Response" — Helper seeks understanding without pressure or interrogation.
+            "Deeper Exploration" — Helper asks questions that deepen emotional or experiential understanding.
+            "Identifying Strengths" — Helper highlights strengths, efforts, or resilience.
+            "Ambivalence reflection" — Helper reflects mixed or conflicting feelings.
+            "Emotional containment" — Helper responds calmly to distress and helps regulate intensity.
+            "Grounding support" — Helper supports stabilisation or grounding through language.
+            "Affirmation" — Helper acknowledges effort or persistence.
+            "Adaptive coping exploration" — Helper explores coping strategies without judgement.
+            "Curious Approach" — Helper asks about coping with openness and interest.
+            "Collaborative goal setting" — Helper and client jointly identify goals or next steps.
+            "Realistic Hope Building" — Helper builds hope grounded in achievable change.
+
+          UNHELPFUL TAGS (Areas for Improvement):
+            "Missed opportunity to deepen" — Helper response shows distraction, abrupt topic change, or missed cue.
+            "Need for slower pace" — Helper responds to facts while emotions remain unaddressed.
+            "Reduced pacing needed" — Helper moves faster than client's emotional readiness.
+            "Expand emotional validation" — Emotion is present but not acknowledged or validated.
+            "AVOID_COMPARISON_OR_REASSURANCE" — Helper response includes comparison or reassurance that bypasses emotion.
+            "AVOID_CLOSE_ENDED_QUESTIONS" — Overuse of closed or directive questions detected.
+            "Pace questions" — Multiple questions asked rapidly.
+            "Enhance Non-directive approach" — Helper leads excessively rather than following client's lead.
+            "Delay problem-solving" — Solutions introduced before emotional exploration.
+            "Increase use of silence" — Helper fills reflective space prematurely.
+            "Align with client readiness" — Intervention does not match client readiness.
+            "Facilitate Coping exploration" — Coping not explored when relevant.
+            "Collaborative direction needed" — Goals or direction introduced not collaboratively.
+            "Align goals with readiness" — Goals set without checking readiness.
+            "Anchor hope in reality" — Hope framed abstractly without linking to action.
+            "Avoid general reassurance" — Broad optimism without acknowledging pain.
+            "Strengthen values link" — Values not referenced when motivating change.
+            "Reinforce autonomy" — Client choice not explicitly supported, or excessive advice-giving.
