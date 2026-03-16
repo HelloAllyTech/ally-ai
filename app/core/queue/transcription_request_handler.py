@@ -70,6 +70,7 @@ class TranscriptionRequestHandler:
         """
         try:
             # Parse request message
+            print(request_data)
             request = TranscribeAndSummarizeRequestMessage(**request_data)
             chat_id = request.chat_id
 
@@ -105,14 +106,50 @@ class TranscriptionRequestHandler:
                 timestamp=int(time.time() * 1000),
             )
 
-            await self._process_transcription_result(result_message)
+            success = await self._process_transcription_result(result_message)
 
-            return {"status": "success", "chat_id": chat_id}
+            if success:
+                logger.info(
+                    f"Transcription processing completed successfully for chat_id: "
+                    f"{chat_id}"
+                )
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.DATA_MODIFIED,
+                        chat_id=chat_id,
+                        audit_id=None,  # Will be set by caller
+                        details={
+                            "message": f"Transcription processing completed successfully for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "component": "TranscriptionRequestHandler",
+                            "method": "process_transcription_request",
+                            "status": "success",
+                        },
+                    )
+                )
+            else:
+                logger.error(f"Transcription processing failed for chat_id: {chat_id}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=chat_id,
+                        audit_id=None,  # Will be set by caller
+                        details={
+                            "error": f"Transcription processing failed for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "component": "TranscriptionRequestHandler",
+                            "method": "process_transcription_request",
+                            "status": "failed",
+                        },
+                    )
+                )
+                # Send error response
+                await self._send_error_response(chat_id, "Processing failed")
 
         except Exception as e:
             chat_id = request_data.get("chat_id", "unknown")
             logger.exception(
-                f"Error processing transcription request: {chat_id} {type(e).__name__}"
+                f"Error processing transcription request: {chat_id} {e}"
             )
             await phi_logger.log(
                 PHILogEvent(
@@ -129,11 +166,7 @@ class TranscriptionRequestHandler:
                     },
                 )
             )
-            return {
-                "status": "error",
-                "error": "Processing failed",
-                "chat_id": chat_id,
-            }
+            await self._send_error_response(chat_id, "Processing failed")
 
     async def _process_transcription_result(self, request: TranscriptionResultMessage) -> bool:
         """
