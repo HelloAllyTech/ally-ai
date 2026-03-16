@@ -42,7 +42,9 @@ async def create_note_and_tags(
     try:
         summary_note_and_tags_response = (
             await summary_service.generate_summary_and_tags(
-                request.chat_history, request.keys
+                request.chat_history,
+                keys=request.keys,
+                prompts=request.prompts,
             )
         )
         return summary_note_and_tags_response
@@ -70,7 +72,9 @@ async def enhance(
     Enhances the content
     """
     try:
-        enhanced_content = await summary_service.enhance_content(request.content)
+        enhanced_content = await summary_service.enhance_content(
+            request.content, prompts=request.prompts
+        )
         return ContentEnhanceResponse(enhanced_content=enhanced_content)
     except SummarizationFailedException:
         raise HTTPException(
@@ -98,7 +102,9 @@ async def get_tag_positivity_ratings(
     Get positivity ratings for a list of tags.
     """
     try:
-        tags = await summary_service.get_tag_positivity_ratings(request.tags)
+        tags = await summary_service.get_tag_positivity_ratings(
+            request.tags, prompts=request.prompts
+        )
         return TagPositivityRatingResponse(tags=tags)
     except SummarizationFailedException:
         raise HTTPException(
@@ -145,6 +151,7 @@ async def generate_scenario_evaluation(
             need_memory=request.need_memory,
             previous_memory=request.previous_memory,
             memory_prompt=request.memory_prompt,
+            prompts=request.prompts,
         )
 
         return ScenarioEvaluationResponse(**evaluation_response)

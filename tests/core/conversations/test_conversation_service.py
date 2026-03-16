@@ -278,7 +278,7 @@ class TestConversationService:
         # Assert
         assert result == expected_response
         mock_text_generation_service.identify_user.assert_called_once_with(
-            sample_chat_messages
+            sample_chat_messages, prompts=None
         )
 
     @pytest.mark.asyncio
@@ -295,4 +295,4 @@ class TestConversationService:
 
         # Assert
         assert result == expected_response
-        mock_text_generation_service.identify_user.assert_called_once_with([])
+        mock_text_generation_service.identify_user.assert_called_once_with([], prompts=None)

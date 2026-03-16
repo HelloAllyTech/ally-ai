@@ -74,7 +74,7 @@ class TestSummaryService:
         # Assert
         assert result == expected_response
         mock_text_generation_service.generate_summary_notes.assert_called_once_with(
-            sample_chat_messages, None, chat_id=None
+            sample_chat_messages, None, chat_id=None, prompts=None
         )
 
     @pytest.mark.asyncio
@@ -102,7 +102,7 @@ class TestSummaryService:
         # Assert
         assert result == expected_response
         mock_text_generation_service.generate_summary_notes.assert_called_once_with(
-            sample_chat_messages, keys, chat_id=None
+            sample_chat_messages, keys, chat_id=None, prompts=None
         )
 
     @pytest.mark.asyncio
@@ -137,7 +137,7 @@ class TestSummaryService:
         # Assert
         assert result == enhanced_content
         mock_text_generation_service.enhance_content.assert_called_once_with(
-            content, chat_id=None
+            content, chat_id=None, prompts=None
         )
 
     @pytest.mark.asyncio
@@ -182,7 +182,7 @@ class TestSummaryService:
         ]
         assert result == expected_tags
         mock_text_generation_service.get_tag_positivity_ratings.assert_called_once_with(
-            tags, chat_id=None
+            tags, chat_id=None, prompts=None
         )
 
     @pytest.mark.asyncio
@@ -199,7 +199,7 @@ class TestSummaryService:
         # Assert
         assert result == []
         mock_text_generation_service.get_tag_positivity_ratings.assert_called_once_with(
-            [], chat_id=None
+            [], chat_id=None, prompts=None
         )
 
     @pytest.mark.asyncio
@@ -259,6 +259,7 @@ class TestSummaryService:
         call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
         assert call_args[0][0] == sample_chat_messages
         assert call_args[1]["need_memory"] is False
+        assert call_args[1]["prompts"] is None
 
     @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_with_memory_success(
@@ -299,6 +300,7 @@ class TestSummaryService:
         call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
         assert call_args[1]["need_memory"] is True
         assert call_args[1]["previous_memory"] == "Previous context"
+        assert call_args[1]["prompts"] is None
 
     @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_with_empty_chat_history(

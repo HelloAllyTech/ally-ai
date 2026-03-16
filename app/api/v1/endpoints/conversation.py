@@ -30,7 +30,10 @@ async def analyze(
     """
     try:
         stage, nudge = await conversation_service.analyze(
-            request.latest_message, request.chat_history, request.force_nudge
+            request.latest_message,
+            request.chat_history,
+            request.force_nudge,
+            prompts=request.prompts,
         )
 
         return AnalyzeResponse(nudge=nudge, stage=stage)
@@ -58,7 +61,9 @@ async def identify(
     Identifies the users who did the conversation from the conversation history.
     """
     try:
-        return await conversation_service.identify(request.chat_history)
+        return await conversation_service.identify(
+            request.chat_history, prompts=request.prompts
+        )
 
     except ConversationIdentifyFailedException:
         raise HTTPException(

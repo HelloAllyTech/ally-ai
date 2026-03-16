@@ -13,19 +13,10 @@ from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
+from app.prompts.resolver import load_and_format, load_template
 from app.core.text_generations.base import BaseTextGenerationService
-from app.core.text_generations.prompts import (
-    CONTENT_ENHANCE_PROMPT,
-    COUNSELOR_ANALYSIS_PROMPT,
-    DIARIZATION_PROMPT,
-    DYNAMIC_SUMMARY_PROMPT,
-    IDENTIFY_USER_PROMPT,
-    NUDGE_PROMPT,
-    SCENARIO_EVALUATION_PROMPT,
-    SCENARIO_EVALUATION_WITH_MEMORY_PROMPT,
-    SUMMARY_PROMPT,
-    TAG_POSITIVITY_RATING_PROMPT,
-)
+# Static prompt constants are bypassed for dynamic runtime loading with overrides.
+
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
     ScenarioEvaluation,
@@ -283,7 +274,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             return response if output_class else response.content
 
     async def generate_nudge(
-        self, conversation: str, chat_history: str, suggestion: str, **kwargs
+        self,
+        conversation: str,
+        chat_history: str,
+        suggestion: str,
+        prompts: Optional[Dict[str, str]] = None,
+        **kwargs,
     ) -> str:
         """
         Generate a nudge using the OpenAI language model.
@@ -310,10 +306,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Generating nudge using OpenAI")
         try:
+            template = load_template("nudge/nudge", prompts=prompts)
             response = cast(
                 Nudge,
                 await self._invoke_llm(
-                    NUDGE_PROMPT.format(
+                    template.format(
                         conversation=conversation,
                         chat_history=chat_history,
                         suggestion=suggestion,
@@ -335,6 +332,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history: List[ChatMessage],
         keys: Optional[List[str]] = None,
         chat_id: Optional[str] = None,
+        prompts: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         start_time = time.time()
@@ -345,11 +343,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             if keys:
                 result = await self._generate_dynamic_summary(
-                    chat_history, chat_history_str, keys, **kwargs
+                    chat_history, chat_history_str, keys, prompts=prompts, **kwargs
                 )
             else:
                 result = await self._generate_structured_summary(
-                    chat_history, chat_history_str, **kwargs
+                    chat_history, chat_history_str, prompts=prompts, **kwargs
                 )
 
             # Calculate processing time
@@ -398,17 +396,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             raise SummaryNoteFailedException("Failed to generate summary") from e
 
     async def _generate_dynamic_summary(
-        self, chat_history, chat_history_str, keys, **kwargs
+        self,
+        chat_history,
+        chat_history_str,
+        keys,
+        prompts: Optional[Dict[str, str]] = None,
+        **kwargs,
     ):
         precomputed = await self._calculate_metrics(
-            chat_history, chat_history_str, keys
+            chat_history, chat_history_str, keys, prompts=prompts
         )
 
         key_descriptions = self._get_key_descriptions(keys)
         if not key_descriptions:
             return DynamicSummaryNoteResponse(fields=precomputed)
 
-        prompt = DYNAMIC_SUMMARY_PROMPT.format(
+        template = load_template("summary/dynamic_summary", prompts=prompts)
+        prompt = template.format(
             chat_history=chat_history_str, key_descriptions=key_descriptions
         )
         model = self.model.bind_tools([generate_dynamic_summary])
@@ -419,17 +423,24 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return DynamicSummaryNoteResponse(fields=merged)
 
     async def _generate_structured_summary(
-        self, chat_history, chat_history_str, **kwargs
+        self,
+        chat_history,
+        chat_history_str,
+        prompts: Optional[Dict[str, str]] = None,
+        **kwargs,
     ):
         """Optimized structured summary with parallel processing."""
         # Start LLM call and metric calculation in parallel
+        template = load_template("summary/summary", prompts=prompts)
         llm_task = self._invoke_llm(
-            SUMMARY_PROMPT.format(chat_history=chat_history_str),
+            template.format(chat_history=chat_history_str),
             StructuredSummaryNote,
             **kwargs,
         )
 
-        metrics_task = self._calculate_metrics(chat_history, chat_history_str)
+        metrics_task = self._calculate_metrics(
+            chat_history, chat_history_str, prompts=prompts
+        )
 
         # Run both in parallel
         response, metrics = await asyncio.gather(llm_task, metrics_task)
@@ -450,6 +461,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history,
         chat_history_str,
         keys: Optional[List[str]] = None,
+        prompts: Optional[Dict[str, str]] = None,
     ) -> dict[str, Any]:
         """
         Calculate metrics:
@@ -504,7 +516,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             elif key in counselor_analysis_keys:
                 if counselor_analysis is None:
                     counselor_analysis = await self.analyze_counselor_messages(
-                        chat_history
+                        chat_history, prompts=prompts
                     )
                 results[key] = counselor_analysis.get(key, 0)
 
@@ -529,7 +541,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 descriptions.append(f"- {key}: {field.description}")
         return "\n".join(descriptions)
 
-    async def enhance_content(self, content: str, **kwargs) -> str:
+    async def enhance_content(
+        self,
+        content: str,
+        prompts: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ) -> str:
         """
         Enhance the content by generating a summary and tags.
 
@@ -546,10 +563,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         logger.info("Enhancing content using OpenAI")
         try:
+            template = load_template("notes/content_enhance", prompts=prompts)
             response = cast(
                 ContentEnhance,
                 await self._invoke_llm(
-                    CONTENT_ENHANCE_PROMPT.format(content=content),
+                    template.format(content=content),
                     ContentEnhance,
                     **kwargs,
                 ),
@@ -562,7 +580,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return response.enhanced_content
 
     async def identify_user(
-        self, chat_history: List[ChatMessage], **kwargs
+        self,
+        chat_history: List[ChatMessage],
+        prompts: Optional[Dict[str, str]] = None,
+        **kwargs,
     ) -> IdentifyResponse:
         """
         Identify whether speaker0 and speaker1 are client or counselor based on
@@ -587,10 +608,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         )
 
         try:
+            template = load_template("user/identify_user", prompts=prompts)
             response = cast(
                 StructuredIdentifyUsers,
                 await self._invoke_llm(
-                    IDENTIFY_USER_PROMPT.format(conversations=formatted_conversations),
+                    template.format(conversations=formatted_conversations),
                     StructuredIdentifyUsers,
                     **kwargs,
                 ),
@@ -601,7 +623,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info("Users identified successfully")
         return IdentifyResponse(speaker0=response.speaker0, speaker1=response.speaker1)
 
-    async def get_tag_positivity_ratings(self, tags: List[str], **kwargs) -> List[Dict]:
+    async def get_tag_positivity_ratings(
+        self,
+        tags: List[str],
+        prompts: Optional[Dict[str, str]] = None,
+        **kwargs,
+    ) -> List[Dict]:
         """
         Get positivity ratings for a list of tags.
 
@@ -625,10 +652,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             # Using a list of Tag objects as the structured output
             TagList = create_model("TagList", tags=(List[Tag], ...))
 
+            template = load_template("tags/positivity_rating", prompts=prompts)
             response = cast(
                 TagList,
                 await self._invoke_llm(
-                    TAG_POSITIVITY_RATING_PROMPT.format(tags=formatted_tags),
+                    template.format(tags=formatted_tags),
                     TagList,
                     **kwargs,
                 ),
@@ -653,7 +681,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ) from e
 
     async def diarize_from_transcription(
-        self, transcription: str, **kwargs
+        self, transcription: str, prompts: Optional[Dict[str, str]] = None, **kwargs
     ) -> StructuredDiarization:
         """
         Diarize a raw transcription string into structured messages with speaker roles.
@@ -717,8 +745,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             # Single chunk - process directly
             logger.info("Processing single chunk")
             try:
+                template = load_template("audio/diarization", prompts=prompts)
                 result = await self._invoke_llm(
-                    DIARIZATION_PROMPT.format(transcription=chunks[0]),
+                    template.format(transcription=chunks[0]),
                     StructuredDiarization,
                     **kwargs,
                 )
@@ -733,7 +762,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Multiple chunks - process in parallel for efficiency
         logger.info(f"Processing {len(chunks)} chunks in parallel")
 
-        async def process_chunk(chunk_text: str, index: int):
+        async def process_chunk(chunk_text: str, index: int, prompts: Optional[Dict[str, str]] = None):
             """
             Process a single chunk of transcription.
 
@@ -756,8 +785,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     f"Processing chunk {index + 1}/{len(chunks)} "
                     f"(length: {len(chunk_text)} chars)"
                 )
+                template = load_template("audio/diarization", prompts=prompts)
                 result = await self._invoke_llm(
-                    DIARIZATION_PROMPT.format(transcription=chunk_text),
+                    template.format(transcription=chunk_text),
                     StructuredDiarization,
                     **kwargs,
                 )
@@ -773,7 +803,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             # Process all chunks in parallel using asyncio.gather
             # This maximizes efficiency by processing all chunks simultaneously
             results: List[StructuredDiarization] = await asyncio.gather(
-                *[process_chunk(chunk, i) for i, chunk in enumerate(chunks)],
+                *[process_chunk(chunk, i, prompts=prompts) for i, chunk in enumerate(chunks)],
                 return_exceptions=True,
             )
 
@@ -816,7 +846,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ) from e
 
     async def analyze_counselor_messages(
-        self, chat_history: List[ChatMessage]
+        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
     ) -> Dict[str, int]:
         """
         Analyze counselor messages to extract counts of:
@@ -843,7 +873,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             """Analyze one counselor message and return counts as dict."""
 
             try:
-                prompt = COUNSELOR_ANALYSIS_PROMPT.format(message=message)
+                template = load_template("analysis/counselor_analysis", prompts=prompts)
+                prompt = template.format(message=message)
                 response = await self._invoke_llm(
                     prompt, output_class=CounselorMessageAnalysis
                 )
@@ -895,6 +926,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
+        prompts: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -952,17 +984,33 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     if memory_prompt
                     else ""
                 )
-                formatted_prompt = SCENARIO_EVALUATION_WITH_MEMORY_PROMPT.format(
+                formatted_prompt = load_and_format(
+                    "scenario/scenario_evaluation_with_memory",
+                    prompts=prompts,
                     chat_history=chat_history_str,
                     previous_summary=(
                         previous_memory or "No previous summary available."
                     ),
                     custom_prompt_section=custom_prompt_section,
+                    MESSAGE_TAG_PROMPT_TEXT=load_template(
+                        "shared/message_tags", prompts=prompts
+                    ),
+                    SKILL_COVERAGE_DESCRIPTIONS=load_template(
+                        "shared/skill_coverage", prompts=prompts
+                    ),
                 )
                 response_model = ScenarioEvaluationWithMemory
             else:
-                formatted_prompt = SCENARIO_EVALUATION_PROMPT.format(
+                formatted_prompt = load_and_format(
+                    "scenario/scenario_evaluation",
+                    prompts=prompts,
                     chat_history=chat_history_str,
+                    MESSAGE_TAG_PROMPT_TEXT=load_template(
+                        "shared/message_tags", prompts=prompts
+                    ),
+                    SKILL_COVERAGE_DESCRIPTIONS=load_template(
+                        "shared/skill_coverage", prompts=prompts
+                    ),
                 )
                 response_model = ScenarioEvaluation
 

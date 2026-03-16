@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,9 @@ class AnalyzeRequest(BaseModel):
     force_nudge: Optional[bool] = Field(
         False, description="Optional flag indicating whether to always generate a nudge"
     )
+    prompts: Optional[Dict[str, str]] = Field(
+        None, description="Optional prompt overrides"
+    )
 
     class ConfigDict:
         json_schema_extra = {
@@ -31,7 +34,8 @@ class AnalyzeRequest(BaseModel):
                     {"role": "client", "content": "Hello! I am not feeling good"},
                     {"role": "counselor", "content": "Can you share what happened?"},
                 ],
-                "generate_nudge": False,
+                "force_nudge": False,
+                "prompts": {"nudge_nudge": "New nudge prompt content"},
             }
         }
 
@@ -57,6 +61,9 @@ class AnalyzeResponse(BaseModel):
 
 class IdentifyRequest(BaseModel):
     chat_history: List[ChatMessage] = Field(..., description="Full history of the chat")
+    prompts: Optional[Dict[str, str]] = Field(
+        None, description="Optional prompt overrides"
+    )
 
     class ConfigDict:
         json_schema_extra = {

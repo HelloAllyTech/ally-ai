@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
@@ -31,6 +31,7 @@ class SummaryService:
         chat_history: List[ChatMessage],
         chat_id: Optional[str] = None,
         keys: Optional[List[str]] = None,
+        prompts: Optional[Dict[str, str]] = None,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate a summary and tags from the given chat history.
@@ -54,7 +55,7 @@ class SummaryService:
         try:
             # Generate the summary note
             result = await self.text_generation_service.generate_summary_notes(
-                chat_history, keys, chat_id=chat_id
+                chat_history, keys, chat_id=chat_id, prompts=prompts
             )
 
             # Calculate processing time
@@ -124,7 +125,12 @@ class SummaryService:
                 "Failed to generate the summary. Please try again later."
             ) from e
 
-    async def enhance_content(self, content: str, chat_id: Optional[str] = None) -> str:
+    async def enhance_content(
+        self,
+        content: str,
+        chat_id: Optional[str] = None,
+        prompts: Optional[Dict[str, str]] = None,
+    ) -> str:
         """
         Enhance the given content using the text generation service.
 
@@ -142,7 +148,7 @@ class SummaryService:
 
         try:
             enhanced_content = await self.text_generation_service.enhance_content(
-                content, chat_id=chat_id
+                content, chat_id=chat_id, prompts=prompts
             )
 
             # Calculate processing time
@@ -190,7 +196,10 @@ class SummaryService:
             ) from e
 
     async def get_tag_positivity_ratings(
-        self, tags: list[str], chat_id: Optional[str] = None
+        self,
+        tags: list[str],
+        chat_id: Optional[str] = None,
+        prompts: Optional[Dict[str, str]] = None,
     ) -> list[Tag]:
         """
         Get positivity ratings for a list of tags.
@@ -209,7 +218,7 @@ class SummaryService:
 
         try:
             tag_ratings = await self.text_generation_service.get_tag_positivity_ratings(
-                tags, chat_id=chat_id
+                tags, chat_id=chat_id, prompts=prompts
             )
 
             # Convert the list of dictionaries to a list of Tag objects
@@ -269,6 +278,7 @@ class SummaryService:
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         chat_id: Optional[str] = None,
+        prompts: Optional[Dict[str, str]] = None,
     ):
         """
         Generate scenario evaluation.
@@ -306,6 +316,7 @@ class SummaryService:
                 previous_memory=previous_memory,
                 memory_prompt=memory_prompt,
                 chat_id=chat_id,
+                prompts=prompts,
             )
 
             # Calculate processing time

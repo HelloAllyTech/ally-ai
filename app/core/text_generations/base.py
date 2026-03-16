@@ -39,7 +39,10 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def generate_summary_notes(
-        self, chat_history: List[ChatMessage], keys: Optional[List[str]] = None
+        self,
+        chat_history: List[ChatMessage],
+        keys: Optional[List[str]] = None,
+        prompts: Optional[Dict[str, str]] = None,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate summary notes from chat history.
@@ -59,7 +62,9 @@ class BaseTextGenerationService[ModelT](ABC):
         pass
 
     @abstractmethod
-    async def enhance_content(self, content: str, **kwargs) -> str:
+    async def enhance_content(
+        self, content: str, prompts: Optional[Dict[str, str]] = None, **kwargs
+    ) -> str:
         """
         Enhance the content.
 
@@ -77,14 +82,18 @@ class BaseTextGenerationService[ModelT](ABC):
         pass
 
     @abstractmethod
-    async def identify_user(self, chat_history: List[ChatMessage]) -> IdentifyResponse:
+    async def identify_user(
+        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
+    ) -> IdentifyResponse:
         """
         Identify the users who did the conversation from the conversation history.
         """
         pass
 
     @abstractmethod
-    async def get_tag_positivity_ratings(self, tags: List[str]) -> List[Dict]:
+    async def get_tag_positivity_ratings(
+        self, tags: List[str], prompts: Optional[Dict[str, str]] = None
+    ) -> List[Dict]:
         """
         Get positivity ratings for a list of tags.
 
@@ -101,7 +110,7 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def analyze_counselor_messages(
-        self, chat_history: List[ChatMessage]
+        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
     ) -> Dict[str, int]:
         """
         Analyze a single counselor message asynchronously.
@@ -125,6 +134,7 @@ class BaseTextGenerationService[ModelT](ABC):
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
+        prompts: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
