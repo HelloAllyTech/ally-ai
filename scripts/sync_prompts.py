@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 import httpx
@@ -8,10 +9,10 @@ import httpx
 # Configuration
 PROMPT_DIR = Path("app/prompts")
 
-# Use ALLY_CORE__ENDPOINT and ALLY_CORE__API_KEY from .env, with defaults
-ALLY_BE_URL = os.getenv("ALLY_CORE__ENDPOINT") or os.getenv("ALLY_BE_URL") or "http://localhost:8001"
-SYNC_ENDPOINT = f"{ALLY_BE_URL.rstrip('/')}/api/v1/prompts/sync"
-API_TOKEN = os.getenv("ALLY_CORE__API_KEY") or os.getenv("ALLY_BE_TOKEN") or "your-token-here"
+# Use ALLY_CORE__ENDPOINT and ALLY_CORE__API_KEY from .env
+ALLY_BE_URL = os.getenv("ALLY_CORE__ENDPOINT")
+SYNC_ENDPOINT = f"{ALLY_BE_URL.rstrip('/')}/api/v1/prompts/sync" if ALLY_BE_URL else None
+API_TOKEN = os.getenv("ALLY_CORE__API_KEY")
 
 PROMPT_CODE_PREFIX = "ally_ai_"
 
@@ -60,6 +61,10 @@ def scan_prompts():
 
 
 def sync_prompts(prompts, dry_run=False):
+    if not dry_run and (not SYNC_ENDPOINT or not API_TOKEN):
+        print("Error: ALLY_CORE__ENDPOINT or ALLY_CORE__API_KEY not set in environment.")
+        sys.exit(1)
+
     if dry_run:
         print("\n[DRY RUN] Would sync the following prompts:")
         for p in prompts:
@@ -81,6 +86,7 @@ def sync_prompts(prompts, dry_run=False):
         print(f"Error syncing prompts: {e}")
         if isinstance(e, httpx.HTTPStatusError):
             print(f"Response: {e.response.text}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
