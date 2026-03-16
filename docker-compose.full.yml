@@ -18,7 +18,7 @@ services:
       WEAVIATE__GRPC_HOST: weaviate
     ports:
       - "8001:8000"
-    command: ["bash", "-c", "/app/scripts/bootstrap_localstack.sh && poetry run python -m app.main & poetry run python -m app.core.queue.transcription_request_sqs_worker & wait -n"]
+    command: ["bash", "-c", "/app/scripts/bootstrap_localstack.sh && poetry run python scripts/migrate.py all && poetry run python scripts/sync_prompts.py && (poetry run python -m app.main & poetry run python -m app.core.queue.transcription_request_sqs_worker & wait -n)"]
     depends_on:
       weaviate:
         condition: service_started

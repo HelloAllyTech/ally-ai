@@ -7,8 +7,12 @@ import httpx
 
 # Configuration
 PROMPT_DIR = Path("app/prompts")
-SYNC_ENDPOINT = os.getenv("ALLY_BE_URL", "http://localhost:3000") + "/api/v1/prompts/sync"
-API_TOKEN = os.getenv("ALLY_BE_TOKEN", "your-token-here")
+
+# Use ALLY_CORE__ENDPOINT and ALLY_CORE__API_KEY from .env, with defaults
+ALLY_BE_URL = os.getenv("ALLY_CORE__ENDPOINT") or os.getenv("ALLY_BE_URL") or "http://localhost:8001"
+SYNC_ENDPOINT = f"{ALLY_BE_URL.rstrip('/')}/api/v1/prompts/sync"
+API_TOKEN = os.getenv("ALLY_CORE__API_KEY") or os.getenv("ALLY_BE_TOKEN") or "your-token-here"
+
 PROMPT_CODE_PREFIX = "ally_ai_"
 
 
@@ -65,7 +69,7 @@ def sync_prompts(prompts, dry_run=False):
     print(f"\nSyncing {len(prompts)} prompts to {SYNC_ENDPOINT}...")
     
     payload = {"prompts": prompts}
-    headers = {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"}
+    headers = {"x-api-key": API_TOKEN, "Content-Type": "application/json"}
 
     try:
         with httpx.Client() as client:
