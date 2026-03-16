@@ -50,7 +50,7 @@ def scan_prompts():
         prompts.append({
             "promptCode": prompt_code,
             "prompt": content,
-            "promptName": meta.get("name", f"AI: {category.capitalize()} - {name.replace('_', ' ').capitalize()}"),
+            "name": meta.get("name", f"AI: {category.capitalize()} - {name.replace('_', ' ').capitalize()}"),
             "description": meta.get("description", f"Generated from ally-ai: {rel_path}"),
             "category": meta.get("category", category.upper()),
             "useDashboardOverride": meta.get("useDashboardOverride", False),
