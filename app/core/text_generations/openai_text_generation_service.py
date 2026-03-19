@@ -13,10 +13,7 @@ from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
-from app.prompts.resolver import load_and_format, load_template
 from app.core.text_generations.base import BaseTextGenerationService
-# Static prompt constants are bypassed for dynamic runtime loading with overrides.
-
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
     ScenarioEvaluation,
@@ -32,6 +29,7 @@ from app.exceptions.custom_exceptions import (
     NudgeGenerationFailedException,
     SummaryNoteFailedException,
 )
+from app.prompts.resolver import load_and_format, load_template
 from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse, Nudge
 from app.schemas.summary import (
@@ -59,6 +57,9 @@ from app.utils.structured_model_converter import structured_output_model_to_rest
 from app.utils.utterance_duration_calculator import (
     calculate_avg_client_utterance_duration,
 )
+
+# Static prompt constants are bypassed for dynamic runtime loading with overrides.
+
 
 logger = get_logger(__name__)
 
@@ -762,7 +763,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Multiple chunks - process in parallel for efficiency
         logger.info(f"Processing {len(chunks)} chunks in parallel")
 
-        async def process_chunk(chunk_text: str, index: int, prompts: Optional[Dict[str, str]] = None):
+        async def process_chunk(
+            chunk_text: str, index: int, prompts: Optional[Dict[str, str]] = None
+        ):
             """
             Process a single chunk of transcription.
 
@@ -803,7 +806,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             # Process all chunks in parallel using asyncio.gather
             # This maximizes efficiency by processing all chunks simultaneously
             results: List[StructuredDiarization] = await asyncio.gather(
-                *[process_chunk(chunk, i, prompts=prompts) for i, chunk in enumerate(chunks)],
+                *[
+                    process_chunk(chunk, i, prompts=prompts)
+                    for i, chunk in enumerate(chunks)
+                ],
                 return_exceptions=True,
             )
 
@@ -1026,8 +1032,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             logger.info("Scenario evaluation generated successfully")
 
             # Build result: validate keys and remap back to UUIDs
+            # Convert areas_of_growth to dict format and populate
+            # deprecated improvements
+            areas_of_growth_list = [
+                {
+                    "improvement": item.improvement,
+                    "recommendation": item.recommendation,
+                }
+                for item in response.areas_of_growth
+            ]
+
+            # For backward compatibility: extract just the improvement strings
+            improvements_list = [item.improvement for item in response.areas_of_growth]
+
             result: Dict[str, Any] = {
-                "improvements": response.improvements,
+                "areas_of_growth": areas_of_growth_list,
+                # Deprecated, for backward compatibility
+                "improvements": improvements_list,
                 "positives": response.positives,
                 "message_tags": filter_message_tags(
                     response.message_tags,

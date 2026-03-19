@@ -776,12 +776,26 @@ class SkillCoverageItemOutput(BaseModel):
         return max(0.0, min(100.0, v))
 
 
+class AreasOfGrowth(BaseModel):
+    """Model representing an area of growth with its recommendation."""
+
+    improvement: str = Field(
+        description="Specific, actionable area that needs improvement"
+    )
+    recommendation: str = Field(
+        description="Concrete recommendation or guidance for this improvement area"
+    )
+
+
 class ScenarioEvaluation(BaseModel):
     """Structured output model for scenario evaluation with competency tracking."""
 
-    improvements: List[str] = Field(
-        description="Specific, actionable areas that need improvement "
-        "during the simulation"
+    areas_of_growth: List[AreasOfGrowth] = Field(
+        description=(
+            "Specific, actionable areas that need improvement during "
+            "the simulation, each with a concrete recommendation on "
+            "how to improve"
+        )
     )
     positives: List[str] = Field(
         description="Strengths and positive aspects demonstrated "

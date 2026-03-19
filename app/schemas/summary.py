@@ -477,6 +477,17 @@ class TagPositivityRatingResponse(BaseModel):
         }
 
 
+class AreasOfGrowth(BaseModel):
+    """Model representing an area of growth with its recommendation."""
+
+    improvement: str = Field(
+        ..., description="Specific, actionable area that needs improvement"
+    )
+    recommendation: str = Field(
+        ..., description="Concrete recommendation or guidance for this improvement area"
+    )
+
+
 class ScenarioEvaluationRequest(BaseModel):
     """
     Request model for the /scenario/evaluate endpoint.
@@ -507,8 +518,16 @@ class ScenarioEvaluationResponse(BaseModel):
     Response model for the /scenario/evaluate endpoint.
     """
 
+    areas_of_growth: List[AreasOfGrowth] = Field(
+        ..., description="Areas that need improvement with specific recommendations"
+    )
     improvements: List[str] = Field(
-        ..., description="Areas that need improvement with specific, actionable points"
+        ...,
+        description=(
+            "[Deprecated - for backward compatibility] List of "
+            "improvement areas. Use areas_of_growth for detailed "
+            "recommendations."
+        ),
     )
     positives: List[str] = Field(
         ..., description="Things that went well and positive aspects demonstrated"

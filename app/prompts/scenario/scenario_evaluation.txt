@@ -20,9 +20,11 @@ Important rules:
 - For "positives": Only include strengths that the counselor clearly
   demonstrated with specific evidence from the transcript. DO NOT
   praise behaviors that didn't occur.
-- For "improvements": Focus on missed opportunities, areas where the
+- For "areas_of_growth": Focus on missed opportunities, areas where the
   counselor could have done better, or skills not yet demonstrated.
-  Be specific about what could be improved and why.
+  For each area, provide both the specific improvement needed AND a concrete
+  recommendation on how to address it. Be specific about what could be improved
+  and how to improve it.
 - If the conversation is very short or the counselor barely participated,
   acknowledge this in your evaluation rather than inventing feedback.
 - For message_tags: Tag ONLY the counselor's messages (not the
@@ -52,9 +54,10 @@ Return only valid JSON with these fields:
 - "positives": Array of demonstrated strengths and effective techniques with
   specific examples from the conversation. ONLY include what the counselor
   actually did. Use quotes or describe the moment without message IDs.
-- "improvements": Array of specific areas needing development with conversation
-  examples. Focus on what could be better or was missing. Use quotes or describe
-  the moment without message IDs.
+- "areas_of_growth": Array of objects, each with "improvement" (specific area
+  needing development with conversation examples) and "recommendation" (concrete
+  guidance on how to improve). Focus on what could be better or was missing.
+  Use quotes or describe the moment without message IDs.
 - "message_tags": Array of objects, one per counselor message, each with "id"
   (the message ID) and "tags" (array of objects with "label" only).
 - "emotional_movement": Array of objects, one per client message, each with

@@ -12,6 +12,7 @@ from app.core.text_generations.openai_text_generation_service import (
     split_text_by_length,
 )
 from app.core.text_generations.structured_output_models import (
+    AreasOfGrowth,
     CounselorMessageAnalysis,
     EmotionalMovementItemOutput,
     MessageTagItemOutput,
@@ -773,7 +774,15 @@ class TestOpenAITextGenerationService:
         """
         # LLM mock uses short IDs (what the LLM sees in the prompt)
         mock_evaluation = ScenarioEvaluation(
-            improvements=["Ask more open-ended questions"],
+            areas_of_growth=[
+                AreasOfGrowth(
+                    improvement="Ask more open-ended questions",
+                    recommendation=(
+                        "Try using 'what' and 'how' questions instead "
+                        "of closed yes/no questions"
+                    ),
+                )
+            ],
             positives=["Good rapport building"],
             message_tags=[
                 MessageTagItemOutput(
@@ -808,6 +817,18 @@ class TestOpenAITextGenerationService:
                 sample_chat_messages
             )
 
+            # Check both new and deprecated fields
+            assert len(result["areas_of_growth"]) == 1
+            assert (
+                result["areas_of_growth"][0]["improvement"]
+                == "Ask more open-ended questions"
+            )
+            assert result["areas_of_growth"][0]["recommendation"] == (
+                "Try using 'what' and 'how' questions instead "
+                "of closed yes/no questions"
+            )
+            # Backward compatibility - improvements should contain just
+            # the improvement strings
             assert result["improvements"] == ["Ask more open-ended questions"]
             assert result["positives"] == ["Good rapport building"]
             # IDs should be remapped back to original UUIDs
@@ -842,7 +863,15 @@ class TestOpenAITextGenerationService:
         """
         # LLM mock uses short IDs
         mock_response = ScenarioEvaluationWithMemory(
-            improvements=["Improve reflective listening"],
+            areas_of_growth=[
+                AreasOfGrowth(
+                    improvement="Improve reflective listening",
+                    recommendation=(
+                        "Practice paraphrasing client statements before "
+                        "asking new questions"
+                    ),
+                )
+            ],
             positives=["Strong empathy demonstration"],
             message_tags=[
                 MessageTagItemOutput(
@@ -878,6 +907,16 @@ class TestOpenAITextGenerationService:
                 memory_prompt="Custom instructions",
             )
 
+            # Check both new and deprecated fields
+            assert len(result["areas_of_growth"]) == 1
+            assert (
+                result["areas_of_growth"][0]["improvement"]
+                == "Improve reflective listening"
+            )
+            assert (
+                result["areas_of_growth"][0]["recommendation"]
+                == "Practice paraphrasing client statements before asking new questions"
+            )
             assert result["improvements"] == ["Improve reflective listening"]
             assert result["positives"] == ["Strong empathy demonstration"]
             assert len(result["message_tags"]) == 1
@@ -892,6 +931,76 @@ class TestOpenAITextGenerationService:
             assert result["cumulative_memory"] == "Comprehensive memory narrative"
 
     @pytest.mark.asyncio
+    async def test_areas_of_growth_to_api_response_conversion(
+        self, text_generation_service, sample_chat_messages
+    ):
+        """Test business logic for converting AreasOfGrowth objects to
+        API response format with backward compatibility for improvements
+        field.
+        """
+        # Mock LLM response with multiple AreasOfGrowth objects
+        mock_evaluation = ScenarioEvaluation(
+            areas_of_growth=[
+                AreasOfGrowth(
+                    improvement="Ask more open-ended questions",
+                    recommendation=(
+                        "Use 'what' and 'how' questions instead of yes/no questions"
+                    ),
+                ),
+                AreasOfGrowth(
+                    improvement="Practice reflective listening",
+                    recommendation="Paraphrase client statements before responding",
+                ),
+                AreasOfGrowth(
+                    improvement="Improve emotional validation",
+                    recommendation="Acknowledge feelings before offering solutions",
+                ),
+            ],
+            positives=["Good rapport building"],
+            message_tags=[],
+            emotional_movement=[],
+            skill_coverage=[],
+        )
+
+        with patch.object(
+            text_generation_service, "_invoke_llm", return_value=mock_evaluation
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+
+            # Test business logic: areas_of_growth should be converted
+            # to dict format
+            assert len(result["areas_of_growth"]) == 3
+            assert result["areas_of_growth"][0] == {
+                "improvement": "Ask more open-ended questions",
+                "recommendation": (
+                    "Use 'what' and 'how' questions instead of yes/no questions"
+                ),
+            }
+            assert result["areas_of_growth"][1] == {
+                "improvement": "Practice reflective listening",
+                "recommendation": "Paraphrase client statements before responding",
+            }
+            assert result["areas_of_growth"][2] == {
+                "improvement": "Improve emotional validation",
+                "recommendation": "Acknowledge feelings before offering solutions",
+            }
+
+            # Test backward compatibility: improvements should contain
+            # only improvement strings
+            assert len(result["improvements"]) == 3
+            assert result["improvements"] == [
+                "Ask more open-ended questions",
+                "Practice reflective listening",
+                "Improve emotional validation",
+            ]
+
+            # Verify order is maintained between areas_of_growth and improvements
+            for i, area in enumerate(result["areas_of_growth"]):
+                assert area["improvement"] == result["improvements"][i]
+
+    @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_filters_hallucinated_data(
         self, text_generation_service, sample_chat_messages
     ):
@@ -900,7 +1009,11 @@ class TestOpenAITextGenerationService:
         """
         # LLM uses short IDs; m99 is hallucinated (doesn't exist)
         mock_evaluation = ScenarioEvaluation(
-            improvements=["Improve X"],
+            areas_of_growth=[
+                AreasOfGrowth(
+                    improvement="Improve X", recommendation="Try doing X better"
+                )
+            ],
             positives=["Good Y"],
             message_tags=[
                 # m1 = counselor → should be kept and remapped to msg-1

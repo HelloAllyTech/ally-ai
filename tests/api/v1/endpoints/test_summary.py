@@ -261,6 +261,18 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "areas_of_growth": [
+                    {
+                        "improvement": "Ask more open-ended questions",
+                        "recommendation": "Try using 'what' and 'how' questions",
+                    },
+                    {
+                        "improvement": "Use reflective listening",
+                        "recommendation": (
+                            "Paraphrase client statements before responding"
+                        ),
+                    },
+                ],
                 "improvements": [
                     "Ask more open-ended questions",
                     "Use reflective listening",
@@ -286,6 +298,18 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
 
             assert response.status_code == 200
             data = response.json()
+            # Check new areas_of_growth field
+            assert "areas_of_growth" in data
+            assert len(data["areas_of_growth"]) == 2
+            assert (
+                data["areas_of_growth"][0]["improvement"]
+                == "Ask more open-ended questions"
+            )
+            assert (
+                data["areas_of_growth"][0]["recommendation"]
+                == "Try using 'what' and 'how' questions"
+            )
+            # Check backward compatibility with deprecated improvements field
             assert "improvements" in data
             assert "positives" in data
             assert "message_tags" in data
