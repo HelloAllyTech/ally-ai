@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     ffmpeg \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry using its official installer
 RUN curl -sSL https://install.python-poetry.org | python3 -
@@ -37,4 +37,4 @@ COPY . .
 EXPOSE 8000
 
 # Run migrations first, then start the application
-CMD ["bash", "-c", "poetry run python -m app.main & poetry run python -m app.core.queue.sqs_worker & poetry run python -m app.core.queue.transcription_request_sqs_worker & wait -n"]
+CMD ["bash", "-c", "python -m app.main & python -m app.core.queue.sqs_worker & python -m app.core.queue.transcription_request_sqs_worker & wait -n"]
