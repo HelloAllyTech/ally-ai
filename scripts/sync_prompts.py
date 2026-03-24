@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -15,6 +16,17 @@ SYNC_ENDPOINT = f"{ALLY_BE_URL.rstrip('/')}/api/v1/prompts/sync" if ALLY_BE_URL 
 API_TOKEN = os.getenv("ALLY_CORE__API_KEY")
 
 PROMPT_CODE_PREFIX = "ally_ai_"
+
+
+def parse_variables_from_prompt(text: str) -> list[str]:
+    """
+    Extract placeholders from prompt template.
+    Supports {var_name} format used by Python str.format().
+    Returns sorted unique list of variable names.
+    """
+    pattern = r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}"
+    matches = re.findall(pattern, text)
+    return sorted(set(matches))
 
 
 def scan_prompts():
@@ -54,7 +66,8 @@ def scan_prompts():
             "description": meta.get("description", f"Generated from ally-ai: {rel_path}"),
             "category": meta.get("category", category.upper()),
             "useDashboardOverride": meta.get("useDashboardOverride", False),
-            "isDefault": meta.get("isDefault", True)
+            "isDefault": meta.get("isDefault", True),
+            "availableVariables": parse_variables_from_prompt(content),
         })
 
     return prompts
