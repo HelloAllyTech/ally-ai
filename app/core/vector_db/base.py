@@ -1,8 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar, Generic
 
 
-class VectorDB[T](ABC):
+T = TypeVar("T")
+QueryResult = TypeVar("QueryResult")
+
+
+class VectorDB(Generic[T], ABC):
     """
     Abstract base class for vector-based databases.
 
@@ -20,9 +24,7 @@ class VectorDB[T](ABC):
         self.client = client
 
     @abstractmethod
-    async def similarity_search[
-        QueryResult
-    ](self, vector: List[float], top_k: int = 1) -> QueryResult:
+    async def similarity_search(self, vector: List[float], top_k: int = 1) -> QueryResult:
         """
         Perform a similarity search given a vector.
 
@@ -40,9 +42,9 @@ class VectorDB[T](ABC):
         pass
 
     @abstractmethod
-    async def fetch_relevant_conversations[
-        QueryResult
-    ](self, query: str, top_k: int = 1) -> QueryResult:
+    async def fetch_relevant_conversations(
+        self, query: str, top_k: int = 1
+    ) -> QueryResult:
         """
         Fetches the most relevant conversations from the database for the given query.
 

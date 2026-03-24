@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.vector_db.base import VectorDB
@@ -29,7 +29,7 @@ class ConversationService:
         latest_message: str,
         chat_history: List[ChatMessage],
         force_nudge: bool = False,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Analyzes the latest message in the chat history and generates a nudge if
@@ -106,7 +106,7 @@ class ConversationService:
         return stage, generated_nudge
 
     async def identify(
-        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
+        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, Any]] = None
     ) -> IdentifyResponse:
         """
         Identifies the users who did the conversation from the conversation history.

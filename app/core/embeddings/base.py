@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, TypeVar, Generic
 
 
-class BaseEmbeddingService[ClientT](ABC):
+ClientT = TypeVar("ClientT")
+
+
+class BaseEmbeddingService(Generic[ClientT], ABC):
     """
     Abstract base class for embedding services using a client to generate embedding
     vectors.

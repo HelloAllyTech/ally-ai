@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TypeVar, Generic
 
 from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 
 
-class BaseTextGenerationService[ModelT](ABC):
+ModelT = TypeVar("ModelT")
+
+
+class BaseTextGenerationService(Generic[ModelT], ABC):
     def __init__(self, model: ModelT) -> None:
         """
         Initialize the base text generation service with a model.
@@ -18,7 +21,12 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def generate_nudge(
-        self, conversation: str, chat_history: str, suggestion: str, **kwargs
+        self,
+        conversation: str,
+        chat_history: str,
+        suggestion: str,
+        prompts: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> str:
         """
         Generate a nudge based on the conversation.
@@ -27,6 +35,7 @@ class BaseTextGenerationService[ModelT](ABC):
             conversation (str): The conversation to generate a nudge for.
             chat_history (str): The chat history to consider.
             suggestion (str): The suggestion to base the nudge on.
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
             **kwargs: Additional keyword arguments to be passed
 
         Returns:
@@ -42,7 +51,8 @@ class BaseTextGenerationService[ModelT](ABC):
         self,
         chat_history: List[ChatMessage],
         keys: Optional[List[str]] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate summary notes from chat history.
@@ -54,6 +64,8 @@ class BaseTextGenerationService[ModelT](ABC):
                 provided, returns a DynamicSummaryNoteResponse with only the
                 requested fields. If None, returns a SummaryNoteAndTagsResponse
                 with all predefined fields.
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
+            **kwargs: Additional keyword arguments to be passed.
 
         Returns:
             Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
@@ -63,13 +75,14 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def enhance_content(
-        self, content: str, prompts: Optional[Dict[str, str]] = None, **kwargs
+        self, content: str, prompts: Optional[Dict[str, Any]] = None, **kwargs
     ) -> str:
         """
         Enhance the content.
 
         Parameters:
             content (str): The content to enhance.
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
             **kwargs: Additional keyword arguments to be passed to the underlying
             language model invocation.
 
@@ -83,22 +96,38 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def identify_user(
-        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
+        self,
+        chat_history: List[ChatMessage],
+        prompts: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> IdentifyResponse:
         """
         Identify the users who did the conversation from the conversation history.
+
+        Parameters:
+            chat_history (List[ChatMessage]): The chat history to identify from.
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
+            **kwargs: Additional keyword arguments to be passed.
+
+        Returns:
+            IdentifyResponse: The identified user roles.
         """
         pass
 
     @abstractmethod
     async def get_tag_positivity_ratings(
-        self, tags: List[str], prompts: Optional[Dict[str, str]] = None
+        self,
+        tags: List[str],
+        prompts: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> List[Dict]:
         """
         Get positivity ratings for a list of tags.
 
         Parameters:
             tags (List[str]): List of tags to get positivity ratings for.
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
+            **kwargs: Additional keyword arguments to be passed.
 
         Returns:
             List[Dict]: List of tags with their positivity ratings.
@@ -110,20 +139,22 @@ class BaseTextGenerationService[ModelT](ABC):
 
     @abstractmethod
     async def analyze_counselor_messages(
-        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
+        self,
+        chat_history: List[ChatMessage],
+        prompts: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Dict[str, int]:
         """
-        Analyze a single counselor message asynchronously.
+        Analyze counselor messages from chat history to extract counts of
+        reflective questions, open-ended questions, and back-channel cues.
 
-        Args:
-            message (str): The message text that needs to be analyzed.
-            index (int): The position of the
-            message in the list, useful for tracking or debugging.
+        Parameters:
+            chat_history (List[ChatMessage]): The chat history to analyze.
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
+            **kwargs: Additional keyword arguments to be passed.
 
         Returns:
-            Any: The result of the analysis. This could be an integer score,
-                 a dictionary with structured results, or raise an exception
-                 if the analysis fails.
+            Dict[str, int]: A dictionary containing counts for different metrics.
         """
         pass
 
@@ -134,7 +165,7 @@ class BaseTextGenerationService[ModelT](ABC):
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -151,6 +182,7 @@ class BaseTextGenerationService[ModelT](ABC):
                 (when need_memory=True)
             memory_prompt (Optional[str]): Custom instructions for memory generation
                 (when need_memory=True)
+            prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:

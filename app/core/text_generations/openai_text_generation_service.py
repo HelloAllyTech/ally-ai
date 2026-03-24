@@ -279,7 +279,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         conversation: str,
         chat_history: str,
         suggestion: str,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> str:
         """
@@ -333,7 +333,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history: List[ChatMessage],
         keys: Optional[List[str]] = None,
         chat_id: Optional[str] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         start_time = time.time()
@@ -401,7 +401,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history,
         chat_history_str,
         keys,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         precomputed = await self._calculate_metrics(
@@ -427,7 +427,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         self,
         chat_history,
         chat_history_str,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """Optimized structured summary with parallel processing."""
@@ -462,7 +462,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history,
         chat_history_str,
         keys: Optional[List[str]] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Calculate metrics:
@@ -545,7 +545,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     async def enhance_content(
         self,
         content: str,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> str:
         """
@@ -583,7 +583,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     async def identify_user(
         self,
         chat_history: List[ChatMessage],
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> IdentifyResponse:
         """
@@ -627,7 +627,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     async def get_tag_positivity_ratings(
         self,
         tags: List[str],
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> List[Dict]:
         """
@@ -682,7 +682,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ) from e
 
     async def diarize_from_transcription(
-        self, transcription: str, prompts: Optional[Dict[str, str]] = None, **kwargs
+        self, transcription: str, prompts: Optional[Dict[str, Any]] = None, **kwargs
     ) -> StructuredDiarization:
         """
         Diarize a raw transcription string into structured messages with speaker roles.
@@ -764,7 +764,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info(f"Processing {len(chunks)} chunks in parallel")
 
         async def process_chunk(
-            chunk_text: str, index: int, prompts: Optional[Dict[str, str]] = None
+            chunk_text: str, index: int, prompts: Optional[Dict[str, Any]] = None
         ):
             """
             Process a single chunk of transcription.
@@ -852,7 +852,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ) from e
 
     async def analyze_counselor_messages(
-        self, chat_history: List[ChatMessage], prompts: Optional[Dict[str, str]] = None
+        self,
+        chat_history: List[ChatMessage],
+        prompts: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> Dict[str, int]:
         """
         Analyze counselor messages to extract counts of:
@@ -932,7 +935,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         need_memory: bool = False,
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """

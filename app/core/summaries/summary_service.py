@@ -1,5 +1,5 @@
 import time
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
@@ -31,7 +31,7 @@ class SummaryService:
         chat_history: List[ChatMessage],
         chat_id: Optional[str] = None,
         keys: Optional[List[str]] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
         Generate a summary and tags from the given chat history.
@@ -129,7 +129,7 @@ class SummaryService:
         self,
         content: str,
         chat_id: Optional[str] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Enhance the given content using the text generation service.
@@ -199,7 +199,7 @@ class SummaryService:
         self,
         tags: list[str],
         chat_id: Optional[str] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
     ) -> list[Tag]:
         """
         Get positivity ratings for a list of tags.
@@ -278,7 +278,7 @@ class SummaryService:
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         chat_id: Optional[str] = None,
-        prompts: Optional[Dict[str, str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
     ):
         """
         Generate scenario evaluation.

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -137,7 +137,7 @@ class SummaryNoteAndTagsRequest(BaseModel):
         description="Optional list of keys to include in the response. If provided, "
         "only these fields will be included and a dynamic response will be generated.",
     )
-    prompts: Optional[Dict[str, str]] = Field(
+    prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
 
@@ -394,7 +394,7 @@ class ContentEnhanceRequest(BaseModel):
     """
 
     content: str = Field(..., description="Content to be enhanced")
-    prompts: Optional[Dict[str, str]] = Field(
+    prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
 
@@ -446,7 +446,7 @@ class TagPositivityRatingRequest(BaseModel):
     tags: list[str] = Field(
         ..., description="List of tags to get positivity ratings for"
     )
-    prompts: Optional[Dict[str, str]] = Field(
+    prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
 
@@ -508,7 +508,7 @@ class ScenarioEvaluationRequest(BaseModel):
         default=None,
         description="Custom instructions for memory generation (when need_memory=True)",
     )
-    prompts: Optional[Dict[str, str]] = Field(
+    prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
 

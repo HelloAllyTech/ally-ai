@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ class AnalyzeRequest(BaseModel):
     force_nudge: Optional[bool] = Field(
         False, description="Optional flag indicating whether to always generate a nudge"
     )
-    prompts: Optional[Dict[str, str]] = Field(
+    prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
 
@@ -61,7 +61,7 @@ class AnalyzeResponse(BaseModel):
 
 class IdentifyRequest(BaseModel):
     chat_history: List[ChatMessage] = Field(..., description="Full history of the chat")
-    prompts: Optional[Dict[str, str]] = Field(
+    prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
 
