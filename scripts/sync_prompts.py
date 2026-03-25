@@ -42,7 +42,7 @@ def scan_prompts():
             print(f"Skipping {txt_file}: Must be in a subdirectory (category/name.txt)")
             continue
 
-        category = parts[0]
+        folder_name = parts[0]
         name = Path(parts[-1]).stem
         
         # Combine subdirectories for the code if nested deeper than 1 level
@@ -62,9 +62,9 @@ def scan_prompts():
         prompts.append({
             "promptCode": prompt_code,
             "prompt": content,
-            "name": meta.get("name", f"AI: {category.capitalize()} - {name.replace('_', ' ').capitalize()}"),
+            "name": meta.get("name", f"AI: {folder_name.capitalize()} - {name.replace('_', ' ').capitalize()}"),
             "description": meta.get("description", f"Generated from ally-ai: {rel_path}"),
-            "category": meta.get("category", category.upper()),
+            "category": meta.get("category", folder_name.replace('_', ' ').title()),
             "useDashboardOverride": meta.get("useDashboardOverride", False),
             "isDefault": meta.get("isDefault", True),
             "availableVariables": parse_variables_from_prompt(content),
@@ -81,7 +81,7 @@ def sync_prompts(prompts, dry_run=False):
     if dry_run:
         print("\n[DRY RUN] Would sync the following prompts:")
         for p in prompts:
-            print(f" - {p['promptCode']} ({p['promptName']})")
+            print(f" - {p['promptCode']} ({p['name']})")
         return
 
     print(f"\nSyncing {len(prompts)} prompts to {SYNC_ENDPOINT}...")
