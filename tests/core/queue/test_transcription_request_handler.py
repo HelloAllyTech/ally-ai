@@ -202,11 +202,32 @@ class TestTranscriptionHandler:
         mock_text_generation_service.generate_summary_notes.return_value = {"x": 1}
 
         # Act
-        result = await handler._generate_summary(messages, chat_id=333)
+        result = await handler._generate_summary(
+            messages, chat_id=333, session_mode="DICTATION"
+        )
 
         # Assert
         assert result == {"x": 1}
-        mock_text_generation_service.generate_summary_notes.assert_awaited_once()
+        mock_text_generation_service.generate_summary_notes.assert_awaited_once_with(
+            chat_history=messages,
+            keys=None,
+            session_mode="DICTATION",
+        )
+
+    @pytest.mark.asyncio
+    async def test__generate_summary_default_session_mode(
+        self, handler, mock_text_generation_service: AsyncMock
+    ):
+        messages = []
+        mock_text_generation_service.generate_summary_notes.return_value = {"x": 1}
+
+        await handler._generate_summary(messages, chat_id=334)
+
+        mock_text_generation_service.generate_summary_notes.assert_awaited_once_with(
+            chat_history=messages,
+            keys=None,
+            session_mode=None,
+        )
 
     @pytest.mark.asyncio
     async def test__generate_summary_failure_sends_error_and_raises(

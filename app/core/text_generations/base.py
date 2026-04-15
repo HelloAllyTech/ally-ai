@@ -52,6 +52,7 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
         chat_history: List[ChatMessage],
         keys: Optional[List[str]] = None,
         prompts: Optional[Dict[str, Any]] = None,
+        session_mode: Optional[str] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
@@ -65,6 +66,7 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
                 requested fields. If None, returns a SummaryNoteAndTagsResponse
                 with all predefined fields.
             prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
+            session_mode (Optional[str]): SCRIBE vs DICTATION; selects summary prompt.
             **kwargs: Additional keyword arguments to be passed.
 
         Returns:

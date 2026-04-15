@@ -7,6 +7,7 @@ import pytest
 from app.core.queue.message_models import (
     BaseQueueMessage,
     MessageType,
+    TranscribeAndSummarizeRequestMessage,
     TranscribeAndSummarizeResponseMessage,
     TranscriptionResultMessage,
 )
@@ -128,6 +129,30 @@ class TestTranscriptionResultMessage:
         )
 
         assert message.segments_text == long_text
+
+
+class TestTranscribeAndSummarizeRequestMessage:
+    """Test cases for TranscribeAndSummarizeRequestMessage."""
+
+    def test_request_includes_optional_mode(self):
+        timestamp = int(datetime.now().timestamp() * 1000)
+        msg = TranscribeAndSummarizeRequestMessage(
+            chat_id=1,
+            audio_url="https://example.com/a.wav",
+            timestamp=timestamp,
+            mode="DICTATION",
+        )
+        assert msg.mode == "DICTATION"
+        assert msg.sample_rate == 8000
+
+    def test_request_mode_defaults_to_none(self):
+        timestamp = int(datetime.now().timestamp() * 1000)
+        msg = TranscribeAndSummarizeRequestMessage(
+            chat_id=1,
+            audio_url="https://example.com/a.wav",
+            timestamp=timestamp,
+        )
+        assert msg.mode is None
 
 
 class TestTranscribeAndSummarizeResponseMessage:

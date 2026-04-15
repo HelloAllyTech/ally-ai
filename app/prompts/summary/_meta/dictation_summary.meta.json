@@ -1,0 +1,4 @@
+{
+  "name": "Dictation Session Summary",
+  "description": "Generates a session summary for dictation mode (same structure as scribe for now)."
+}

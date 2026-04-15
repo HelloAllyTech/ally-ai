@@ -31,6 +31,7 @@ class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
     chat_id: int
     audio_url: str
     sample_rate: int = Field(default=8000)
+    mode: Optional[str] = None
 
 class TranscriptionResultMessage(BaseQueueMessage):
     """

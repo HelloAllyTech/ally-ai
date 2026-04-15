@@ -63,6 +63,16 @@ from app.utils.utterance_duration_calculator import (
 
 logger = get_logger(__name__)
 
+SCRIBE_SESSION_MODE_DICTATION = "DICTATION"
+
+
+def _structured_summary_template_path(session_mode: Optional[str]) -> str:
+    """Pick prompt template for post-call structured summary (scribe vs dictation)."""
+    if session_mode and str(session_mode).upper() == SCRIBE_SESSION_MODE_DICTATION:
+        return "summary/dictation_summary"
+    return "summary/summary"
+
+
 # Constants for chunking
 MAX_WORDS_PER_CHUNK = (
     2000  # Conservative limit based on word count (roughly equivalent to 3000 tokens)
@@ -334,6 +344,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         keys: Optional[List[str]] = None,
         chat_id: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
+        session_mode: Optional[str] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         start_time = time.time()
@@ -348,7 +359,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 )
             else:
                 result = await self._generate_structured_summary(
-                    chat_history, chat_history_str, prompts=prompts, **kwargs
+                    chat_history,
+                    chat_history_str,
+                    prompts=prompts,
+                    session_mode=session_mode,
+                    **kwargs,
                 )
 
             # Calculate processing time
@@ -428,11 +443,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history,
         chat_history_str,
         prompts: Optional[Dict[str, Any]] = None,
+        session_mode: Optional[str] = None,
         **kwargs,
     ):
         """Optimized structured summary with parallel processing."""
         # Start LLM call and metric calculation in parallel
-        template = load_template("summary/summary", prompts=prompts)
+        template = load_template(
+            _structured_summary_template_path(session_mode), prompts=prompts
+        )
         llm_task = self._invoke_llm(
             template.format(chat_history=chat_history_str),
             StructuredSummaryNote,

@@ -21,7 +21,12 @@ class ConcreteTextGenerationService(BaseTextGenerationService[MagicMock]):
         return "test nudge"
 
     async def generate_summary_notes(
-        self, chat_history: List[ChatMessage], keys: Optional[List[str]] = None
+        self,
+        chat_history: List[ChatMessage],
+        keys: Optional[List[str]] = None,
+        prompts: Optional[Dict[str, Any]] = None,
+        session_mode: Optional[str] = None,
+        **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """Concrete implementation of generate_summary_notes."""
         if keys:
@@ -232,7 +237,12 @@ class TestBaseTextGenerationService:
                 return "test"
 
             async def generate_summary_notes(
-                self, chat_history: List[ChatMessage], keys: Optional[List[str]] = None
+                self,
+                chat_history: List[ChatMessage],
+                keys: Optional[List[str]] = None,
+                prompts: Optional[Dict[str, Any]] = None,
+                session_mode: Optional[str] = None,
+                **kwargs,
             ):
                 return SummaryNoteAndTagsResponse(
                     session_summary="test", tags=[], call_quality=3

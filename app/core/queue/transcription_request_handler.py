@@ -106,7 +106,9 @@ class TranscriptionRequestHandler:
                 timestamp=int(time.time() * 1000),
             )
 
-            success = await self._process_transcription_result(result_message)
+            success = await self._process_transcription_result(
+                result_message, session_mode=request.mode
+            )
 
             if success:
                 logger.info(
@@ -168,7 +170,9 @@ class TranscriptionRequestHandler:
             )
             await self._send_error_response(chat_id, "Processing failed")
 
-    async def _process_transcription_result(self, request: TranscriptionResultMessage) -> bool:
+    async def _process_transcription_result(
+        self, request: TranscriptionResultMessage, session_mode: Optional[str] = None
+    ) -> bool:
         """
         Process the transcription result from Lambda and do diarization + summary.
 
@@ -222,7 +226,9 @@ class TranscriptionRequestHandler:
             ]
 
             # Generate summary
-            summary = await self._generate_summary(messages, chat_id)
+            summary = await self._generate_summary(
+                messages, chat_id, session_mode=session_mode
+            )
 
             # Convert to data format
             transcription_data = [
@@ -278,7 +284,12 @@ class TranscriptionRequestHandler:
             )
             return False
 
-    async def _generate_summary(self, messages: List[ChatMessage], chat_id: int) -> Dict[str, Any]:
+    async def _generate_summary(
+        self,
+        messages: List[ChatMessage],
+        chat_id: int,
+        session_mode: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Generate summary from diarized messages.
 
@@ -292,7 +303,9 @@ class TranscriptionRequestHandler:
         try:
             # Generate summary using text generation service
             summary = await self.text_generation_service.generate_summary_notes(
-                chat_history=messages, keys=None
+                chat_history=messages,
+                keys=None,
+                session_mode=session_mode,
             )
 
             return summary
