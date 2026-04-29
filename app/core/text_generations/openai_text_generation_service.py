@@ -87,27 +87,25 @@ def generate_dynamic_summary(
     fields: dict[str, Union[str, int]]
 ) -> dict[str, Union[str, int]]:
     """Generate a dynamic summary with the given fields."""
-    # Create a temporary StructuredSummaryNote instance for validation
     try:
-        # Convert values to appropriate types based on StructuredSummaryNote fields
-        validated_fields = {}
+        known_fields: dict = {}
+        unknown_fields: dict = {}
         for key, value in fields.items():
             field = StructuredSummaryNote.model_fields.get(key)
             if field:
                 if field.annotation == int:
-                    validated_fields[key] = int(value)
+                    known_fields[key] = int(value)
                 elif field.annotation == List[str]:
-                    validated_fields[key] = (
+                    known_fields[key] = (
                         value.split(",") if isinstance(value, str) else value
                     )
                 else:
-                    validated_fields[key] = value
+                    known_fields[key] = value
             else:
-                validated_fields[key] = value
+                unknown_fields[key] = value
 
-        # Validate using StructuredSummaryNote
-        _ = StructuredSummaryNote(**validated_fields)
-        return validated_fields
+        _ = StructuredSummaryNote(**known_fields)
+        return {**known_fields, **unknown_fields}
     except Exception as e:
         logger.error(f"Validation failed: {type(e).__name__}")
         return {}
@@ -345,6 +343,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_id: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
         session_mode: Optional[str] = None,
+        key_descriptions: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         start_time = time.time()
@@ -355,7 +354,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             if keys:
                 result = await self._generate_dynamic_summary(
-                    chat_history, chat_history_str, keys, prompts=prompts, **kwargs
+                    chat_history,
+                    chat_history_str,
+                    keys,
+                    prompts=prompts,
+                    key_descriptions=key_descriptions,
+                    **kwargs,
                 )
             else:
                 result = await self._generate_structured_summary(
@@ -417,19 +421,22 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         chat_history_str,
         keys,
         prompts: Optional[Dict[str, Any]] = None,
+        key_descriptions: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         precomputed = await self._calculate_metrics(
             chat_history, chat_history_str, keys, prompts=prompts
         )
 
-        key_descriptions = self._get_key_descriptions(keys)
-        if not key_descriptions:
+        key_descriptions_str = self._get_key_descriptions(
+            keys, extra_descriptions=key_descriptions
+        )
+        if not key_descriptions_str:
             return DynamicSummaryNoteResponse(fields=precomputed)
 
         template = load_template("summary/dynamic_summary", prompts=prompts)
         prompt = template.format(
-            chat_history=chat_history_str, key_descriptions=key_descriptions
+            chat_history=chat_history_str, key_descriptions=key_descriptions_str
         )
         model = self.model.bind_tools([generate_dynamic_summary])
         response = await model.ainvoke(prompt)
@@ -552,12 +559,18 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 return fields.get("fields", {})
         return {}
 
-    def _get_key_descriptions(self, keys: list[str]) -> str:
+    def _get_key_descriptions(
+        self,
+        keys: list[str],
+        extra_descriptions: Optional[Dict[str, str]] = None,
+    ) -> str:
         descriptions = []
         for key in keys:
             field = StructuredSummaryNote.model_fields.get(key)
             if field and field.description:
                 descriptions.append(f"- {key}: {field.description}")
+            elif extra_descriptions and key in extra_descriptions:
+                descriptions.append(f"- {key}: {extra_descriptions[key]}")
         return "\n".join(descriptions)
 
     async def enhance_content(

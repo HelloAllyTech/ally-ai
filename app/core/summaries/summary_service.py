@@ -31,6 +31,7 @@ class SummaryService:
         chat_history: List[ChatMessage],
         chat_id: Optional[str] = None,
         keys: Optional[List[str]] = None,
+        key_descriptions: Optional[Dict[str, str]] = None,
         prompts: Optional[Dict[str, Any]] = None,
     ) -> Union[SummaryNoteAndTagsResponse, DynamicSummaryNoteResponse]:
         """
@@ -55,7 +56,11 @@ class SummaryService:
         try:
             # Generate the summary note
             result = await self.text_generation_service.generate_summary_notes(
-                chat_history, keys, chat_id=chat_id, prompts=prompts
+                chat_history,
+                keys,
+                chat_id=chat_id,
+                prompts=prompts,
+                key_descriptions=key_descriptions,
             )
 
             # Calculate processing time

@@ -137,6 +137,10 @@ class SummaryNoteAndTagsRequest(BaseModel):
         description="Optional list of keys to include in the response. If provided, "
         "only these fields will be included and a dynamic response will be generated.",
     )
+    key_descriptions: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional descriptions for custom keys not in the standard schema.",
+    )
     prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )

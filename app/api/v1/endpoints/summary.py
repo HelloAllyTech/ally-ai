@@ -44,6 +44,7 @@ async def create_note_and_tags(
             await summary_service.generate_summary_and_tags(
                 request.chat_history,
                 keys=request.keys,
+                key_descriptions=request.key_descriptions,
                 prompts=request.prompts,
             )
         )
