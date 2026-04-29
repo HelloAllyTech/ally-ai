@@ -74,7 +74,7 @@ class TestSummaryService:
         # Assert
         assert result == expected_response
         mock_text_generation_service.generate_summary_notes.assert_called_once_with(
-            sample_chat_messages, None, chat_id=None, prompts=None
+            sample_chat_messages, None, chat_id=None, prompts=None, key_descriptions=None
         )
 
     @pytest.mark.asyncio
@@ -102,7 +102,7 @@ class TestSummaryService:
         # Assert
         assert result == expected_response
         mock_text_generation_service.generate_summary_notes.assert_called_once_with(
-            sample_chat_messages, keys, chat_id=None, prompts=None
+            sample_chat_messages, keys, chat_id=None, prompts=None, key_descriptions=None
         )
 
     @pytest.mark.asyncio
