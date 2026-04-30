@@ -1,0 +1,58 @@
+version: "3.8"
+
+# Local-dev compose for ally-ai that reuses ally-be's existing localstack
+# (already running on host port 4566 with the sqs-ai-* queues created).
+# - Maps host port 3001 -> container 8000 to match ally-be's AI_SERVICE_API_URL.
+# - Connects to host services (localstack, ally-be) via host.docker.internal.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      WEAVIATE__HTTP_HOST: weaviate
+      WEAVIATE__GRPC_HOST: weaviate
+    ports:
+      - "3001:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      [
+        "bash",
+        "-c",
+        "poetry run python scripts/migrate.py all && (poetry run python scripts/sync_prompts.py || echo 'sync_prompts failed, continuing') && (poetry run python -m app.main & poetry run python -m app.core.queue.transcription_request_sqs_worker & wait -n)",
+      ]
+    depends_on:
+      weaviate:
+        condition: service_started
+    networks:
+      - ally-ai-local
+
+  weaviate:
+    image: semitechnologies/weaviate:1.28.3
+    ports:
+      - "8089:8080"
+      - "50052:50051"
+    environment:
+      - QUERY_DEFAULTS_LIMIT=20
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate-lifeline
+      - ENABLE_CONSOLE=true
+      - CLUSTER_HOSTNAME=weaviate
+      - CLUSTER_SINGLE_NODE_MODE=true
+    volumes:
+      - weaviate_data:/var/lib/weaviate-lifeline
+    networks:
+      - ally-ai-local
+
+volumes:
+  weaviate_data:
+    driver: local
+
+networks:
+  ally-ai-local:
+    driver: bridge
