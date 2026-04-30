@@ -549,14 +549,24 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         return results
 
     def _extract_tool_fields(self, response) -> dict[str, Any]:
-        if (
-            hasattr(response, "additional_kwargs")
-            and "tool_calls" in response.additional_kwargs
-        ):
-            tool_call = response.additional_kwargs["tool_calls"][0]
+        # LangChain exposes parsed tool calls on AIMessage.tool_calls (each entry
+        # already has parsed `args`). Older LangChain versions only populated
+        # additional_kwargs["tool_calls"] (with stringified `arguments`). Try
+        # the modern surface first, then fall back to the legacy one.
+        tool_calls = getattr(response, "tool_calls", None)
+        if tool_calls:
+            for tc in tool_calls:
+                if tc.get("name") == "generate_dynamic_summary":
+                    args = tc.get("args") or {}
+                    return args.get("fields", {})
+
+        legacy = getattr(response, "additional_kwargs", {}).get("tool_calls")
+        if legacy:
+            tool_call = legacy[0]
             if tool_call["function"]["name"] == "generate_dynamic_summary":
                 fields = json.loads(tool_call["function"]["arguments"])
                 return fields.get("fields", {})
+
         return {}
 
     def _get_key_descriptions(
