@@ -39,6 +39,20 @@ venv.bak/
 # dotenv files (for local environment variables)
 .env
 .env.*
+!env_sample
+
+# Secrets / certs / dumps (never commit)
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.dump
+*.sql
+*.swp
+scan_report.*
+.secrets/
 
 # Pytest cache and related files
 .pytest_cache/
