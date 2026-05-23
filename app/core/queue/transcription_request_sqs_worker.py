@@ -145,6 +145,8 @@ async def main():
     finally:
         # Critical: Close the SQS client to shut down its ThreadPoolExecutor
         logger.info("Cleaning up SQS client...")
+        if 'queue_service' in locals():
+            await queue_service.close()
         await SQSQueueClient.close_client()
         logger.info("SQS client cleanup completed")
 

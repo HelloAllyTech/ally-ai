@@ -25,16 +25,13 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_weaviate_semaphore = Semaphore(
-    settings.WEAVIATE.CONCURRENT_REQUESTS
-)  # Initialize Semaphore
-
 
 class WeaviateDB(VectorDB):
     def __init__(
         self, client: WeaviateAsyncClient, embedding_service: BaseEmbeddingService
     ) -> None:
         self.embedding_service = embedding_service
+        self._semaphore = Semaphore(settings.WEAVIATE.CONCURRENT_REQUESTS)
         super().__init__(client)
 
     async def similarity_search(
@@ -64,7 +61,7 @@ class WeaviateDB(VectorDB):
         collection = self.client.collections.get(VectorDBCollectionNames.CONVERSATIONS)
 
         try:
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 return await collection.query.near_vector(
                     near_vector=vector,
                     limit=top_k,
@@ -149,7 +146,7 @@ class WeaviateDB(VectorDB):
             collection = self.client.collections.get(collection_name)
 
             # Create the document with the specified UUID
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 result_id = await collection.data.insert(
                     properties=document_data, vector=vector, uuid=document_id
                 )
@@ -183,7 +180,7 @@ class WeaviateDB(VectorDB):
             collection = self.client.collections.get(collection_name)
 
             # Get the document
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 result = await collection.query.fetch_objects(
                     limit=1,
                     filters=wvc.query.Filter.by_id().equal(document_id),
@@ -236,7 +233,7 @@ class WeaviateDB(VectorDB):
             collection = self.client.collections.get(collection_name)
 
             # Update the document directly without checking existence
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 await collection.data.update(
                     uuid=document_id, properties=document_data, vector=vector
                 )
@@ -261,7 +258,7 @@ class WeaviateDB(VectorDB):
             collection = self.client.collections.get(collection_name)
 
             # Delete the document
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 await collection.data.delete_by_id(document_id)
 
         except Exception as e:
@@ -364,7 +361,7 @@ class WeaviateDB(VectorDB):
             total = 0
             categories = {}
             # Single aggregation call that gets both total count and category breakdown
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 # Use near_vector for aggregation (more reliable than near_text)
                 agg_result = await collection.aggregate.near_vector(
                     near_vector=vector,
@@ -381,7 +378,7 @@ class WeaviateDB(VectorDB):
                     total += category_count
 
             # Execute the main query with the appropriate parameters
-            async with _weaviate_semaphore:
+            async with self._semaphore:
                 result = await collection.query.near_vector(
                     near_vector=vector,
                     limit=limit,
