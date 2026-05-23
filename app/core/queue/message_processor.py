@@ -26,7 +26,6 @@ class MessageProcessor:
         visibility_timeout: int = 30,
         polling_interval: int = 0,
         delete_after_processing: bool = True,
-        max_concurrent_messages: int = 3,
     ):
         """
         Initialize the message processor.
@@ -44,10 +43,6 @@ class MessageProcessor:
                 attempts. 0 means continuous polling.
             delete_after_processing (bool): Whether to automatically delete messages
             after successful processing.
-            max_concurrent_messages (int): Upper bound on messages processed in
-                parallel per poll cycle. Each processed message may hold an
-                audio blob + LLM call in memory; without this bound the worker
-                memory-spikes linearly with max_messages.
         """
         self.queue_service = queue_service
         self.handler = handler
@@ -57,10 +52,8 @@ class MessageProcessor:
         self.visibility_timeout = visibility_timeout
         self.polling_interval = polling_interval
         self.delete_after_processing = delete_after_processing
-        self.max_concurrent_messages = max(1, max_concurrent_messages)
         self._running = False
         self._task = None
-        self._process_semaphore = asyncio.Semaphore(self.max_concurrent_messages)
 
     async def process_message(self, message: Dict[str, Any]) -> None:
         """
@@ -183,16 +176,9 @@ class MessageProcessor:
                     f"Received {len(messages)} messages from queue {self.queue_url}"
                 )
 
-                # Bound concurrency: SQS may hand us up to max_messages (default 10)
-                # per poll, but processing each may load an audio blob and call an
-                # LLM. Without this semaphore the worker's memory spikes linearly
-                # with batch size.
-                async def _bounded(msg: Dict[str, Any]) -> None:
-                    async with self._process_semaphore:
-                        await self.process_message(msg)
-
+                # Process each message
                 await asyncio.gather(
-                    *[_bounded(message) for message in messages],
+                    *[self.process_message(message) for message in messages],
                     return_exceptions=True,
                 )
 
