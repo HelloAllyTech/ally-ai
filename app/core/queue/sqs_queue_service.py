@@ -29,6 +29,13 @@ class SQSQueueService:
         self.client = client
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
+    async def close(self):
+        """
+        Shutdown the thread pool executor to release resources.
+        """
+        if self._executor:
+            self._executor.shutdown(wait=True)
+
     async def _run_in_executor(self, func, *args, **kwargs):
         """
         Run a function in the executor.

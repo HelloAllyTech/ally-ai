@@ -1,6 +1,7 @@
 # dependencies.py
 import httpx
 from fastapi import Depends
+from functools import lru_cache
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from weaviate.client import WeaviateAsyncClient
 
@@ -38,10 +39,14 @@ async def get_ally_core_client() -> httpx.AsyncClient:
     return AllyCoreClient.get_client()
 
 
+@lru_cache()
+def get_ally_core_service_cached(client: httpx.AsyncClient) -> AllyCoreService:
+    return AllyCoreService(client)
+
 async def get_ally_core_service(
     client=Depends(get_ally_core_client),
 ) -> AllyCoreService:
-    return AllyCoreService(client)
+    return get_ally_core_service_cached(client)
 
 
 # Dependency for the OpenAI embedding client
@@ -60,6 +65,10 @@ def get_openai_text_generation_client() -> ChatOpenAI:
     return OpenAITextGenerationClient.get_client()
 
 
+@lru_cache()
+def get_embedding_service_cached(client: OpenAIEmbeddings) -> BaseEmbeddingService:
+    return OpenAIEmbeddingService(client)
+
 # Dependency for the OpenAI embedding service
 def get_embedding_service(
     client=Depends(get_openai_embedding_client),
@@ -68,8 +77,16 @@ def get_embedding_service(
     Returns an instance of the BaseEmbeddingService.
     Uses the singleton OpenAI embedding client.
     """
-    return OpenAIEmbeddingService(client)
+    return get_embedding_service_cached(client)
 
+
+@lru_cache()
+def get_text_generation_service_cached(
+    client: ChatOpenAI, embedding_service: BaseEmbeddingService
+) -> BaseTextGenerationService:
+    return OpenAITextGenerationService(
+        client=client, embedding_service=embedding_service
+    )
 
 # Dependency for the OpenAI text generation service
 def get_text_generation_service(
@@ -80,10 +97,14 @@ def get_text_generation_service(
     Returns an instance of the BaseTextGenerationService.
     Uses the singleton OpenAI text generation client.
     """
-    return OpenAITextGenerationService(
-        client=client, embedding_service=embedding_service
-    )
+    return get_text_generation_service_cached(client, embedding_service)
 
+
+@lru_cache()
+def get_vector_db_cached(
+    client: WeaviateAsyncClient, embedding_service: BaseEmbeddingService
+) -> VectorDB:
+    return WeaviateDB(client, embedding_service)
 
 # Dependency for the vector database, which combines the Weaviate client and
 # embedding service
@@ -94,8 +115,14 @@ async def get_vector_db(
     """
     Returns an instance of VectorDB.
     """
-    return WeaviateDB(client, embedding_service)
+    return get_vector_db_cached(client, embedding_service)
 
+
+@lru_cache()
+def get_conversation_service_cached(
+    text_generation_service: BaseTextGenerationService, vector_db: VectorDB
+) -> ConversationService:
+    return ConversationService(text_generation_service, vector_db)
 
 # Dependency for the conversation service, which uses both the text generation
 # service and vector DB
@@ -106,8 +133,14 @@ async def get_conversation_service(
     """
     Returns an instance of ConversationService.
     """
-    return ConversationService(text_generation_service, vector_db)
+    return get_conversation_service_cached(text_generation_service, vector_db)
 
+
+@lru_cache()
+def get_summary_service_cached(
+    text_generation_service: BaseTextGenerationService,
+) -> SummaryService:
+    return SummaryService(text_generation_service)
 
 # Dependency for the summary service, which uses the text generation service
 async def get_summary_service(
@@ -116,8 +149,14 @@ async def get_summary_service(
     """
     Returns an instance of SummaryService.
     """
-    return SummaryService(text_generation_service)
+    return get_summary_service_cached(text_generation_service)
 
+
+@lru_cache()
+def get_reference_document_service_cached(
+    vector_db: VectorDB, embedding_service: BaseEmbeddingService
+) -> ReferenceDocumentService:
+    return ReferenceDocumentService(vector_db, embedding_service)
 
 # Dependency for the reference document service
 async def get_reference_document_service(
@@ -126,4 +165,4 @@ async def get_reference_document_service(
     """
     Returns an instance of ReferenceDocumentService.
     """
-    return ReferenceDocumentService(vector_db, embedding_service)
+    return get_reference_document_service_cached(vector_db, embedding_service)
