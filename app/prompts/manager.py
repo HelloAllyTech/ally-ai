@@ -22,6 +22,9 @@ class PromptManager:
         """
         Retrieves a prompt template from the filesystem.
         Uses LRU cache to avoid frequent disk I/O.
+        Note: Because of lru_cache, templates will NOT hot-reload if changed
+        on disk while the server is running. You must call clear_cache()
+        or restart the server to see changes.
         """
         file_path = self.base_dir / file_key / f"{prompt_key}.txt"
 
