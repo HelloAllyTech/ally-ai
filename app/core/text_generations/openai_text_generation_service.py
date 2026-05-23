@@ -536,14 +536,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         for key in keys_to_process:
             if key in simple_dispatch:
                 fn = simple_dispatch[key]
-                # Offload the dispatch to a worker thread so any sync CPU work
-                # (language detection, affirmation counting, etc.) does not
-                # block the event loop. For async metric fns, `to_thread` just
-                # returns the coroutine cheaply and we await it on the loop.
-                value = await asyncio.to_thread(fn)
-                if asyncio.iscoroutine(value):
-                    value = await value
-                results[key] = value
+                value = fn()
+                results[key] = await value if asyncio.iscoroutine(value) else value
 
             elif key in counselor_analysis_keys:
                 if counselor_analysis is None:
