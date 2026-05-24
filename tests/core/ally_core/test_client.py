@@ -28,6 +28,8 @@ async def test_get_client_raises_if_not_initialized():
 async def test_create_client_creates_httpx_client():
     with patch("app.core.ally_core.client.settings") as mock_settings:
         mock_settings.ALLY_CORE.ENDPOINT = "https://ally-core.test"
+        mock_settings.ALLY_CORE.MAX_CONNECTIONS = 100
+        mock_settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS = 20
 
         await AllyCoreClient.create_client()
         client = AllyCoreClient.get_client()
@@ -43,6 +45,8 @@ async def test_create_client_is_idempotent():
     """
     with patch("app.core.ally_core.client.settings") as mock_settings:
         mock_settings.ALLY_CORE.ENDPOINT = "https://ally-core.test"
+        mock_settings.ALLY_CORE.MAX_CONNECTIONS = 100
+        mock_settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS = 20
 
         await AllyCoreClient.create_client()
         client1 = AllyCoreClient.get_client()
@@ -57,6 +61,8 @@ async def test_create_client_is_idempotent():
 async def test_client_timeout_and_limits():
     with patch("app.core.ally_core.client.settings") as mock_settings:
         mock_settings.ALLY_CORE.ENDPOINT = "https://ally-core.test"
+        mock_settings.ALLY_CORE.MAX_CONNECTIONS = 100
+        mock_settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS = 20
 
         await AllyCoreClient.create_client()
         client = AllyCoreClient.get_client()

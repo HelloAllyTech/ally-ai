@@ -63,6 +63,9 @@ class TestTranscriptionRequestSQSWorker:
             def __init__(self, client):
                 self.client = client
 
+            async def close(self):
+                pass
+
         class FakeAllyCoreClient:
             @classmethod
             async def create_client(cls):
