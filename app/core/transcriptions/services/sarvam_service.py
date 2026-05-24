@@ -8,7 +8,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple
 
 from app.core.config import settings
 from sarvamai import AsyncSarvamAI
@@ -328,11 +328,21 @@ class SarvamTranscriptionService:
                 if text and text.strip():
                     all_segments.append((0.0, 0.0, text.strip()))
 
+            # File reads are wrapped in asyncio.to_thread — these output
+            # files may be large and looping blocking-IO on the event loop
+            # would stall every other coroutine for the duration.
+            def _read_json(path: Path) -> Any:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+
+            def _read_text(path: Path) -> str:
+                with open(path, "r", encoding="utf-8") as f:
+                    return f.read()
+
             # Parse JSON outputs (aggregate all)
             for jf in json_files:
                 try:
-                    with open(jf, "r", encoding="utf-8") as f:
-                        data = json.load(f)
+                    data = await asyncio.to_thread(_read_json, jf)
 
                     # Case 1: word-level data
                     if (
@@ -426,10 +436,10 @@ class SarvamTranscriptionService:
             # Parse TXT outputs (fallback)
             for tf in txt_files:
                 try:
-                    with open(tf, "r", encoding="utf-8") as f:
-                        lines = f.read().splitlines()
-                        text = " ".join(l for l in lines if l.strip())
-                        add_plain_text_segment(text)
+                    txt_content = await asyncio.to_thread(_read_text, tf)
+                    lines = txt_content.splitlines()
+                    text = " ".join(l for l in lines if l.strip())
+                    add_plain_text_segment(text)
                 except Exception as te:
                     logger.warning(
                         f"Failed to read TXT output {tf.name}: {type(te).__name__}"
@@ -446,8 +456,8 @@ class SarvamTranscriptionService:
 
             for sf in srt_files:
                 try:
-                    with open(sf, "r", encoding="utf-8") as f:
-                        blocks = f.read().split("\n\n")
+                    srt_content = await asyncio.to_thread(_read_text, sf)
+                    blocks = srt_content.split("\n\n")
                     for block in blocks:
                         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
                         if len(lines) >= 2 and "-->" in lines[0]:
