@@ -150,9 +150,16 @@ class DeepgramTranscriptionService:
                 )
             )
 
-            # Read the audio file
-            with open(wav_file_path, "rb") as audio_file:
-                buffer_data = audio_file.read()
+            # Read the audio file off the event loop — full audio payloads
+            # can be many MB and `.read()` on the main thread would stall
+            # other coroutines for tens of ms per call.
+            def _read_audio_bytes(path: str) -> bytes:
+                with open(path, "rb") as f:
+                    return f.read()
+
+            buffer_data = await asyncio.to_thread(
+                _read_audio_bytes, wav_file_path
+            )
 
             # Create buffer source
             payload = BufferSource(buffer=buffer_data)

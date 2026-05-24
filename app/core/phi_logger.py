@@ -184,7 +184,10 @@ class PHILoggerService:
                 "timestamp": int(time.time() * 1000),
                 "message": json.dumps(log_entry),
             }
-            self.cloudwatch_client.put_log_events(
+            # boto3 is sync — offload to a thread so this async path doesn't
+            # block the event loop on the CloudWatch network round-trip.
+            await asyncio.to_thread(
+                self.cloudwatch_client.put_log_events,
                 logGroupName=self.log_group_name,
                 logStreamName=self.log_stream_name,
                 logEvents=[log_event],
