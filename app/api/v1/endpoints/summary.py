@@ -146,6 +146,15 @@ async def generate_scenario_evaluation(
     - session_glimpse: Brief overview of the current session
     - cumulative_memory: Comprehensive cumulative narrative across sessions
     """
+    logger.info(
+        "scenario/evaluate received (chat_history_len=%d, need_memory=%s, "
+        "has_previous_memory=%s, has_memory_prompt=%s, has_prompt_overrides=%s)",
+        len(request.chat_history),
+        request.need_memory,
+        request.previous_memory is not None,
+        request.memory_prompt is not None,
+        request.prompts is not None,
+    )
     try:
         evaluation_response = await summary_service.generate_scenario_evaluation(
             chat_history=request.chat_history,
@@ -155,6 +164,12 @@ async def generate_scenario_evaluation(
             prompts=request.prompts,
         )
 
+        logger.info(
+            "scenario/evaluate succeeded (keys=%s)",
+            list(evaluation_response.keys())
+            if isinstance(evaluation_response, dict)
+            else "non-dict",
+        )
         return ScenarioEvaluationResponse(**evaluation_response)
     except CounselorTrainingAnalysisFailedException:
         logger.exception(

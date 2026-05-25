@@ -256,6 +256,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 - Otherwise, returns the raw response content as a string.
         """
 
+        logger.debug(
+            "_invoke_llm: waiting for rate_limiter (output_class=%s)",
+            output_class.__name__ if output_class else None,
+        )
         await rate_limiter.acquire()
 
         async with self.semaphore:
@@ -266,18 +270,40 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             if output_class:
                 llm = llm.with_structured_output(output_class)
 
+            logger.info(
+                "_invoke_llm: calling llm.ainvoke (output_class=%s)",
+                output_class.__name__ if output_class else None,
+            )
             try:
                 response = await llm.ainvoke(messages)
+                logger.info(
+                    "_invoke_llm: llm.ainvoke returned "
+                    "(response_type=%s, response_is_none=%s)",
+                    type(response).__name__,
+                    response is None,
+                )
             except openai.RateLimitError as e:
-                logger.exception(f"Error: {type(e).__name__}")
+                logger.exception("_invoke_llm: RateLimitError: %s", str(e))
                 raise LLMInvocationFailedException(
                     "OpenAI API rate limit exceeded. Please try again later."
                 ) from e
 
             except openai.APIConnectionError as e:
-                logger.exception(f"Error: {type(e).__name__}")
+                logger.exception("_invoke_llm: APIConnectionError: %s", str(e))
                 raise LLMInvocationFailedException(
                     "OpenAI API error. Please try again later."
+                ) from e
+
+            except Exception as e:
+                logger.exception(
+                    "_invoke_llm: unexpected %s during llm.ainvoke "
+                    "(output_class=%s): %s",
+                    type(e).__name__,
+                    output_class.__name__ if output_class else None,
+                    str(e),
+                )
+                raise LLMInvocationFailedException(
+                    f"LLM invocation failed: {type(e).__name__}"
                 ) from e
 
             return response if output_class else response.content
@@ -1008,10 +1034,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         Raises:
             LLMInvocationFailedException: If LLM invocation fails
         """
-        logger.info("Generating scenario evaluation using OpenAI")
+        logger.info(
+            "OpenAI.generate_scenario_evaluation: starting "
+            "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s, "
+            "has_memory_prompt=%s, has_prompt_overrides=%s)",
+            len(chat_history),
+            need_memory,
+            previous_memory is not None,
+            memory_prompt is not None,
+            prompts is not None,
+        )
 
         # Map UUIDs to compact keys to reduce token usage
         uuid_to_key, key_to_uuid = build_id_mapping(chat_history)
+        logger.debug(
+            "OpenAI.generate_scenario_evaluation: id mapping built (count=%d)",
+            len(uuid_to_key),
+        )
 
         # Convert chat history to string format using keys
         chat_history_str = "\n".join(
@@ -1056,6 +1095,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ),
                 )
                 response_model = ScenarioEvaluationWithMemory
+                logger.info(
+                    "OpenAI.generate_scenario_evaluation: prompt loaded "
+                    "(template=scenario/scenario_evaluation_with_memory, "
+                    "prompt_chars=%d)",
+                    len(formatted_prompt) if isinstance(formatted_prompt, str) else -1,
+                )
             else:
                 formatted_prompt = load_and_format(
                     "scenario/scenario_evaluation",
@@ -1069,7 +1114,17 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ),
                 )
                 response_model = ScenarioEvaluation
+                logger.info(
+                    "OpenAI.generate_scenario_evaluation: prompt loaded "
+                    "(template=scenario/scenario_evaluation, prompt_chars=%d)",
+                    len(formatted_prompt) if isinstance(formatted_prompt, str) else -1,
+                )
 
+            logger.info(
+                "OpenAI.generate_scenario_evaluation: invoking LLM "
+                "(response_model=%s)",
+                response_model.__name__,
+            )
             response = cast(
                 response_model,
                 await self._invoke_llm(
@@ -1079,7 +1134,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 ),
             )
 
-            logger.info("Scenario evaluation generated successfully")
+            logger.info(
+                "OpenAI.generate_scenario_evaluation: LLM returned "
+                "(response_type=%s, response_is_none=%s)",
+                type(response).__name__,
+                response is None,
+            )
 
             # Build result: validate keys and remap back to UUIDs
             # Convert areas_of_growth to dict format and populate
@@ -1123,10 +1183,33 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 result["session_glimpse"] = response.session_glimpse
                 result["cumulative_memory"] = response.cumulative_memory
 
+            logger.info(
+                "OpenAI.generate_scenario_evaluation: post-processing complete "
+                "(areas_of_growth=%d, positives=%d, message_tags=%d, "
+                "emotional_movement=%d, skill_coverage=%d, has_memory=%s)",
+                len(result.get("areas_of_growth", [])),
+                len(result.get("positives", [])),
+                len(result.get("message_tags", [])),
+                len(result.get("emotional_movement", [])),
+                len(result.get("skill_coverage", [])),
+                need_memory,
+            )
             return result
 
         except LLMInvocationFailedException as e:
-            logger.exception("Failed to generate scenario evaluation")
+            logger.exception(
+                "OpenAI.generate_scenario_evaluation: LLMInvocationFailedException: %s",
+                str(e),
+            )
             raise LLMInvocationFailedException(
                 "Failed to generate scenario evaluation"
             ) from e
+
+        except Exception as e:
+            logger.exception(
+                "OpenAI.generate_scenario_evaluation: unexpected %s during "
+                "post-processing or prompt loading: %s",
+                type(e).__name__,
+                str(e),
+            )
+            raise

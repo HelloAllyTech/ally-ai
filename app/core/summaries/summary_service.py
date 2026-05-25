@@ -314,6 +314,16 @@ class SummaryService:
         """
         start_time = time.time()
 
+        logger.info(
+            "SummaryService.generate_scenario_evaluation: starting "
+            "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s, "
+            "chat_id=%s)",
+            len(chat_history),
+            need_memory,
+            previous_memory is not None,
+            chat_id,
+        )
+
         try:
             result = await self.text_generation_service.generate_scenario_evaluation(
                 chat_history,
@@ -326,6 +336,13 @@ class SummaryService:
 
             # Calculate processing time
             processing_time_ms = int((time.time() - start_time) * 1000)
+            logger.info(
+                "SummaryService.generate_scenario_evaluation: text_generation_service "
+                "returned (processing_time_ms=%d, result_type=%s, result_keys=%s)",
+                processing_time_ms,
+                type(result).__name__,
+                list(result.keys()) if isinstance(result, dict) else "non-dict",
+            )
 
             # Log successful completion
             await phi_logger.log(
@@ -383,3 +400,18 @@ class SummaryService:
             raise CounselorTrainingAnalysisFailedException(
                 "Failed to generate scenario evaluation. " "Please try again later."
             ) from e
+
+        except Exception as e:
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            logger.exception(
+                "Unexpected error in SummaryService.generate_scenario_evaluation "
+                "(exception_type=%s, chat_history_len=%d, need_memory=%s, "
+                "chat_id=%s, processing_time_ms=%d): %s",
+                type(e).__name__,
+                len(chat_history),
+                need_memory,
+                chat_id,
+                processing_time_ms,
+                str(e),
+            )
+            raise
