@@ -157,12 +157,26 @@ async def generate_scenario_evaluation(
 
         return ScenarioEvaluationResponse(**evaluation_response)
     except CounselorTrainingAnalysisFailedException:
+        logger.exception(
+            "scenario/evaluate failed: CounselorTrainingAnalysisFailedException "
+            "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s)",
+            len(request.chat_history),
+            request.need_memory,
+            request.previous_memory is not None,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Counselor training analysis generation failed",
         )
     except Exception as e:
-        logger.exception(f"Unexpected error: {type(e).__name__}")
+        logger.exception(
+            "scenario/evaluate unexpected error %s "
+            "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s)",
+            type(e).__name__,
+            len(request.chat_history),
+            request.need_memory,
+            request.previous_memory is not None,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Something went wrong. Please try again later.",

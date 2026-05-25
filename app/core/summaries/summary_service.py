@@ -370,7 +370,16 @@ class SummaryService:
                 )
             )
 
-            logger.error(f"Failed to generate scenario evaluation: {str(e)}")
+            logger.exception(
+                "Failed to generate scenario evaluation "
+                "(chat_history_len=%d, need_memory=%s, chat_id=%s, "
+                "processing_time_ms=%d): %s",
+                len(chat_history),
+                need_memory,
+                chat_id,
+                processing_time_ms,
+                str(e),
+            )
             raise CounselorTrainingAnalysisFailedException(
                 "Failed to generate scenario evaluation. " "Please try again later."
             ) from e
