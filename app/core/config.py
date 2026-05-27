@@ -89,6 +89,8 @@ class LLMSettings(BaseModel):
 class AllyCoreSettings(BaseModel):
     ENDPOINT: str = Field("localhost")
     API_KEY: str = Field(...)
+    MAX_CONNECTIONS: int = Field(100)
+    MAX_KEEPALIVE_CONNECTIONS: int = Field(20)
 
 
 class HipaaAuditSettings(BaseModel):

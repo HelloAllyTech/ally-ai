@@ -33,8 +33,8 @@ class AllyCoreClient:
                     pool=5.0,
                 ),
                 limits=httpx.Limits(
-                    max_connections=getattr(settings.ALLY_CORE, 'MAX_CONNECTIONS', 100),
-                    max_keepalive_connections=getattr(settings.ALLY_CORE, 'MAX_KEEPALIVE_CONNECTIONS', 20),
+                    max_connections=settings.ALLY_CORE.MAX_CONNECTIONS,
+                    max_keepalive_connections=settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS,
                 ),
             )
 

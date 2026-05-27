@@ -1,5 +1,6 @@
 # dependencies.py
 import httpx
+from functools import lru_cache
 from fastapi import Depends
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from weaviate.client import WeaviateAsyncClient
@@ -38,10 +39,15 @@ async def get_ally_core_client() -> httpx.AsyncClient:
     return AllyCoreClient.get_client()
 
 
+@lru_cache(maxsize=1)
+def _get_ally_core_service_cached() -> AllyCoreService:
+    return AllyCoreService(AllyCoreClient.get_client())
+
+
 async def get_ally_core_service(
     client=Depends(get_ally_core_client),
 ) -> AllyCoreService:
-    return AllyCoreService(client)
+    return _get_ally_core_service_cached()
 
 
 # Dependency for the OpenAI embedding client
@@ -60,6 +66,11 @@ def get_openai_text_generation_client() -> ChatOpenAI:
     return OpenAITextGenerationClient.get_client()
 
 
+@lru_cache(maxsize=1)
+def _get_embedding_service_cached() -> BaseEmbeddingService:
+    return OpenAIEmbeddingService(OpenAIEmbeddingClient.get_client())
+
+
 # Dependency for the OpenAI embedding service
 def get_embedding_service(
     client=Depends(get_openai_embedding_client),
@@ -68,7 +79,15 @@ def get_embedding_service(
     Returns an instance of the BaseEmbeddingService.
     Uses the singleton OpenAI embedding client.
     """
-    return OpenAIEmbeddingService(client)
+    return _get_embedding_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_text_generation_service_cached() -> BaseTextGenerationService:
+    return OpenAITextGenerationService(
+        client=OpenAITextGenerationClient.get_client(),
+        embedding_service=_get_embedding_service_cached(),
+    )
 
 
 # Dependency for the OpenAI text generation service
@@ -80,8 +99,14 @@ def get_text_generation_service(
     Returns an instance of the BaseTextGenerationService.
     Uses the singleton OpenAI text generation client.
     """
-    return OpenAITextGenerationService(
-        client=client, embedding_service=embedding_service
+    return _get_text_generation_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_vector_db_cached() -> VectorDB:
+    return WeaviateDB(
+        WeaviateClient.get_client(),
+        _get_embedding_service_cached(),
     )
 
 
@@ -94,7 +119,15 @@ async def get_vector_db(
     """
     Returns an instance of VectorDB.
     """
-    return WeaviateDB(client, embedding_service)
+    return _get_vector_db_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_conversation_service_cached() -> ConversationService:
+    return ConversationService(
+        _get_text_generation_service_cached(),
+        _get_vector_db_cached(),
+    )
 
 
 # Dependency for the conversation service, which uses both the text generation
@@ -106,7 +139,12 @@ async def get_conversation_service(
     """
     Returns an instance of ConversationService.
     """
-    return ConversationService(text_generation_service, vector_db)
+    return _get_conversation_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_summary_service_cached() -> SummaryService:
+    return SummaryService(_get_text_generation_service_cached())
 
 
 # Dependency for the summary service, which uses the text generation service
@@ -116,7 +154,15 @@ async def get_summary_service(
     """
     Returns an instance of SummaryService.
     """
-    return SummaryService(text_generation_service)
+    return _get_summary_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_reference_document_service_cached() -> ReferenceDocumentService:
+    return ReferenceDocumentService(
+        _get_vector_db_cached(),
+        _get_embedding_service_cached(),
+    )
 
 
 # Dependency for the reference document service
@@ -126,4 +172,4 @@ async def get_reference_document_service(
     """
     Returns an instance of ReferenceDocumentService.
     """
-    return ReferenceDocumentService(vector_db, embedding_service)
+    return _get_reference_document_service_cached()
