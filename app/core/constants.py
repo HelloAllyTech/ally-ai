@@ -71,7 +71,12 @@ class SQSWorkerConstants:
 
     MAX_MESSAGES: Final[int] = 10
     WAIT_TIME_SECONDS: Final[int] = 10
-    VISIBILITY_TIMEOUT: Final[int] = 120
+    # Must exceed the worst-case end-to-end processing time of a single message
+    # (download + transcription + diarization + summary). Sarvam alone allows a
+    # 600s job timeout, so a 120s visibility window let SQS redeliver the message
+    # mid-flight and a second worker would process the same chat concurrently.
+    # Keep this comfortably above the longest provider timeout.
+    VISIBILITY_TIMEOUT: Final[int] = 900
     POLLING_INTERVAL: Final[int] = 0
 
 

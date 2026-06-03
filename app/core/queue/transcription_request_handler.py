@@ -392,47 +392,72 @@ class TranscriptionRequestHandler:
             # Send error response
             await self._send_error_response(chat_id, "Processing failed")
 
+    # Reporting the terminal FAILED state back to ally-core is the only thing
+    # that moves a chat off "Processing". If this call is dropped the chat is
+    # stranded until the backend's stale-chat reaper catches it, so retry a few
+    # times before giving up.
+    _ERROR_RESPONSE_MAX_ATTEMPTS = 3
+    _ERROR_RESPONSE_BACKOFF_SECONDS = 2
+
     async def _send_error_response(self, chat_id: Any, error_message: str) -> None:
-        """Send error response to the results queue."""
-        try:
-            await self.ally_core_service.process_transcript(
-                chat_id=chat_id,
-                error=error_message,
-            )
+        """Send error response to the results queue, retrying on failure."""
+        last_exception: Optional[Exception] = None
 
-            logger.info(f"Error response sent for chat_id: {chat_id}")
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.DATA_MODIFIED,
-                    chat_id=str(chat_id),
-                    audit_id=None,
-                    details={
-                        "message": f"Error response sent for chat_id: {chat_id}",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionRequestHandler",
-                        "method": "_send_error_response",
-                        "error_message": error_message,
-                    },
+        for attempt in range(1, self._ERROR_RESPONSE_MAX_ATTEMPTS + 1):
+            try:
+                await self.ally_core_service.process_transcript(
+                    chat_id=chat_id,
+                    error=error_message,
                 )
-            )
 
-        except Exception as e:
-            logger.error(
-                f"Failed to send error response for chat_id {chat_id}: "
-                f"{type(e).__name__}"
-            )
-            await phi_logger.log(
-                PHILogEvent(
-                    event_type=PHIEvents.SYSTEM_ERROR,
-                    chat_id=str(chat_id),
-                    audit_id=None,
-                    details={
-                        "error": f"Failed to send error response for chat_id {chat_id}: {e}",
-                        "chat_id": chat_id,
-                        "component": "TranscriptionRequestHandler",
-                        "method": "_send_error_response",
-                        "exception_type": type(e).__name__,
-                        "error_message": error_message,
-                    },
+                logger.info(f"Error response sent for chat_id: {chat_id}")
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.DATA_MODIFIED,
+                        chat_id=str(chat_id),
+                        audit_id=None,
+                        details={
+                            "message": f"Error response sent for chat_id: {chat_id}",
+                            "chat_id": chat_id,
+                            "component": "TranscriptionRequestHandler",
+                            "method": "_send_error_response",
+                            "error_message": error_message,
+                            "attempt": attempt,
+                        },
+                    )
                 )
+                return
+
+            except Exception as e:
+                last_exception = e
+                logger.error(
+                    f"Failed to send error response for chat_id {chat_id} "
+                    f"(attempt {attempt}/{self._ERROR_RESPONSE_MAX_ATTEMPTS}): "
+                    f"{type(e).__name__}"
+                )
+                if attempt < self._ERROR_RESPONSE_MAX_ATTEMPTS:
+                    await asyncio.sleep(self._ERROR_RESPONSE_BACKOFF_SECONDS * attempt)
+
+        # All attempts failed: the chat will remain PENDING until the backend
+        # reaper times it out. Surface this loudly so it is alertable.
+        logger.error(
+            f"Exhausted retries sending error response for chat_id {chat_id}; "
+            f"chat will stay PENDING until the backend reaper fails it"
+        )
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=str(chat_id),
+                audit_id=None,
+                details={
+                    "error": f"Failed to send error response for chat_id {chat_id} after {self._ERROR_RESPONSE_MAX_ATTEMPTS} attempts: {last_exception}",
+                    "chat_id": chat_id,
+                    "component": "TranscriptionRequestHandler",
+                    "method": "_send_error_response",
+                    "exception_type": type(last_exception).__name__
+                    if last_exception
+                    else None,
+                    "error_message": error_message,
+                },
             )
+        )
