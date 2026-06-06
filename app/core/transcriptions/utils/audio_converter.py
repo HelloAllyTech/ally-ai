@@ -82,6 +82,7 @@ async def convert_and_segment_audio_async(
     sample_rate: int = 8000,
     max_segment_size_mb: int = 24,
     chat_id: int = None,
+    is_linear16_encoded: bool = False,
 ) -> List[str]:
     """
     Convert audio from URL to audio file format and split into segments if needed.
@@ -106,7 +107,69 @@ async def convert_and_segment_audio_async(
             await download_file_to_temp_and_get_details(audio_url, chat_id)
         )
 
-        if detected_extension == ".raw":
+        if is_linear16_encoded:
+            # Mobile uploads headerless linear16 (s16le) PCM. ffprobe can't
+            # identify raw PCM, so detection returns ".unknown" and the audio
+            # would otherwise go through the fragile auto-detect/guess fallback
+            # below (which can yield a noise transcript). The flag lets us route
+            # it deterministically to the raw-PCM decoder at the given sample
+            # rate.
+            logger.info(
+                "Audio flagged as linear16 PCM; decoding directly as raw PCM"
+            )
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_ACCESSED,
+                    chat_id=str(chat_id) if chat_id else None,
+                    audit_id=None,  # Will be set by external service,
+                    details={
+                        "message": "Audio flagged as linear16 PCM; decoding directly as raw PCM",  # noqa: E501
+                        "audio_url": audio_url,
+                        "file_path": temp_downloaded_file_path,
+                        "detected_extension": detected_extension,
+                        "sample_rate": sample_rate,
+                        "component": "AudioConverter",
+                        "method": "convert_and_segment_audio_async",
+                    },
+                )
+            )
+            file_path = await download_and_convert_raw_audio_to_wav(
+                temp_downloaded_file_path, sample_rate, chat_id
+            )
+        elif detected_extension == ".unknown":
+            # ffprobe could not identify the container (commonly a headerless or
+            # truncated WebM from the browser recorder). ffmpeg's decoder is far
+            # more tolerant than ffprobe's metadata reader, so try a plain
+            # auto-detect transcode first. Only if that also fails do we fall
+            # back to interpreting the bytes as raw PCM; that fallback is logged
+            # loudly because it can produce a noise transcript.
+            try:
+                file_path = await transcode_with_autodetect_to_wav(
+                    temp_downloaded_file_path, chat_id
+                )
+            except Exception:
+                logger.warning(
+                    "Auto-detect transcode failed for unprobeable audio; "
+                    "falling back to raw PCM interpretation"
+                )
+                await phi_logger.log(
+                    PHILogEvent(
+                        event_type=PHIEvents.SYSTEM_ERROR,
+                        chat_id=str(chat_id) if chat_id else None,
+                        audit_id=None,  # Will be set by external service,
+                        details={
+                            "error": "Auto-detect transcode failed for unprobeable audio; falling back to raw PCM interpretation",  # noqa: E501
+                            "audio_url": audio_url,
+                            "file_path": temp_downloaded_file_path,
+                            "component": "AudioConverter",
+                            "method": "convert_and_segment_audio_async",
+                        },
+                    )
+                )
+                file_path = await download_and_convert_raw_audio_to_wav(
+                    temp_downloaded_file_path, sample_rate, chat_id
+                )
+        elif detected_extension == ".raw":
             file_path = await download_and_convert_raw_audio_to_wav(
                 temp_downloaded_file_path, sample_rate, chat_id
             )
@@ -397,7 +460,9 @@ async def download_and_convert_raw_audio_to_wav(
     temp_input_path = None
     try:
         temp_input_path = file_path
-        output_path = temp_input_path.replace(".raw", ".wav")
+        # Derive the .wav output path from the base name so this works for any
+        # input extension (the file may arrive as .raw or .unknown).
+        output_path = os.path.splitext(temp_input_path)[0] + ".wav"
 
         logger.info("Running FFmpeg conversion")
         await phi_logger.log(
@@ -578,6 +643,118 @@ async def download_and_convert_raw_audio_to_wav(
         raise
 
 
+async def transcode_with_autodetect_to_wav(
+    file_path: str, chat_id: int = None
+) -> str:
+    """Transcode an audio file to 16kHz mono WAV, letting ffmpeg auto-detect the
+    input format (no input format is forced).
+
+    Used when ffprobe cannot identify the container (e.g. a headerless or
+    truncated WebM produced by the browser recorder). ffmpeg's decoder is far
+    more tolerant than ffprobe's metadata reader, so this recovers files that
+    would otherwise be misread as raw PCM and turned into a noise transcript.
+    Raises on failure so the caller can decide how to fall back.
+    """
+    output_path = os.path.splitext(file_path)[0] + ".converted.wav"
+    try:
+        logger.info("Running FFmpeg auto-detect conversion")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_MODIFIED,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": "Running FFmpeg auto-detect conversion",
+                    "input_path": file_path,
+                    "output_path": output_path,
+                    "component": "AudioConverter",
+                    "method": "transcode_with_autodetect_to_wav",
+                },
+            )
+        )
+
+        # No input format is forced: ffmpeg sniffs the container/codec itself.
+        stream = ffmpeg.input(file_path)
+        stream = ffmpeg.output(
+            stream,
+            output_path,
+            acodec="pcm_s16le",
+            ar=16000,  # Output sample rate: 16kHz
+            ac=1,  # Output channels: mono
+            f="wav",
+        )
+
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    ffmpeg.run,
+                    stream,
+                    overwrite_output=True,
+                    capture_stdout=True,
+                    capture_stderr=True,
+                ),
+                timeout=120.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error("FFmpeg auto-detect process timed out")
+            raise Exception("FFmpeg auto-detect conversion timed out")
+
+        if not await asyncio.to_thread(os.path.exists, output_path):
+            raise Exception("FFmpeg auto-detect output file is missing")
+
+        output_size = await asyncio.to_thread(os.path.getsize, output_path)
+        if output_size == 0:
+            raise Exception("FFmpeg auto-detect output file is empty")
+
+        logger.info(
+            f"Audio auto-detect converted successfully ({output_size} bytes)"
+        )
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.DATA_MODIFIED,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "message": f"Audio auto-detect converted successfully ({output_size} bytes)",  # noqa: E501
+                    "input_path": file_path,
+                    "output_path": output_path,
+                    "output_size_bytes": output_size,
+                    "component": "AudioConverter",
+                    "method": "transcode_with_autodetect_to_wav",
+                },
+            )
+        )
+
+        try:
+            # Clean up the original download; we return the converted wav.
+            await asyncio.to_thread(os.unlink, file_path)
+        except Exception as e:
+            logger.warning(
+                f"Failed to clean up temp input file: {type(e).__name__}"
+            )
+
+        return output_path
+
+    except ffmpeg.Error as e:
+        logger.warning(f"FFmpeg auto-detect conversion failed: {e}")
+        await phi_logger.log(
+            PHILogEvent(
+                event_type=PHIEvents.SYSTEM_ERROR,
+                chat_id=str(chat_id) if chat_id else None,
+                audit_id=None,  # Will be set by external service,
+                details={
+                    "error": "FFmpeg auto-detect conversion failed",
+                    "input_path": file_path,
+                    "output_path": output_path,
+                    "ffmpeg_error": str(e),
+                    "component": "AudioConverter",
+                    "method": "transcode_with_autodetect_to_wav",
+                },
+            )
+        )
+        raise
+
+
 async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
     """
     Identify audio format using ffmpeg-python.
@@ -587,7 +764,9 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
         chat_id (int, optional): Chat ID for PHI logging.
 
     Returns:
-        str: File extension with dot (e.g., '.mp3', '.wav', '.raw')
+        str: File extension with dot (e.g., '.mp3', '.wav', '.webm'), or
+        '.unknown' when ffprobe cannot identify the file so the caller can try
+        an auto-detect transcode instead of assuming raw PCM.
     """
     try:
         # Use ffmpeg-python to probe the file
@@ -677,7 +856,7 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
                 },
             )
         )
-        return ".raw"
+        return ".unknown"
 
     except ffmpeg.Error as e:
         logger.warning(f"FFmpeg probe failed: {e}")
@@ -695,7 +874,7 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
                 },
             )
         )
-        return ".raw"
+        return ".unknown"
 
     except Exception as e:
         logger.warning(f"Error identifying audio format: {type(e).__name__}")
@@ -713,4 +892,4 @@ async def identify_audio_format(file_path: str, chat_id: int = None) -> str:
                 },
             )
         )
-        return ".raw"
+        return ".unknown"

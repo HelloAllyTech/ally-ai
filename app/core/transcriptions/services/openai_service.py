@@ -33,7 +33,11 @@ class OpenAITranscriptionService:
         )
 
     async def transcribe_audio_from_url(
-        self, audio_url: str, chat_id: int, sample_rate: int = 8000
+        self,
+        audio_url: str,
+        chat_id: int,
+        sample_rate: int = 8000,
+        is_linear16_encoded: bool = False,
     ) -> Tuple[int, str]:
         """
         Transcribe audio from URL and generate a summary.
@@ -42,6 +46,8 @@ class OpenAITranscriptionService:
             audio_url (str): URL containing the audio file
             chat_id (int): Chat ID for the transcription session
             sample_rate (int): Expected sample rate of the audio (default: 8000)
+            is_linear16_encoded (bool): Whether the audio is headerless linear16
+                (s16le) PCM (mobile uploads), which must be decoded as raw PCM.
 
         Returns:
             Tuple[int, str]: (chat_id, segments_text)
@@ -52,7 +58,7 @@ class OpenAITranscriptionService:
         try:
             # Transcribe and preprocess audio
             segments_text = await self._transcribe_and_preprocess_audio(
-                audio_url, sample_rate, chat_id
+                audio_url, sample_rate, chat_id, is_linear16_encoded
             )
 
             return chat_id, segments_text
@@ -81,7 +87,11 @@ class OpenAITranscriptionService:
             raise TranscriptionFailedException("Transcription failed")
 
     async def _transcribe_and_preprocess_audio(
-        self, audio_url: str, sample_rate: int = 8000, chat_id: int = None
+        self,
+        audio_url: str,
+        sample_rate: int = 8000,
+        chat_id: int = None,
+        is_linear16_encoded: bool = False,
     ) -> str:
         """
         Transcribe audio and preprocess segments into a formatted
@@ -121,7 +131,10 @@ class OpenAITranscriptionService:
         try:
             # Convert and segment audio if needed
             segment_paths = await convert_and_segment_audio_async(
-                audio_url, sample_rate
+                audio_url,
+                sample_rate,
+                chat_id=chat_id,
+                is_linear16_encoded=is_linear16_encoded,
             )
             logger.info(f"Audio converted to {len(segment_paths)} segment(s)")
             await phi_logger.log(

@@ -32,6 +32,10 @@ class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
     audio_url: str
     sample_rate: int = Field(default=8000)
     mode: Optional[str] = None
+    # Mobile uploads headerless linear16 (s16le) PCM. ffprobe can't identify
+    # raw PCM, so this flag tells the converter to decode it directly as raw
+    # rather than relying on container detection.
+    is_linear16_encoded: Optional[bool] = None
 
 class TranscriptionResultMessage(BaseQueueMessage):
     """

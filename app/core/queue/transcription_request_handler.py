@@ -97,6 +97,7 @@ class TranscriptionRequestHandler:
                 audio_url=request.audio_url,
                 chat_id=request.chat_id,
                 sample_rate=request.sample_rate,
+                is_linear16_encoded=bool(request.is_linear16_encoded),
             )
 
             # Create result message

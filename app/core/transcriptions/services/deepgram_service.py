@@ -40,7 +40,11 @@ class DeepgramTranscriptionService:
         self.deepgram = DeepgramClient(settings.DEEPGRAM.API_KEY)
 
     async def transcribe_audio_from_url(
-        self, audio_url: str, chat_id: int, sample_rate: int = 8000
+        self,
+        audio_url: str,
+        chat_id: int,
+        sample_rate: int = 8000,
+        is_linear16_encoded: bool = False,
     ) -> Tuple[int, str]:
         """
         Transcribe audio from URL and generate a summary.
@@ -49,6 +53,8 @@ class DeepgramTranscriptionService:
             audio_url (str): URL containing the audio file
             chat_id (int): Chat ID for the transcription session
             sample_rate (int): Expected sample rate of the audio (default: 8000)
+            is_linear16_encoded (bool): Whether the audio is headerless linear16
+                (s16le) PCM (mobile uploads), which must be decoded as raw PCM.
 
         Returns:
             Tuple[int, str]: (chat_id, segments_text)
@@ -62,6 +68,8 @@ class DeepgramTranscriptionService:
                 audio_url=audio_url,
                 sample_rate=sample_rate,
                 max_segment_size_mb=MAX_SEGMENT_SIZE_MB,
+                chat_id=chat_id,
+                is_linear16_encoded=is_linear16_encoded,
             )
 
             logger.info(f"Audio converted into {len(segment_paths)} segments")
