@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import conversation, reference_document, summary
+from app.api.v1.endpoints import conversation, drift, reference_document, summary
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(
     prefix="/reference-documents",
     tags=["reference_documents"],
 )
+api_router.include_router(drift.router, prefix="/drift", tags=["drift"])

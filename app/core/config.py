@@ -45,6 +45,22 @@ class OpenAISettings(BaseModel):
     RATE_LIMIT: int = Field(...)
     WINDOW_SECONDS: int = Field(...)
 
+class GeminiSettings(BaseModel):
+    # Optional so the service still boots in envs that haven't set GEMINI__API_KEY
+    # yet; the drift judge raises a clear error if invoked without a key.
+    API_KEY: Optional[str] = None
+
+
+class DriftJudgeSettings(BaseModel):
+    """Conversation drift judge (see drift-metrics-spec.md). Gemini for now."""
+
+    MODEL: str = Field("gemini-2.5-pro")
+    # Bump when the judge rubric changes; reported back to the caller (ally-be)
+    # and stored on each judgment row so a re-judge with a new rubric coexists
+    # with prior runs. This service is a stateless judge — it owns no database.
+    PROMPT_VERSION: str = Field("v1")
+
+
 class DeepgramSettings(BaseModel):
     API_KEY: str = Field(...)
 
@@ -131,6 +147,8 @@ class AppSettings(BaseSettings):
     DEEPGRAM: DeepgramSettings
     SARVAM: SarvamSettings
     TRANSCRIPTION: TranscriptionSettings
+    GEMINI: GeminiSettings = Field(default_factory=GeminiSettings)
+    DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
 
     def model_post_init(self, __context=None) -> None:
         """

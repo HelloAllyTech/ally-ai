@@ -14,6 +14,39 @@ class AllyCoreService:
         self._base_url = settings.ALLY_CORE.ENDPOINT
         self._api_key = settings.ALLY_CORE.API_KEY
 
+    async def get_prompts_by_codes(self, codes: List[str]) -> Dict[str, str]:
+        """Fetch current-version prompt text for the given prompt codes from
+        ally-be's prompt management (GET /api/v1/prompts/by-codes).
+
+        Returns a {promptCode: text} map; codes with no/empty content are simply
+        absent. Used by the drift judge to source its rubric from the registry.
+        """
+        if not codes:
+            return {}
+
+        url = f"{self._base_url}/api/v1/prompts/by-codes"
+        headers = {"x-api-key": self._api_key, "Accept": "application/json"}
+
+        try:
+            response = await self._client.get(
+                url,
+                headers=headers,
+                params={"codes": ",".join(codes)},
+            )
+            response.raise_for_status()
+            return response.json() or {}
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"AllyCore get_prompts_by_codes failed, "
+                f"status={e.response.status_code}, body={e.response.text}, codes={codes}"
+            )
+            raise
+        except httpx.RequestError as e:
+            logger.error(
+                f"AllyCore get_prompts_by_codes network error error={str(e)}, codes={codes}"
+            )
+            raise
+
     async def process_transcript(
         self,
         chat_id: int,
