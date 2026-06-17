@@ -9,6 +9,8 @@ from httpx import Request, Response
 
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
+    _language_directive,
+    _wants_translated_feedback,
     split_text_by_length,
 )
 from app.core.text_generations.structured_output_models import (
@@ -1096,3 +1098,160 @@ class TestOpenAITextGenerationService:
                 await text_generation_service.generate_scenario_evaluation(
                     sample_chat_messages
                 )
+
+
+def _make_scenario_evaluation():
+    """Build a minimal valid ScenarioEvaluation for prompt-inspection tests."""
+    return ScenarioEvaluation(
+        areas_of_growth=[
+            AreasOfGrowth(
+                improvement="Ask more open-ended questions",
+                recommendation="Use 'what' and 'how' questions",
+            )
+        ],
+        positives=["Good rapport building"],
+        message_tags=[],
+        emotional_movement=[],
+        skill_coverage=[
+            SkillCoverageItemOutput(
+                category=SkillCategoryEnum.LISTENING_ENGAGEMENT, percentage=60
+            ),
+        ],
+    )
+
+
+class TestWantsTranslatedFeedback:
+    """Unit tests for the _wants_translated_feedback helper."""
+
+    @pytest.mark.parametrize(
+        "language_code,expected",
+        [
+            (None, False),
+            ("", False),
+            ("en", False),
+            ("EN", False),
+            ("en-US", False),
+            ("en_US", False),
+            ("hi", True),
+            ("HI", True),
+            ("hi-IN", True),
+            ("hi_IN", True),
+            ("mr", True),
+            ("ta", True),
+            ("kn", True),
+        ],
+    )
+    def test_wants_translated_feedback(self, language_code, expected):
+        assert _wants_translated_feedback(language_code) is expected
+
+
+class TestLanguageDirective:
+    """Unit tests for the _language_directive helper."""
+
+    def test_directive_includes_code_and_known_name(self):
+        directive = _language_directive("hi")
+        assert "OUTPUT LANGUAGE" in directive
+        assert "'hi'" in directive
+        assert "Hindi" in directive
+
+    def test_directive_handles_bcp47_and_known_name(self):
+        directive = _language_directive("mr-IN")
+        assert "'mr-IN'" in directive
+        assert "Marathi" in directive
+
+    def test_directive_falls_back_to_raw_code_for_unknown(self):
+        directive = _language_directive("xx")
+        assert "'xx'" in directive
+
+
+class TestScenarioEvaluationLanguageDirective:
+    """Tests that language_code threads into the prompt sent to the LLM."""
+
+    @pytest.fixture
+    def text_generation_service(self):
+        with patch(
+            "app.core.text_generations.openai_text_generation_service.settings"
+        ) as mock_settings:
+            mock_settings.LLM.MAX_CONCURRENT_LLM_CALLS = 10
+            return OpenAITextGenerationService(MagicMock(), AsyncMock())
+
+    @pytest.fixture
+    def sample_chat_messages(self):
+        return [
+            ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+        ]
+
+    async def _capture_prompt(
+        self, service, sample_chat_messages, **kwargs
+    ) -> str:
+        """Run generate_scenario_evaluation and return the prompt sent to the LLM."""
+        with patch.object(
+            service, "_invoke_llm", return_value=_make_scenario_evaluation()
+        ) as mock_invoke:
+            await service.generate_scenario_evaluation(
+                sample_chat_messages, **kwargs
+            )
+            assert mock_invoke.await_count == 1
+            return mock_invoke.await_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_non_english_appends_directive(
+        self, text_generation_service, sample_chat_messages
+    ):
+        prompt = await self._capture_prompt(
+            text_generation_service, sample_chat_messages, language_code="hi"
+        )
+        assert "OUTPUT LANGUAGE" in prompt
+        assert "'hi'" in prompt
+        assert "Hindi" in prompt
+
+    @pytest.mark.asyncio
+    async def test_non_english_directive_matches_baseline_plus_directive(
+        self, text_generation_service, sample_chat_messages
+    ):
+        baseline = await self._capture_prompt(
+            text_generation_service, sample_chat_messages, language_code=None
+        )
+        translated = await self._capture_prompt(
+            text_generation_service, sample_chat_messages, language_code="hi"
+        )
+        assert translated == baseline + _language_directive("hi")
+
+    @pytest.mark.asyncio
+    async def test_none_leaves_prompt_unchanged(
+        self, text_generation_service, sample_chat_messages
+    ):
+        prompt = await self._capture_prompt(
+            text_generation_service, sample_chat_messages, language_code=None
+        )
+        assert "OUTPUT LANGUAGE" not in prompt
+
+    @pytest.mark.asyncio
+    async def test_default_leaves_prompt_unchanged(
+        self, text_generation_service, sample_chat_messages
+    ):
+        prompt = await self._capture_prompt(
+            text_generation_service, sample_chat_messages
+        )
+        assert "OUTPUT LANGUAGE" not in prompt
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("language_code", ["en", "en-US", "en_US"])
+    async def test_english_leaves_prompt_unchanged(
+        self, text_generation_service, sample_chat_messages, language_code
+    ):
+        baseline = await self._capture_prompt(
+            text_generation_service, sample_chat_messages, language_code=None
+        )
+        prompt = await self._capture_prompt(
+            text_generation_service,
+            sample_chat_messages,
+            language_code=language_code,
+        )
+        assert "OUTPUT LANGUAGE" not in prompt
+        assert prompt == baseline

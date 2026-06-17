@@ -162,6 +162,7 @@ async def generate_scenario_evaluation(
             previous_memory=request.previous_memory,
             memory_prompt=request.memory_prompt,
             prompts=request.prompts,
+            language_code=request.language_code,
         )
 
         logger.info(

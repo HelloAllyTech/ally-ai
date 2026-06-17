@@ -515,6 +515,14 @@ class ScenarioEvaluationRequest(BaseModel):
     prompts: Optional[Dict[str, Any]] = Field(
         None, description="Optional prompt overrides"
     )
+    language_code: Optional[str] = Field(
+        default=None,
+        description=(
+            "Preferred output language (ISO 639-1 / BCP 47, e.g. 'hi', 'mr', "
+            "'hi-IN') for the human-readable feedback text. When unset or English, "
+            "feedback language is unchanged."
+        ),
+    )
 
 
 class ScenarioEvaluationResponse(BaseModel):

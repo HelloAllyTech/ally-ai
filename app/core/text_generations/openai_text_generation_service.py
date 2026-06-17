@@ -65,6 +65,44 @@ logger = get_logger(__name__)
 
 SCRIBE_SESSION_MODE_DICTATION = "DICTATION"
 
+# Known ISO 639-1 language codes -> human-readable names, used to make the
+# output-language directive clearer to the model. Falls back to the raw code.
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "hi": "Hindi",
+    "mr": "Marathi",
+    "ta": "Tamil",
+    "kn": "Kannada",
+}
+
+
+def _wants_translated_feedback(language_code: Optional[str]) -> bool:
+    """Return True when feedback text should be written in a non-English language.
+
+    Accepts ISO 639-1 codes ("hi") and BCP-47 tags ("hi-IN", "hi_IN"). Returns
+    False for None, empty, or any English variant ("en", "en-US").
+    """
+    if not language_code:
+        return False
+    primary = language_code.replace("_", "-").split("-")[0].strip().lower()
+    return bool(primary) and primary != "en"
+
+
+def _language_directive(language_code: str) -> str:
+    """Build the output-language directive appended to the evaluation prompt."""
+    primary = language_code.replace("_", "-").split("-")[0].strip().lower()
+    language_name = _LANGUAGE_NAMES.get(primary, language_code)
+    return (
+        "\n\n---\n\n"
+        "OUTPUT LANGUAGE: Write all human-readable feedback text — every string "
+        'value in "positives" and in each "areas_of_growth" item\'s "improvement" '
+        'and "recommendation" fields — in the language identified by the code '
+        f"'{language_code}' ({language_name}), so the learner can read their "
+        "strengths and areas for improvement directly. Keep the JSON keys and "
+        "structure exactly as specified (in English). Preserve any direct quotes "
+        "pulled from the conversation verbatim in their original language."
+    )
+
 
 def _structured_summary_template_path(session_mode: Optional[str]) -> str:
     """Pick prompt template for post-call structured summary (scribe vs dictation)."""
@@ -1009,6 +1047,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
+        language_code: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -1023,6 +1062,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             need_memory (bool): Whether to also generate memory fields
             previous_memory (Optional[str]): Previous memory to build upon
             memory_prompt (Optional[str]): Custom instructions for memory generation
+            language_code (Optional[str]): Preferred output language (ISO 639-1 /
+                BCP 47) for the human-readable feedback text. When unset or English,
+                the prompt is left unchanged.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
@@ -1118,6 +1160,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     "OpenAI.generate_scenario_evaluation: prompt loaded "
                     "(template=scenario/scenario_evaluation, prompt_chars=%d)",
                     len(formatted_prompt) if isinstance(formatted_prompt, str) else -1,
+                )
+
+            # Append an output-language directive when the learner's preferred
+            # language is non-English. Done in code (not the .txt template) so it
+            # applies even when a dashboard-override prompt is used. English / None
+            # leaves the prompt byte-for-byte unchanged.
+            if _wants_translated_feedback(language_code) and isinstance(
+                formatted_prompt, str
+            ):
+                formatted_prompt = formatted_prompt + _language_directive(
+                    cast(str, language_code)
+                )
+                logger.info(
+                    "OpenAI.generate_scenario_evaluation: appended output-language "
+                    "directive (language_code=%s, prompt_chars=%d)",
+                    language_code,
+                    len(formatted_prompt),
                 )
 
             logger.info(

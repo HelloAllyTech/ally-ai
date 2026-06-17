@@ -284,6 +284,7 @@ class SummaryService:
         memory_prompt: Optional[str] = None,
         chat_id: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
+        language_code: Optional[str] = None,
     ):
         """
         Generate scenario evaluation.
@@ -332,6 +333,7 @@ class SummaryService:
                 memory_prompt=memory_prompt,
                 chat_id=chat_id,
                 prompts=prompts,
+                language_code=language_code,
             )
 
             # Calculate processing time

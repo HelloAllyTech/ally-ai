@@ -328,6 +328,69 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert data["skill_coverage"][1]["category"] == "Emotional Attunement"
             assert data["skill_coverage"][2]["category"] == "Supportive engagement"
 
+    def test_scenario_evaluation_passes_language_code(
+        self, client: TestClient, mock_summary_service, sample_chat_messages
+    ):
+        """language_code from the request is threaded to the service call."""
+        from unittest.mock import patch
+
+        request = {
+            "chat_history": sample_chat_messages,
+            "language_code": "hi",
+        }
+
+        with patch(
+            "app.core.summaries.summary_service.SummaryService."
+            "generate_scenario_evaluation"
+        ) as mock_generate_evaluation:
+            mock_generate_evaluation.return_value = {
+                "areas_of_growth": [],
+                "improvements": [],
+                "positives": [],
+                "message_tags": [],
+                "emotional_movement": [],
+                "skill_coverage": [],
+            }
+
+            response = client.post("/api/v1/summary/scenario/evaluate", json=request)
+
+            assert response.status_code == 200
+            assert mock_generate_evaluation.call_count == 1
+            assert (
+                mock_generate_evaluation.call_args.kwargs["language_code"] == "hi"
+            )
+
+    def test_scenario_evaluation_language_code_defaults_to_none(
+        self, client: TestClient, mock_summary_service, sample_chat_messages
+    ):
+        """Omitting language_code passes None to the service call."""
+        from unittest.mock import patch
+
+        request = {
+            "chat_history": sample_chat_messages,
+        }
+
+        with patch(
+            "app.core.summaries.summary_service.SummaryService."
+            "generate_scenario_evaluation"
+        ) as mock_generate_evaluation:
+            mock_generate_evaluation.return_value = {
+                "areas_of_growth": [],
+                "improvements": [],
+                "positives": [],
+                "message_tags": [],
+                "emotional_movement": [],
+                "skill_coverage": [],
+            }
+
+            response = client.post("/api/v1/summary/scenario/evaluate", json=request)
+
+            assert response.status_code == 200
+            assert mock_generate_evaluation.call_count == 1
+            assert (
+                mock_generate_evaluation.call_args.kwargs["language_code"] is None
+            )
+
     def test_scenario_evaluation_methods(
         self, client: TestClient, sample_chat_messages
     ):

@@ -168,6 +168,7 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
         previous_memory: Optional[str] = None,
         memory_prompt: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
+        language_code: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -185,6 +186,9 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
             memory_prompt (Optional[str]): Custom instructions for memory generation
                 (when need_memory=True)
             prompts (Optional[Dict[str, Any]]): Optional prompt overrides.
+            language_code (Optional[str]): Preferred output language (ISO 639-1 /
+                BCP 47) for the human-readable feedback text. When unset or English,
+                feedback language is unchanged.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
