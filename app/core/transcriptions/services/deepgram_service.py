@@ -211,6 +211,22 @@ class DeepgramTranscriptionService:
                 addons={"mip_opt_out": "true"},
             )
 
+            # Best-effort batch-STT AI-cost emit (never blocks transcription).
+            try:
+                from app.core.llm_usage.emitter import emit_ai_usage
+
+                _dur = await get_audio_duration(wav_file_path)
+                if _dur and _dur > 0:
+                    emit_ai_usage(
+                        "stt",
+                        "deepgram",
+                        "nova-3",
+                        "transcription",
+                        audio_ms=int(_dur * 1000),
+                    )
+            except Exception:
+                logger.debug("batch STT usage emit skipped (best-effort)")
+
             if not response or not hasattr(response, "results"):
                 logger.error("Invalid response from Deepgram SDK")
                 await phi_logger.log(

@@ -89,6 +89,17 @@ class QueueSettings(BaseModel):
     TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL: str = Field(...)
 
 
+class LLMUsageSettings(BaseModel):
+    """Token-usage emission for the Core token-consumption dashboard.
+
+    No-ops unless QUEUE_URL is set (should point at the queue ally-be's
+    LearnMessageAndEventConsumer listens on — Core routes by message_type)."""
+
+    ENABLED: bool = Field(default=True)
+    QUEUE_URL: str = Field(default="")
+    COUNT_EMBEDDING_TOKENS: bool = Field(default=False)
+
+
 class ReferenceDocSettings(BaseModel):
     DISTANCE_THRESHOLD: float = Field(default=0.65)
 
@@ -149,6 +160,7 @@ class AppSettings(BaseSettings):
     TRANSCRIPTION: TranscriptionSettings
     GEMINI: GeminiSettings = Field(default_factory=GeminiSettings)
     DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
+    LLM_USAGE: LLMUsageSettings = Field(default_factory=LLMUsageSettings)
 
     def model_post_init(self, __context=None) -> None:
         """

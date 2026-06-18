@@ -129,6 +129,27 @@ def judge_session(
             response_schema=JudgeOutput,
         ),
     )
+    # Best-effort token-usage emission for the cost-by-model/task dashboard.
+    try:
+        from app.core.llm_usage.emitter import emit_llm_usage_blocking
+        from app.core.llm_usage.tasks import LLMTask
+
+        um = getattr(response, "usage_metadata", None)
+        if um is not None:
+            prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
+            completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
+            total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
+                prompt_tokens + completion_tokens
+            )
+            emit_llm_usage_blocking(
+                provider="gemini",
+                model=settings.DRIFT_JUDGE.MODEL,
+                task=LLMTask.DRIFT_JUDGE.value,
+                usage=(prompt_tokens, completion_tokens, total_tokens),
+            )
+    except Exception:
+        pass
+
     output: Optional[JudgeOutput] = response.parsed
     if output is None or not output.per_turn:
         # Gemini occasionally returns no parsable content despite the schema;
