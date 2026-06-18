@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
+from app.core.llm_usage.tasks import LLMTask
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
@@ -312,8 +313,23 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 "_invoke_llm: calling llm.ainvoke (output_class=%s)",
                 output_class.__name__ if output_class else None,
             )
+            # Best-effort token-usage capture: a callback aggregates usage even
+            # when with_structured_output drops the raw AIMessage. Guarded so a
+            # missing handler degrades to no capture (never breaks the call).
+            _usage_cb = None
             try:
-                response = await llm.ainvoke(messages)
+                from app.core.llm_usage.extract import make_usage_callback
+
+                _usage_cb = make_usage_callback()
+            except Exception:
+                _usage_cb = None
+            try:
+                if _usage_cb is not None:
+                    response = await llm.ainvoke(
+                        messages, config={"callbacks": [_usage_cb]}
+                    )
+                else:
+                    response = await llm.ainvoke(messages)
                 logger.info(
                     "_invoke_llm: llm.ainvoke returned "
                     "(response_type=%s, response_is_none=%s)",
@@ -343,6 +359,31 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 raise LLMInvocationFailedException(
                     f"LLM invocation failed: {type(e).__name__}"
                 ) from e
+
+            # Best-effort token-usage emission (never affects the result).
+            try:
+                _task = kwargs.get("task")
+                if _task:
+                    from app.core.llm_usage.emitter import emit_llm_usage
+                    from app.core.llm_usage.extract import (
+                        extract_usage_from_aimessage,
+                        normalize_callback_usage,
+                    )
+                    from app.core.llm_usage.tasks import resolve_model_name
+
+                    _usage = (
+                        normalize_callback_usage(_usage_cb) if _usage_cb else None
+                    ) or extract_usage_from_aimessage(response)
+                    emit_llm_usage(
+                        provider="openai",
+                        model=resolve_model_name(self.model),
+                        task=_task,
+                        usage=_usage,
+                        room_id=kwargs.get("room_id"),
+                        scenario_id=kwargs.get("scenario_id"),
+                    )
+            except Exception:
+                pass
 
             return response if output_class else response.content
 
@@ -389,6 +430,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         suggestion=suggestion,
                     ),
                     Nudge,
+                    task=LLMTask.NUDGE.value,
                     **kwargs,
                 ),
             )
@@ -505,6 +547,21 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         model = self.model.bind_tools([generate_dynamic_summary])
         response = await model.ainvoke(prompt)
 
+        # Best-effort token-usage emission (bind_tools returns an AIMessage).
+        try:
+            from app.core.llm_usage.emitter import emit_llm_usage
+            from app.core.llm_usage.extract import extract_usage_from_aimessage
+            from app.core.llm_usage.tasks import LLMTask, resolve_model_name
+
+            emit_llm_usage(
+                provider="openai",
+                model=resolve_model_name(self.model),
+                task=LLMTask.DYNAMIC_SUMMARY.value,
+                usage=extract_usage_from_aimessage(response),
+            )
+        except Exception:
+            pass
+
         tool_fields = self._extract_tool_fields(response)
         merged = {**tool_fields, **precomputed}
         return DynamicSummaryNoteResponse(fields=merged)
@@ -525,6 +582,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         llm_task = self._invoke_llm(
             template.format(chat_history=chat_history_str),
             StructuredSummaryNote,
+            task=LLMTask.SUMMARY.value,
             **kwargs,
         )
 
@@ -681,6 +739,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 await self._invoke_llm(
                     template.format(content=content),
                     ContentEnhance,
+                    task=LLMTask.CONTENT_ENHANCE.value,
                     **kwargs,
                 ),
             )
@@ -726,6 +785,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 await self._invoke_llm(
                     template.format(conversations=formatted_conversations),
                     StructuredIdentifyUsers,
+                    task=LLMTask.USER_IDENTIFICATION.value,
                     **kwargs,
                 ),
             )
@@ -770,6 +830,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 await self._invoke_llm(
                     template.format(tags=formatted_tags),
                     TagList,
+                    task=LLMTask.TAG_POSITIVITY.value,
                     **kwargs,
                 ),
             )
@@ -861,6 +922,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 result = await self._invoke_llm(
                     template.format(transcription=chunks[0]),
                     StructuredDiarization,
+                    task=LLMTask.DIARIZATION.value,
                     **kwargs,
                 )
                 logger.info("Diarization completed successfully")
@@ -903,6 +965,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 result = await self._invoke_llm(
                     template.format(transcription=chunk_text),
                     StructuredDiarization,
+                    task=LLMTask.DIARIZATION.value,
                     **kwargs,
                 )
                 logger.debug(
@@ -996,7 +1059,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 template = load_template("analysis/counselor_analysis", prompts=prompts)
                 prompt = template.format(message=message)
                 response = await self._invoke_llm(
-                    prompt, output_class=CounselorMessageAnalysis
+                    prompt,
+                    output_class=CounselorMessageAnalysis,
+                    task=LLMTask.COUNSELOR_ANALYSIS.value,
                 )
 
                 return {
@@ -1189,6 +1254,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 await self._invoke_llm(
                     formatted_prompt,
                     response_model,
+                    task=LLMTask.SCENARIO_EVALUATION.value,
                     **kwargs,
                 ),
             )

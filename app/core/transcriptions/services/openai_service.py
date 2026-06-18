@@ -18,6 +18,24 @@ from app.core.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
 logger = get_logger(__name__)
 
 
+def _emit_stt_usage(model: str, audio_seconds: float) -> None:
+    """Best-effort batch-STT AI-cost emit. Never raises / blocks transcription."""
+    try:
+        if not audio_seconds or audio_seconds <= 0:
+            return
+        from app.core.llm_usage.emitter import emit_ai_usage
+
+        emit_ai_usage(
+            "stt",
+            "openai",
+            model,
+            "transcription",
+            audio_ms=int(audio_seconds * 1000),
+        )
+    except Exception:
+        logger.debug("batch STT usage emit skipped (best-effort)")
+
+
 class OpenAITranscriptionService:
     """
     OpenAI transcription service for processing audio files.
@@ -258,6 +276,11 @@ class OpenAITranscriptionService:
                     response_format="verbose_json",
                 )
 
+            try:
+                _emit_stt_usage("whisper-1", await get_audio_duration(wav_file_path))
+            except Exception:
+                pass
+
             logger.info("Single file transcription completed successfully")
             await phi_logger.log(
                 PHILogEvent(
@@ -451,6 +474,8 @@ class OpenAITranscriptionService:
                     file=audio_file,
                     response_format="verbose_json",
                 )
+
+            _emit_stt_usage("whisper-1", duration)
 
             # Adjust timing for this segment
             adjusted_segments = []
