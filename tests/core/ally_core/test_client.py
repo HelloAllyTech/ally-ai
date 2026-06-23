@@ -70,9 +70,11 @@ async def test_client_timeout_and_limits():
         timeout = client.timeout
 
         assert timeout.connect == 3.0
-        assert timeout.read == 5.0
-        assert timeout.write == 5.0
-        assert timeout.pool == 5.0
+        # Read/write raised from 5s so the heavy process-transcript callback
+        # isn't prematurely timed out (and mistaken for a failure) under load.
+        assert timeout.read == 60.0
+        assert timeout.write == 60.0
+        assert timeout.pool == 10.0
 
 
 @pytest.mark.asyncio

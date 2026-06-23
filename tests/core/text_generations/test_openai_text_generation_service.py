@@ -154,7 +154,10 @@ class TestOpenAITextGenerationService:
 
         # Assert
         assert result == "Test response"
-        mock_client.ainvoke.assert_called_once_with("Test prompt")
+        # Called once with the prompt; an optional usage-callback `config`
+        # kwarg may also be present, so assert on the positional arg only.
+        mock_client.ainvoke.assert_called_once()
+        assert mock_client.ainvoke.call_args.args[0] == "Test prompt"
 
     @pytest.mark.asyncio
     async def test_invoke_llm_with_structured_output(
@@ -196,6 +199,9 @@ class TestOpenAITextGenerationService:
             )
         )
         text_generation_service.model = mock_client
+        # Keep the retry path fast in tests (no real backoff sleeps).
+        text_generation_service._LLM_BACKOFF_BASE_SECONDS = 0
+        text_generation_service._LLM_BACKOFF_JITTER_SECONDS = 0
 
         # Execute and assert
         with pytest.raises(LLMInvocationFailedException) as exc_info:
@@ -217,6 +223,9 @@ class TestOpenAITextGenerationService:
             )
         )
         text_generation_service.model = mock_client
+        # Keep the retry path fast in tests (no real backoff sleeps).
+        text_generation_service._LLM_BACKOFF_BASE_SECONDS = 0
+        text_generation_service._LLM_BACKOFF_JITTER_SECONDS = 0
 
         # Execute and assert
         with pytest.raises(LLMInvocationFailedException) as exc_info:

@@ -366,9 +366,15 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                             attempt,
                             str(e),
                         )
+                        # Preserve the original per-type, user-facing wording
+                        # (just annotated with the attempt count).
+                        if isinstance(e, openai.RateLimitError):
+                            detail = "OpenAI API rate limit exceeded"
+                        else:
+                            detail = "OpenAI API error"
                         raise LLMInvocationFailedException(
-                            f"OpenAI API {type(e).__name__} after "
-                            f"{attempt} attempts. Please try again later."
+                            f"{detail} after {attempt} attempts. "
+                            "Please try again later."
                         ) from e
                     backoff = self._LLM_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
                     backoff += random.uniform(0, self._LLM_BACKOFF_JITTER_SECONDS)
