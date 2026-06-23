@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 import time
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
@@ -249,6 +250,11 @@ def split_text_by_length(text: str, max_words: int = MAX_WORDS_PER_CHUNK) -> Lis
 class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
     """Text generation service using OpenAI models."""
 
+    # Bounded retry for transient OpenAI errors in _invoke_llm.
+    _LLM_MAX_ATTEMPTS = 4
+    _LLM_BACKOFF_BASE_SECONDS = 1.0
+    _LLM_BACKOFF_JITTER_SECONDS = 0.5
+
     def __init__(
         self, client: ChatOpenAI, embedding_service: BaseEmbeddingService
     ) -> None:
@@ -323,42 +329,70 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 _usage_cb = make_usage_callback()
             except Exception:
                 _usage_cb = None
-            try:
-                if _usage_cb is not None:
-                    response = await llm.ainvoke(
-                        messages, config={"callbacks": [_usage_cb]}
+            # Transient OpenAI failures (rate limits, dropped connections,
+            # transient 5xx) spike precisely when several Scribe sessions are
+            # processed concurrently — each fans out many diarization/summary
+            # calls. Previously the first 429 became a hard failure and flipped
+            # the chat to FAILED. Retry these with exponential backoff + jitter
+            # before giving up; non-transient errors fail fast.
+            response = None
+            for attempt in range(1, self._LLM_MAX_ATTEMPTS + 1):
+                try:
+                    if _usage_cb is not None:
+                        response = await llm.ainvoke(
+                            messages, config={"callbacks": [_usage_cb]}
+                        )
+                    else:
+                        response = await llm.ainvoke(messages)
+                    logger.info(
+                        "_invoke_llm: llm.ainvoke returned "
+                        "(response_type=%s, response_is_none=%s, attempt=%s)",
+                        type(response).__name__,
+                        response is None,
+                        attempt,
                     )
-                else:
-                    response = await llm.ainvoke(messages)
-                logger.info(
-                    "_invoke_llm: llm.ainvoke returned "
-                    "(response_type=%s, response_is_none=%s)",
-                    type(response).__name__,
-                    response is None,
-                )
-            except openai.RateLimitError as e:
-                logger.exception("_invoke_llm: RateLimitError: %s", str(e))
-                raise LLMInvocationFailedException(
-                    "OpenAI API rate limit exceeded. Please try again later."
-                ) from e
+                    break
+                except (
+                    openai.RateLimitError,
+                    openai.APIConnectionError,
+                    openai.APITimeoutError,
+                    openai.InternalServerError,
+                ) as e:
+                    if attempt >= self._LLM_MAX_ATTEMPTS:
+                        logger.exception(
+                            "_invoke_llm: transient %s persisted after %s "
+                            "attempts: %s",
+                            type(e).__name__,
+                            attempt,
+                            str(e),
+                        )
+                        raise LLMInvocationFailedException(
+                            f"OpenAI API {type(e).__name__} after "
+                            f"{attempt} attempts. Please try again later."
+                        ) from e
+                    backoff = self._LLM_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
+                    backoff += random.uniform(0, self._LLM_BACKOFF_JITTER_SECONDS)
+                    logger.warning(
+                        "_invoke_llm: transient %s on attempt %s/%s; retrying "
+                        "in %.2fs",
+                        type(e).__name__,
+                        attempt,
+                        self._LLM_MAX_ATTEMPTS,
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
 
-            except openai.APIConnectionError as e:
-                logger.exception("_invoke_llm: APIConnectionError: %s", str(e))
-                raise LLMInvocationFailedException(
-                    "OpenAI API error. Please try again later."
-                ) from e
-
-            except Exception as e:
-                logger.exception(
-                    "_invoke_llm: unexpected %s during llm.ainvoke "
-                    "(output_class=%s): %s",
-                    type(e).__name__,
-                    output_class.__name__ if output_class else None,
-                    str(e),
-                )
-                raise LLMInvocationFailedException(
-                    f"LLM invocation failed: {type(e).__name__}"
-                ) from e
+                except Exception as e:
+                    logger.exception(
+                        "_invoke_llm: unexpected %s during llm.ainvoke "
+                        "(output_class=%s): %s",
+                        type(e).__name__,
+                        output_class.__name__ if output_class else None,
+                        str(e),
+                    )
+                    raise LLMInvocationFailedException(
+                        f"LLM invocation failed: {type(e).__name__}"
+                    ) from e
 
             # Best-effort token-usage emission (never affects the result).
             try:

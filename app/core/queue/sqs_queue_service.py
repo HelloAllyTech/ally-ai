@@ -354,3 +354,33 @@ class SQSQueueService:
                 )
             )
             raise
+
+    async def get_queue_depth(self, queue_url: str) -> Dict[str, int]:
+        """
+        Return approximate queue depth for visibility/backlog monitoring.
+
+        Returns a dict with `visible` (ApproximateNumberOfMessages) and
+        `in_flight` (ApproximateNumberOfMessagesNotVisible). Best-effort: on any
+        error returns an empty dict so callers can degrade gracefully.
+        """
+        try:
+            response = await self._run_in_executor(
+                self.client.get_queue_attributes,
+                QueueUrl=queue_url,
+                AttributeNames=[
+                    "ApproximateNumberOfMessages",
+                    "ApproximateNumberOfMessagesNotVisible",
+                ],
+            )
+            attrs = response.get("Attributes", {}) if response else {}
+            return {
+                "visible": int(attrs.get("ApproximateNumberOfMessages", 0)),
+                "in_flight": int(
+                    attrs.get("ApproximateNumberOfMessagesNotVisible", 0)
+                ),
+            }
+        except Exception as e:
+            logger.warning(
+                f"Could not fetch queue depth for {queue_url}: {type(e).__name__}"
+            )
+            return {}

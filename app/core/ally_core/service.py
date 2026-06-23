@@ -50,9 +50,11 @@ class AllyCoreService:
     async def process_transcript(
         self,
         chat_id: int,
-        transcription: List[Dict[str, Any]] | None,
-        summary: Dict[str, Any] | None,
+        transcription: List[Dict[str, Any]] | None = None,
+        summary: Dict[str, Any] | None = None,
         error: str | None = None,
+        stage: str | None = None,
+        correlation_id: str | None = None,
     ) -> None:
         url = f"{self._base_url}/api/v1/chats/process-transcript"
 
@@ -61,9 +63,13 @@ class AllyCoreService:
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
+        # Echo the trace id as a header too, so it is visible in access logs
+        # even before the body is parsed.
+        if correlation_id:
+            headers["x-correlation-id"] = correlation_id
 
         # Required fields
-        payload: dict[str, str | int] = {
+        payload: dict[str, Any] = {
             "chatId": chat_id,
         }
 
@@ -77,6 +83,13 @@ class AllyCoreService:
         if error is not None:
             payload["error"] = error
 
+        if stage is not None:
+            payload["stage"] = stage
+
+        if correlation_id is not None:
+            payload["correlationId"] = correlation_id
+
+        is_error = error is not None
         try:
             response = await self._client.post(
                 url,
@@ -84,15 +97,27 @@ class AllyCoreService:
                 json=payload,
             )
             response.raise_for_status()
+            logger.info(
+                "AllyCore process-transcript ok status=%s chat_id=%s "
+                "is_error=%s stage=%s correlation_id=%s",
+                response.status_code,
+                chat_id,
+                is_error,
+                stage,
+                correlation_id,
+            )
 
         except httpx.HTTPStatusError as e:
             logger.error(
-                f"AllyCore request failed, status={e.response.status_code}, body={e.response.text}, chat_id={chat_id}"
+                f"AllyCore request failed, status={e.response.status_code}, "
+                f"body={e.response.text}, chat_id={chat_id}, is_error={is_error}, "
+                f"stage={stage}, correlation_id={correlation_id}"
             )
             raise
 
         except httpx.RequestError as e:
             logger.error(
-                f"AllyCore network error error={str(e)}, chat_id={chat_id}",
+                f"AllyCore network error error={str(e)}, chat_id={chat_id}, "
+                f"is_error={is_error}, stage={stage}, correlation_id={correlation_id}",
             )
             raise

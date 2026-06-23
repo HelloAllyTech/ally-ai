@@ -109,10 +109,12 @@ class TestMessageProcessor:
         )
 
     @pytest.mark.asyncio
-    async def test_process_message_handler_error_still_deletes(
+    async def test_process_message_handler_error_leaves_for_redrive(
         self, mock_queue_service, mock_handler
     ):
-        """Test message processing when handler raises exception."""
+        """A handler that raises must NOT have its message deleted, so SQS can
+        redeliver it (and eventually route it to the DLQ) instead of silently
+        dropping the work."""
         mock_handler.side_effect = RuntimeError("boom")
         mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
 
@@ -120,9 +122,22 @@ class TestMessageProcessor:
 
         await mp.process_message(message)
 
-        mock_queue_service.delete_message.assert_awaited_once_with(
-            queue_url="q-url", receipt_handle="rh-4"
-        )
+        mock_queue_service.delete_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_process_message_handler_returns_false_leaves_for_redrive(
+        self, mock_queue_service, mock_handler
+    ):
+        """A handler returning False signals 'leave for redrive' (e.g. the
+        result could not be delivered downstream)."""
+        mock_handler.return_value = False
+        mp = MessageProcessor(mock_queue_service, mock_handler, "q-url")
+
+        message = {"receipt_handle": "rh-4b", "body": {"chat_id": "c4b"}}
+
+        await mp.process_message(message)
+
+        mock_queue_service.delete_message.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_process_message_skip_delete_when_flag_false(

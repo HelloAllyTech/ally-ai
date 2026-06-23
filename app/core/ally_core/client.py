@@ -26,11 +26,17 @@ class AllyCoreClient:
             logger.info("Creating a new ally core httpx client...")
             _ally_core_client = httpx.AsyncClient(
                 base_url=settings.ALLY_CORE.ENDPOINT,
+                # The process-transcript callback delivers the full transcript +
+                # summary and the receiver persists/encrypts it before replying;
+                # under concurrent load that legitimately takes well over the old
+                # 5s read budget, and a premature read-timeout used to be
+                # misread as a failure. Give the read/write/pool a realistic
+                # window; keep connect short to fail fast on a down host.
                 timeout=httpx.Timeout(
                     connect=3.0,
-                    read=5.0,
-                    write=5.0,
-                    pool=5.0,
+                    read=60.0,
+                    write=60.0,
+                    pool=10.0,
                 ),
                 limits=httpx.Limits(
                     max_connections=settings.ALLY_CORE.MAX_CONNECTIONS,

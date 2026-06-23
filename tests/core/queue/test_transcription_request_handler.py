@@ -6,8 +6,12 @@ from unittest.mock import Mock, AsyncMock
 
 import pytest
 
+from app.core.constants import PipelineStage
 from app.core.queue.message_models import MessageType
-from app.core.queue.transcription_request_handler import TranscriptionRequestHandler
+from app.core.queue.transcription_request_handler import (
+    PipelineStageError,
+    TranscriptionRequestHandler,
+)
 
 
 class TestTranscriptionHandler:
@@ -81,13 +85,21 @@ class TestTranscriptionHandler:
         # Act
         await handler.process_transcription_request(message_data)
 
-        # Assert
+        # Assert: a transcription failure is reported with the TRANSCRIBE stage
+        # and the real upstream reason (not the old generic "Processing failed").
         handler._process_transcription_result.assert_not_awaited()
-        handler._send_error_response.assert_awaited_once_with(123, "Processing failed")
+        handler._send_error_response.assert_awaited_once()
+        call = handler._send_error_response.await_args
+        assert call.args[0] == 123
+        assert "Audio Transcribe Failure" in call.args[1]
+        assert call.kwargs["stage"] == PipelineStage.TRANSCRIBE
 
     @pytest.mark.asyncio
-    async def test_process_transcription_request_failure_sends_error(self, handler):
-        # Arrange
+    async def test_process_transcription_request_delivery_failure_no_error(self, handler):
+        # A False from _process_transcription_result means the result could not
+        # be *delivered* (not a processing failure). We must NOT post an error
+        # (that could clobber a result that landed); the message is left for
+        # redrive instead, and the handler reports it as unhandled (False).
         message_data = {
             "message_type": MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST,
             "audio_url": "http://example.com",
@@ -103,10 +115,11 @@ class TestTranscriptionHandler:
         handler._send_error_response = AsyncMock()
 
         # Act
-        await handler.process_transcription_request(message_data)
+        handled = await handler.process_transcription_request(message_data)
 
         # Assert
-        handler._send_error_response.assert_awaited_once_with(123, "Processing failed")
+        assert handled is False
+        handler._send_error_response.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_process_transcription_request_exception_sends_error(self, handler):
@@ -128,8 +141,11 @@ class TestTranscriptionHandler:
         # Act
         await handler.process_transcription_request(message_data)
 
-        # Assert
-        handler._send_error_response.assert_awaited_once_with(123, "Processing failed")
+        # Assert: unexpected error is reported with the real reason.
+        handler._send_error_response.assert_awaited_once()
+        call = handler._send_error_response.await_args
+        assert call.args[0] == 123
+        assert "boom" in call.args[1]
 
     # ---------------- _process_transcription_result ----------------
     @pytest.mark.asyncio
@@ -152,7 +168,7 @@ class TestTranscriptionHandler:
 
         fake_summary = {"summary": "ok"}
         handler._generate_summary = AsyncMock(return_value=fake_summary)
-        handler.send_combined_result_to_ally_core = AsyncMock()
+        handler.send_combined_result_to_ally_core = AsyncMock(return_value=True)
 
         request = SimpleNamespace(
             chat_id=111, segments_text="00:00-00:01 hi\n00:01-00:02 hello"
@@ -161,7 +177,7 @@ class TestTranscriptionHandler:
         # Act
         ok = await handler._process_transcription_result(request)
 
-        # Assert
+        # Assert: returns the delivery result (True)
         assert ok is True
         mock_text_generation_service.diarize_from_transcription.assert_awaited_once()
         handler._generate_summary.assert_awaited_once()
@@ -173,24 +189,27 @@ class TestTranscriptionHandler:
         assert passed_messages[0].role == "CLIENT"
         assert passed_messages[1].role == "COUNSELOR"
         handler.send_combined_result_to_ally_core.assert_awaited_once_with(
-            111, [m.model_dump() for m in passed_messages], fake_summary
+            111,
+            [m.model_dump() for m in passed_messages],
+            fake_summary,
+            correlation_id=None,
         )
 
     @pytest.mark.asyncio
-    async def test__process_transcription_handles_exception(
+    async def test__process_transcription_raises_stage_error_on_diarize_failure(
         self, handler, mock_text_generation_service: AsyncMock
     ):
-        # Arrange
+        # A diarization failure is a genuine processing failure: it must raise a
+        # stage-tagged error (DIARIZE) so the single error path can report it.
         mock_text_generation_service.diarize_from_transcription.side_effect = (
             RuntimeError("oops")
         )
         request = SimpleNamespace(chat_id=222, segments_text="...")
 
-        # Act
-        ok = await handler._process_transcription_result(request)
-
-        # Assert
-        assert ok is False
+        # Act / Assert
+        with pytest.raises(PipelineStageError) as exc:
+            await handler._process_transcription_result(request)
+        assert exc.value.stage == PipelineStage.DIARIZE
 
     # # ---------------- _generate_summary ----------------
     @pytest.mark.asyncio
@@ -230,21 +249,22 @@ class TestTranscriptionHandler:
         )
 
     @pytest.mark.asyncio
-    async def test__generate_summary_failure_sends_error_and_raises(
+    async def test__generate_summary_failure_raises_stage_error(
         self, handler, mock_text_generation_service: AsyncMock
     ):
-        # Arrange
+        # A summary failure now raises a stage-tagged error and does NOT post an
+        # error itself (the single error path does that), avoiding the old
+        # duplicate error callbacks.
         mock_text_generation_service.generate_summary_notes.side_effect = RuntimeError(
             "fail"
         )
         handler._send_error_response = AsyncMock()
 
-        # Act
-        with pytest.raises(Exception):
+        # Act / Assert
+        with pytest.raises(PipelineStageError) as exc:
             await handler._generate_summary([], chat_id=444)
-
-        # Assert
-        handler._send_error_response.assert_awaited_once_with(444, "Processing failed")
+        assert exc.value.stage == PipelineStage.SUMMARIZE
+        handler._send_error_response.assert_not_awaited()
 
     # # ---------------- send_combined_result_to_ally_core ----------------
     @pytest.mark.asyncio

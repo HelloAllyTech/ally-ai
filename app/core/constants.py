@@ -66,6 +66,23 @@ class ENV(str, Enum):
     STG = "STG"
 
 
+class PipelineStage(str, Enum):
+    """Stages of the transcribe-and-summarize pipeline.
+
+    Tagged onto failures so an error can be attributed to a specific step
+    (and forwarded to ally-core / Slack) instead of the generic
+    "transcription failed". Ordered roughly by execution order.
+    """
+
+    REQUEST_PARSE = "request-parse"
+    DOWNLOAD = "download"
+    CONVERT = "convert"
+    TRANSCRIBE = "transcribe"
+    DIARIZE = "diarize"
+    SUMMARIZE = "summarize"
+    DELIVER = "deliver"
+
+
 class SQSWorkerConstants:
     """Constants for SQS worker configuration."""
 

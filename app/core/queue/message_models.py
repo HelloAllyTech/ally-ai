@@ -21,6 +21,11 @@ class BaseQueueMessage(BaseModel):
 
     message_type: MessageType
     timestamp: int  # Unix timestamp in milliseconds
+    # End-to-end trace id, minted by ally-core at dispatch. Carried through the
+    # AI pipeline logs and echoed back on the result callback so a single chat's
+    # journey can be grepped across both services. Optional for backward compat
+    # with in-flight messages that predate this field.
+    correlation_id: Optional[str] = None
 
 class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
     """

@@ -71,6 +71,12 @@ class MessageProcessor:
         """
         chat_id = None
         receipt_handle = message.get("receipt_handle")
+        # Whether the message was fully handled and is safe to delete. A handler
+        # may return False to signal "leave for SQS redrive" (e.g. the result
+        # could not be delivered to the downstream service); a handler that
+        # returns None/True (or has no opinion) is treated as handled. An
+        # unhandled exception leaves this False so the message redrives.
+        handled = False
 
         try:
             # Extract the message body
@@ -106,10 +112,20 @@ class MessageProcessor:
             if isinstance(body, dict):
                 # Extract chat_id from valid body
                 chat_id = body.get("chat_id", "unknown")
-                logger.info(f"Processing message for chat_id: {chat_id}")
+                correlation_id = body.get("correlation_id")
+                logger.info(
+                    f"Processing message for chat_id: {chat_id} "
+                    f"correlation_id={correlation_id}"
+                )
 
                 # Process the message using the handler
-                await self.handler(body)
+                result = await self.handler(body)
+                # Only an explicit False means "leave for redrive".
+                handled = result is not False
+            else:
+                # Malformed body (already logged above): nothing to retry, drop
+                # it so it doesn't loop forever.
+                handled = True
 
         except Exception as e:
             chat_id = (
@@ -140,8 +156,17 @@ class MessageProcessor:
             )
 
         finally:
-            # ALWAYS delete the message from the queue, regardless of success or failure
-            if self.delete_after_processing and receipt_handle:
+            # Delete only when the message was fully handled. An unhandled
+            # failure (handler returned False or raised) is left on the queue so
+            # SQS redelivers it after the visibility timeout and, after
+            # maxReceiveCount, routes it to the DLQ — instead of silently
+            # dropping work, which is what the old unconditional delete did.
+            if not handled and receipt_handle:
+                logger.warning(
+                    f"Leaving message on queue for redrive (chat_id={chat_id}); "
+                    f"not deleting after a failed/incomplete handling"
+                )
+            if self.delete_after_processing and receipt_handle and handled:
                 try:
                     await self.queue_service.delete_message(
                         queue_url=self.queue_url, receipt_handle=receipt_handle
@@ -179,8 +204,22 @@ class MessageProcessor:
             )
 
             if messages:
+                # Concurrency/backlog visibility: how big was this batch, how
+                # many are we allowed to run at once, and what is the queue
+                # depth behind us. This is what surfaces concurrency-driven
+                # backlog (the "2-3 recording at once" scenario) in the logs.
+                depth = {}
+                get_depth = getattr(self.queue_service, "get_queue_depth", None)
+                if callable(get_depth):
+                    depth = await get_depth(self.queue_url)
                 logger.info(
-                    f"Received {len(messages)} messages from queue {self.queue_url}"
+                    "poll: received batch_size=%s max_concurrent=%s "
+                    "queue_visible=%s queue_in_flight=%s queue=%s",
+                    len(messages),
+                    self.max_concurrent_messages,
+                    depth.get("visible", "n/a"),
+                    depth.get("in_flight", "n/a"),
+                    self.queue_url,
                 )
 
                 # Bound concurrency: SQS may hand us up to max_messages (default 10)
@@ -188,6 +227,14 @@ class MessageProcessor:
                 # LLM. Without this semaphore the worker's memory spikes linearly
                 # with batch size.
                 async def _bounded(msg: Dict[str, Any]) -> None:
+                    # Log when a message has to wait for a concurrency slot, so
+                    # saturation (more concurrent recordings than slots) is
+                    # visible rather than silent.
+                    if self._process_semaphore.locked():
+                        logger.info(
+                            "All %s concurrency slots busy; message queued for a slot",
+                            self.max_concurrent_messages,
+                        )
                     async with self._process_semaphore:
                         await self.process_message(msg)
 
