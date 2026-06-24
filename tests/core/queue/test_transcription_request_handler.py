@@ -193,6 +193,7 @@ class TestTranscriptionHandler:
             [m.model_dump() for m in passed_messages],
             fake_summary,
             correlation_id=None,
+            summary_error=None,
         )
 
     @pytest.mark.asyncio
@@ -210,6 +211,34 @@ class TestTranscriptionHandler:
         with pytest.raises(PipelineStageError) as exc:
             await handler._process_transcription_result(request)
         assert exc.value.stage == PipelineStage.DIARIZE
+
+    @pytest.mark.asyncio
+    async def test__process_transcription_delivers_transcript_when_summary_fails(
+        self, handler, mock_text_generation_service: AsyncMock
+    ):
+        # A summary failure must NOT discard the transcript: the transcript is
+        # delivered with a summary_error so the backend can mark it retryable.
+        diarized = [
+            SimpleNamespace(role="client", content="hi", start_time=0, end_time=1),
+        ]
+        mock_text_generation_service.diarize_from_transcription.return_value = (
+            SimpleNamespace(messages=diarized)
+        )
+        handler._generate_summary = AsyncMock(
+            side_effect=PipelineStageError(PipelineStage.SUMMARIZE, "llm down")
+        )
+        handler.send_combined_result_to_ally_core = AsyncMock(return_value=True)
+
+        request = SimpleNamespace(chat_id=321, segments_text="00:00-00:01 hi")
+
+        ok = await handler._process_transcription_result(request)
+
+        assert ok is True
+        call = handler.send_combined_result_to_ally_core.await_args
+        assert call.args[0] == 321
+        assert len(call.args[1]) == 1  # transcript delivered
+        assert call.args[2] is None  # no summary
+        assert call.kwargs["summary_error"] == "llm down"
 
     # # ---------------- _generate_summary ----------------
     @pytest.mark.asyncio

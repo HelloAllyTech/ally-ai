@@ -322,25 +322,44 @@ class TranscriptionRequestHandler:
             for msg in diarization_result.messages
         ]
 
-        # Generate summary (raises PipelineStageError(SUMMARIZE) on failure)
-        summary = await self._generate_summary(
-            messages, chat_id, session_mode=session_mode
-        )
-
-        # Convert to data format
+        # The transcript is ready at this point — capture it BEFORE attempting
+        # the summary so a summary failure can't discard it.
         transcription_data = [
             msg.model_dump() if hasattr(msg, "model_dump") else msg
             for msg in messages
         ]
-        summary_data = (
-            summary.model_dump() if hasattr(summary, "model_dump") else summary
-        )
+
+        # Generate summary. If it fails we deliver the transcript anyway (with a
+        # summary_error) so the user can read the transcript and retry summary
+        # generation later — instead of losing the whole session to a FAILED.
+        summary_data = None
+        summary_error = None
+        try:
+            summary = await self._generate_summary(
+                messages, chat_id, session_mode=session_mode
+            )
+            summary_data = (
+                summary.model_dump() if hasattr(summary, "model_dump") else summary
+            )
+        except PipelineStageError as e:
+            logger.error(
+                f"Summary generation failed for chat_id {chat_id} "
+                f"correlation_id={correlation_id}; delivering transcript without "
+                f"a summary for later retry: {e.reason}"
+            )
+            summary_error = e.reason
 
         # Deliver to ally-core. Retries internally on transient delivery
         # failure and never raises (the result is idempotent on the receiver),
         # so a slow/blipping callback can't turn a good summary into a FAILED.
+        # When summary_error is set, the transcript is still delivered and the
+        # backend marks the summary retryable.
         delivered = await self.send_combined_result_to_ally_core(
-            chat_id, transcription_data, summary_data, correlation_id=correlation_id
+            chat_id,
+            transcription_data,
+            summary_data,
+            correlation_id=correlation_id,
+            summary_error=summary_error,
         )
 
         logger.info(
@@ -429,22 +448,31 @@ class TranscriptionRequestHandler:
         self,
         chat_id: int,
         transcription: List[Dict[str, Any]],
-        summary: Dict[str, Any],
+        summary: Optional[Dict[str, Any]],
         correlation_id: Optional[str] = None,
+        summary_error: Optional[str] = None,
     ) -> bool:
         """
-        Send transcription and summary results to ally-core's process-transcript
-        API, retrying on transient delivery failures.
+        Send transcription (and summary when available) to ally-core's
+        process-transcript API, retrying on transient delivery failures.
 
-        Never raises and never posts an error response: a delivery failure is
-        ambiguous (the result may already have landed), so on exhaustion we log
-        loudly and let SQS redrive / the backend reaper handle it.
+        When summary is None and summary_error is set, the transcript is still
+        delivered and the error/stage is forwarded so the backend persists the
+        transcript and marks the summary FAILED-but-retryable.
+
+        Never raises and never posts a standalone error response: a delivery
+        failure is ambiguous (the result may already have landed), so on
+        exhaustion we log loudly and let SQS redrive / the backend reaper
+        handle it.
 
         Returns:
             bool: True if the result was delivered, False if all attempts were
             exhausted (caller leaves the SQS message for redrive).
         """
         last_exception: Optional[Exception] = None
+        # Forwarded only when the summary failed but the transcript is good, so
+        # the backend can save the transcript and mark the summary retryable.
+        stage = PipelineStage.SUMMARIZE.value if summary_error else None
 
         for attempt in range(1, self._DELIVERY_MAX_ATTEMPTS + 1):
             try:
@@ -452,6 +480,8 @@ class TranscriptionRequestHandler:
                     chat_id=chat_id,
                     transcription=transcription,
                     summary=summary,
+                    error=summary_error,
+                    stage=stage,
                     correlation_id=correlation_id,
                 )
 
