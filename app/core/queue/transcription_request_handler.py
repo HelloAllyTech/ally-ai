@@ -329,6 +329,23 @@ class TranscriptionRequestHandler:
             for msg in messages
         ]
 
+        # PHASE 1: deliver the transcript on its own, immediately, BEFORE the
+        # summary is attempted. This guarantees the transcript is persisted even
+        # if summary generation is slow, hangs, or the worker/message dies before
+        # the combined result is sent. The backend stores it and keeps the chat
+        # IN_PROGRESS. Best-effort (never raises); the transcript is sent again
+        # with the summary in phase 2, so a phase-1 delivery blip self-heals.
+        phase1_delivered = await self.send_combined_result_to_ally_core(
+            chat_id,
+            transcription_data,
+            None,
+            correlation_id=correlation_id,
+        )
+        logger.info(
+            f"Phase 1 (transcript-only) delivery for chat_id {chat_id} "
+            f"correlation_id={correlation_id} delivered={phase1_delivered}"
+        )
+
         # Generate summary. If it fails we deliver the transcript anyway (with a
         # summary_error) so the user can read the transcript and retry summary
         # generation later — instead of losing the whole session to a FAILED.
