@@ -188,16 +188,13 @@ class TestTranscriptionHandler:
         )
         assert passed_messages[0].role == "CLIENT"
         assert passed_messages[1].role == "COUNSELOR"
-        # Two-phase delivery: phase 1 sends the transcript on its own, phase 2
-        # sends the transcript + summary.
-        calls = handler.send_combined_result_to_ally_core.await_args_list
-        assert len(calls) == 2
-        transcript_payload = [m.model_dump() for m in passed_messages]
-        # Phase 1: transcript only (summary is None)
-        assert calls[0].args == (111, transcript_payload, None)
-        # Phase 2: transcript + summary
-        assert calls[1].args == (111, transcript_payload, fake_summary)
-        assert calls[1].kwargs.get("summary_error") is None
+        handler.send_combined_result_to_ally_core.assert_awaited_once_with(
+            111,
+            [m.model_dump() for m in passed_messages],
+            fake_summary,
+            correlation_id=None,
+            summary_error=None,
+        )
 
     @pytest.mark.asyncio
     async def test__process_transcription_raises_stage_error_on_diarize_failure(

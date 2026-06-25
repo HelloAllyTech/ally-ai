@@ -329,15 +329,6 @@ class TranscriptionRequestHandler:
             for msg in messages
         ]
 
-        # PHASE 1: deliver the transcript on its own, immediately, so it is
-        # persisted even if summary generation is slow or never finishes. The
-        # backend stores it (idempotently) and keeps the chat IN_PROGRESS; if
-        # the summary then times out, the chat is failed-but-retryable rather
-        # than losing the transcript. Best-effort — phase 2 re-sends it anyway.
-        await self.send_combined_result_to_ally_core(
-            chat_id, transcription_data, None, correlation_id=correlation_id
-        )
-
         # Generate summary. If it fails we deliver the transcript anyway (with a
         # summary_error) so the user can read the transcript and retry summary
         # generation later — instead of losing the whole session to a FAILED.
