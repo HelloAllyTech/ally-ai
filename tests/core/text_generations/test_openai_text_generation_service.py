@@ -1264,3 +1264,57 @@ class TestScenarioEvaluationLanguageDirective:
         )
         assert "OUTPUT LANGUAGE" not in prompt
         assert prompt == baseline
+
+
+class TestCondenseForSummary:
+    """Tests for the summary-input length guard (_condense_for_summary)."""
+
+    @pytest.fixture
+    def text_generation_service(self):
+        with patch(
+            "app.core.text_generations.openai_text_generation_service.settings"
+        ) as mock_settings:
+            mock_settings.LLM.MAX_CONCURRENT_LLM_CALLS = 10
+            return OpenAITextGenerationService(MagicMock(), AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_short_transcript_passes_through_untouched(
+        self, text_generation_service
+    ):
+        text_generation_service._invoke_llm = AsyncMock(return_value="CONDENSED")
+        transcript = "CLIENT: hello\nCOUNSELOR: hi there"
+
+        result = await text_generation_service._condense_for_summary(transcript)
+
+        assert result == transcript
+        text_generation_service._invoke_llm.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_long_transcript_is_condensed(self, text_generation_service):
+        text_generation_service._invoke_llm = AsyncMock(return_value="CONDENSED")
+        # > MAX_SUMMARY_INPUT_WORDS (8000); many lines so it splits into
+        # multiple chunks, each condensed via an LLM call.
+        transcript = "\n".join("CLIENT: word word word word word" for _ in range(2000))
+
+        result = await text_generation_service._condense_for_summary(transcript)
+
+        assert "CONDENSED" in result
+        assert len(result.split()) < len(transcript.split())
+        assert text_generation_service._invoke_llm.await_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_condense_chunk_failure_falls_back_to_raw(
+        self, text_generation_service
+    ):
+        # If a chunk's condensation fails, it must fall back to (truncated) raw
+        # text rather than failing the whole summary.
+        text_generation_service._invoke_llm = AsyncMock(
+            side_effect=Exception("llm down")
+        )
+        transcript = "\n".join("CLIENT: alpha beta gamma delta" for _ in range(2000))
+
+        result = await text_generation_service._condense_for_summary(transcript)
+
+        assert isinstance(result, str)
+        assert "alpha" in result  # raw content preserved on fallback
+        text_generation_service._invoke_llm.assert_awaited()

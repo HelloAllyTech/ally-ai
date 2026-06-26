@@ -22,6 +22,7 @@ from app.core.text_generations.openai_text_generation_service import (
 
 from app.core.transcriptions.services import (
     DeepgramTranscriptionService,
+    FallbackTranscriptionService,
     OpenAITranscriptionService,
     SarvamTranscriptionService,
 )
@@ -31,24 +32,42 @@ from app.utils.startup import initialize_openai_clients
 
 logger = get_logger(__name__)
 
-def create_transcription_service(provider: str | None = None):
+# Common stand-in values seen in committed/example .env files. A provider
+# whose key matches one of these is treated as unconfigured and skipped at
+# startup (rather than failing on every request with a 403), so the chain
+# degrades cleanly until a real key is set. Matched case-insensitively as a
+# prefix; real keys (e.g. OpenAI 'sk-…', Deepgram hex, the test suite's
+# 'test-…' keys) are unaffected.
+_PLACEHOLDER_KEY_PREFIXES = (
+    "fill",
+    "your",
+    "changeme",
+    "change-me",
+    "change_me",
+    "placeholder",
+    "todo",
+    "dummy",
+    "replace",
+    "xxx",
+    "<",
+)
+
+
+def _is_missing_or_placeholder_key(value: str | None) -> bool:
+    """True if a key is empty or an obvious stand-in (not a real credential)."""
+    if not value or not value.strip():
+        return True
+    return value.strip().lower().startswith(_PLACEHOLDER_KEY_PREFIXES)
+
+
+def _build_single_service(provider_str: str):
     """
-    Create a transcription service based on the specified provider.
-
-    Args:
-        provider (str, optional): Provider to use ('openai', 'deepgram', 'sarvam').
-            If None, will use settings.TRANSCRIPTION_PROVIDER.
-
-    Returns:
-        The transcription service instance
+    Build one concrete transcription service for a provider name.
 
     Raises:
-        ValueError: If provider is not supported or required API keys are missing
+        ValueError: If the provider is unsupported or its API key is missing
+            or an obvious placeholder.
     """
-    provider_str = provider
-    if provider_str is None:
-        provider_str = settings.TRANSCRIPTION.PROVIDER.lower()
-
     try:
         provider_enum = TranscriptionServiceProvider[provider_str.upper()]
     except KeyError:
@@ -57,29 +76,109 @@ def create_transcription_service(provider: str | None = None):
             "'openai', 'deepgram', 'sarvam'"
         )
 
-    logger.info(f"Using {provider_str} as transcription service provider.")
-
-    # 3. Compare against Enum members
     if provider_enum == TranscriptionServiceProvider.OPENAI:
-        if not settings.OPENAI.API_KEY:
+        if _is_missing_or_placeholder_key(settings.OPENAI.API_KEY):
             raise ValueError(
-                "OPENAI__API_KEY is required in settings for OpenAI provider"
+                "OPENAI__API_KEY is missing or a placeholder for OpenAI provider"
             )
         return OpenAITranscriptionService()
 
     elif provider_enum == TranscriptionServiceProvider.DEEPGRAM:
-        if not settings.DEEPGRAM.API_KEY:
+        if _is_missing_or_placeholder_key(settings.DEEPGRAM.API_KEY):
             raise ValueError(
-                "DEEPGRAM__API_KEY is required in settings for Deepgram provider"
+                "DEEPGRAM__API_KEY is missing or a placeholder for Deepgram provider"
             )
         return DeepgramTranscriptionService()
 
     elif provider_enum == TranscriptionServiceProvider.SARVAM:
-        if not settings.SARVAM.API_KEY:
+        if _is_missing_or_placeholder_key(settings.SARVAM.API_KEY):
             raise ValueError(
-                "SARVAM__API_KEY is required in settings for Sarvam provider"
+                "SARVAM__API_KEY is missing or a placeholder for Sarvam provider"
             )
         return SarvamTranscriptionService()
+
+
+def _resolve_provider_order() -> list[str]:
+    """
+    Resolve the ordered provider chain from settings.
+
+    Uses TRANSCRIPTION.PROVIDERS (comma-separated) when set, otherwise falls
+    back to the single TRANSCRIPTION.PROVIDER. De-duplicates while preserving
+    order so a chain like "deepgram,deepgram,sarvam" collapses sensibly.
+    """
+    raw = getattr(settings.TRANSCRIPTION, "PROVIDERS", None)
+    if raw:
+        names = [p.strip().lower() for p in raw.split(",") if p.strip()]
+    else:
+        names = [settings.TRANSCRIPTION.PROVIDER.lower()]
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for name in names:
+        if name not in seen:
+            seen.add(name)
+            ordered.append(name)
+    return ordered
+
+
+def create_transcription_service(provider: str | None = None):
+    """
+    Create the transcription service for the worker.
+
+    When a single provider is configured (default), returns that concrete
+    service. When TRANSCRIPTION.PROVIDERS lists more than one, returns a
+    FallbackTranscriptionService that tries them in order, failing over on
+    error or an empty transcript.
+
+    Args:
+        provider (str, optional): Force a single provider ('openai',
+            'deepgram', 'sarvam'), bypassing the configured chain. Mainly for
+            tests. If None, resolves from settings.
+
+    Returns:
+        A transcription service exposing transcribe_audio_from_url(...).
+
+    Raises:
+        ValueError: If no usable provider can be built (all unsupported or
+            missing API keys).
+    """
+    if provider is not None:
+        logger.info(f"Using {provider} as transcription service provider.")
+        return _build_single_service(provider.lower())
+
+    provider_names = _resolve_provider_order()
+
+    # Build each provider, skipping (with a loud log) any that can't be
+    # constructed — e.g. a fallback whose API key isn't configured — so a
+    # half-configured chain still runs on whatever providers are available.
+    built: list[tuple[str, object]] = []
+    for name in provider_names:
+        try:
+            built.append((name, _build_single_service(name)))
+        except ValueError as e:
+            logger.error(
+                f"Skipping transcription provider '{name}': {e}"
+            )
+
+    if not built:
+        raise ValueError(
+            "No usable transcription provider could be initialised from "
+            f"{provider_names}. Check TRANSCRIPTION settings and API keys."
+        )
+
+    if len(built) == 1:
+        name, service = built[0]
+        logger.info(f"Using {name} as transcription service provider.")
+        return service
+
+    chain = ", ".join(name for name, _ in built)
+    logger.info(f"Using transcription provider fallback chain: {chain}")
+    return FallbackTranscriptionService(
+        built,
+        per_provider_timeout_seconds=getattr(
+            settings.TRANSCRIPTION, "PER_PROVIDER_TIMEOUT_SECONDS", None
+        ),
+    )
 
 async def main():
     """Main function with proper cleanup."""

@@ -121,6 +121,17 @@ CHUNK_OVERLAP_WORDS = (
     300  # Overlap between chunks to maintain context (roughly equivalent to 500 tokens)
 )
 
+# Unlike diarization (which is chunked), the structured summary feeds the WHOLE
+# transcript into a single prompt. A very long session (e.g. an hour+) can blow
+# past the model's usable input budget, so the summary fails every time and the
+# auto-retries never help — a session-length-dependent "summary not generated".
+# When the transcript is larger than this many words we first condense it
+# (map step) so the structured-summary prompt stays bounded. Set high enough
+# that normal sessions are untouched.
+MAX_SUMMARY_INPUT_WORDS = 8000
+# Word size of each chunk fed to the condense (map) step.
+SUMMARY_CONDENSE_CHUNK_WORDS = 2000
+
 
 @tool
 def generate_dynamic_summary(
@@ -606,6 +617,70 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         merged = {**tool_fields, **precomputed}
         return DynamicSummaryNoteResponse(fields=merged)
 
+    async def _condense_for_summary(self, chat_history_str: str) -> str:
+        """
+        Bound the transcript fed to the structured-summary prompt.
+
+        Returns the transcript unchanged when it is within
+        MAX_SUMMARY_INPUT_WORDS. For longer transcripts it runs a map step:
+        each chunk is condensed to a concise plain-text summary (in parallel),
+        and the partials are concatenated. The structured summary then runs on
+        this condensed text, so a long session no longer overflows the prompt
+        and fails every time. Metrics are computed separately on the FULL
+        transcript, so this only affects what the summariser model reads.
+
+        A chunk whose condensation fails falls back to a truncated slice of the
+        raw chunk, so one flaky LLM call can't sink the whole summary.
+        """
+        if len(chat_history_str.split()) <= MAX_SUMMARY_INPUT_WORDS:
+            return chat_history_str
+
+        chunks = split_text_by_length(
+            chat_history_str, SUMMARY_CONDENSE_CHUNK_WORDS
+        )
+        logger.info(
+            "Transcript exceeds %s words; condensing %s chunks before summary",
+            MAX_SUMMARY_INPUT_WORDS,
+            len(chunks),
+        )
+
+        async def condense_chunk(chunk: str, index: int) -> str:
+            prompt = (
+                "Condense the following part of a counselling session "
+                "transcript into a concise summary. Preserve who said what, "
+                "key topics, decisions, risks, emotional shifts, and any "
+                "clinically relevant details. Do not add information that is "
+                "not present. Output plain text only.\n\n"
+                f"TRANSCRIPT PART {index + 1}/{len(chunks)}:\n{chunk}"
+            )
+            try:
+                result = await self._invoke_llm(
+                    prompt, task=LLMTask.SUMMARY.value
+                )
+                return result if isinstance(result, str) else str(result)
+            except Exception as e:
+                # Don't let one failed chunk fail the whole summary — fall back
+                # to a truncated raw slice so the structured summary still has
+                # this section's content (bounded).
+                logger.warning(
+                    "Condense chunk %s failed (%s); using truncated raw text",
+                    index + 1,
+                    type(e).__name__,
+                )
+                words = chunk.split()
+                return " ".join(words[:SUMMARY_CONDENSE_CHUNK_WORDS])
+
+        partials = await asyncio.gather(
+            *[condense_chunk(c, i) for i, c in enumerate(chunks)]
+        )
+        condensed = "\n\n".join(partials)
+        logger.info(
+            "Condensed transcript from %s to ~%s words for summary",
+            len(chat_history_str.split()),
+            len(condensed.split()),
+        )
+        return condensed
+
     async def _generate_structured_summary(
         self,
         chat_history,
@@ -615,12 +690,17 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         **kwargs,
     ):
         """Optimized structured summary with parallel processing."""
+        # Bound the transcript the summariser reads (long sessions otherwise
+        # overflow the prompt and fail every time). Metrics below still use the
+        # FULL chat_history / chat_history_str.
+        summary_input_str = await self._condense_for_summary(chat_history_str)
+
         # Start LLM call and metric calculation in parallel
         template = load_template(
             _structured_summary_template_path(session_mode), prompts=prompts
         )
         llm_task = self._invoke_llm(
-            template.format(chat_history=chat_history_str),
+            template.format(chat_history=summary_input_str),
             StructuredSummaryNote,
             task=LLMTask.SUMMARY.value,
             **kwargs,

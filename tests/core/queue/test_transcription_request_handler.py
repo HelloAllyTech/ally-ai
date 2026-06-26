@@ -95,6 +95,35 @@ class TestTranscriptionHandler:
         assert call.kwargs["stage"] == PipelineStage.TRANSCRIBE
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("empty_text", ["", "   ", "\n\t "])
+    async def test_process_transcription_request_empty_transcript_sends_error(
+        self, handler, empty_text
+    ):
+        # An empty/whitespace transcript must be reported as a TRANSCRIBE-stage
+        # failure (not silently summarised into a blank summary). It must not
+        # proceed to diarization/summary.
+        message_data = {
+            "message_type": MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST,
+            "audio_url": "http://example.com",
+            "chat_id": 123,
+            "sample_rate": 8000,
+            "timestamp": 1,
+        }
+        handler.transcription_service.transcribe_audio_from_url = AsyncMock(
+            return_value=(None, empty_text)
+        )
+        handler._process_transcription_result = AsyncMock(return_value=True)
+        handler._send_error_response = AsyncMock()
+
+        await handler.process_transcription_request(message_data)
+
+        handler._process_transcription_result.assert_not_awaited()
+        handler._send_error_response.assert_awaited_once()
+        call = handler._send_error_response.await_args
+        assert call.args[0] == 123
+        assert call.kwargs["stage"] == PipelineStage.TRANSCRIBE
+
+    @pytest.mark.asyncio
     async def test_process_transcription_request_delivery_failure_no_error(self, handler):
         # A False from _process_transcription_result means the result could not
         # be *delivered* (not a processing failure). We must NOT post an error
@@ -219,6 +248,28 @@ class TestTranscriptionHandler:
         with pytest.raises(PipelineStageError) as exc:
             await handler._process_transcription_result(request)
         assert exc.value.stage == PipelineStage.DIARIZE
+
+    @pytest.mark.asyncio
+    async def test__process_transcription_raises_when_diarization_empty(
+        self, handler, mock_text_generation_service: AsyncMock
+    ):
+        # STT produced only noise / diarization yielded nothing: the empty
+        # transcript must NOT be delivered (otherwise the backend would mark the
+        # chat SUCCESS and delete the recording). Fail at TRANSCRIBE instead.
+        mock_text_generation_service.diarize_from_transcription.return_value = (
+            SimpleNamespace(messages=[])
+        )
+        handler._generate_summary = AsyncMock()
+        handler.send_combined_result_to_ally_core = AsyncMock(return_value=True)
+
+        request = SimpleNamespace(chat_id=999, segments_text="...noise...")
+
+        with pytest.raises(PipelineStageError) as exc:
+            await handler._process_transcription_result(request)
+        assert exc.value.stage == PipelineStage.TRANSCRIBE
+        # Nothing delivered, no summary attempted → recording stays intact.
+        handler.send_combined_result_to_ally_core.assert_not_awaited()
+        handler._generate_summary.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test__process_transcription_delivers_transcript_when_summary_fails(

@@ -142,6 +142,22 @@ class TranscriptionRequestHandler:
             except Exception as e:
                 raise PipelineStageError(PipelineStage.TRANSCRIBE, str(e)) from e
 
+            # An empty transcript is a failure, not a success. STT can return
+            # nothing without raising (silent/garbled audio, wrong sample rate, a
+            # bad mobile linear16 upload, or a provider returning no words) — see
+            # DeepgramTranscriptionService._format_deepgram_response_for_diarization.
+            # Without this guard the empty result flows on to diarization+summary
+            # and the chat is marked SUCCESS with a blank summary, which is the
+            # "summary silently not generated" symptom. Fail it at the TRANSCRIBE
+            # stage so it is reported, alertable, and (with a fallback provider
+            # configured) recoverable, instead of disappearing.
+            if not segments_text or not segments_text.strip():
+                raise PipelineStageError(
+                    PipelineStage.TRANSCRIBE,
+                    "Transcription produced no text (no speech detected or "
+                    "unintelligible audio)",
+                )
+
             # Create result message
             result_message = TranscriptionResultMessage(
                 chat_id=chat_id,
@@ -321,6 +337,20 @@ class TranscriptionRequestHandler:
             )
             for msg in diarization_result.messages
         ]
+
+        # Guard: a transcript with no messages (STT produced only noise, or
+        # diarization yielded nothing) must NOT be delivered. If it were, the
+        # backend would persist an empty transcript, summarise nothing, mark the
+        # chat SUCCESS, and then DELETE the recording — leaving no transcript, no
+        # summary, and no audio to recover from. Failing here keeps the chat
+        # FAILED with the audio intact so a retry/reprocess can re-transcribe.
+        if not messages:
+            raise PipelineStageError(
+                PipelineStage.TRANSCRIBE,
+                "Transcript is empty after diarization (no usable speech "
+                "captured); not delivering so the recording is preserved for "
+                "retry",
+            )
 
         # The transcript is ready at this point — capture it BEFORE attempting
         # the summary so a summary failure can't discard it.

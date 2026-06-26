@@ -68,7 +68,21 @@ class SarvamSettings(BaseModel):
     API_KEY: str = Field(...)
 
 class TranscriptionSettings(BaseModel):
+    # Primary provider (backwards compatible). Used as the sole provider when
+    # PROVIDERS is not set.
     PROVIDER: str = Field(...)
+    # Ordered fallback chain. The worker tries these in order, failing over on
+    # error or an empty transcript. Comma-separated so it maps cleanly from an
+    # env var (TRANSCRIPTION__PROVIDERS). Providers with a missing or
+    # placeholder API key are skipped at startup, so this default safely
+    # degrades: with only Deepgram + OpenAI keys set it resolves to
+    # deepgram -> openai, and Sarvam slots back in automatically once a real
+    # SARVAM key is configured. Set to a single name to disable fallback.
+    PROVIDERS: Optional[str] = Field(default="deepgram,sarvam,openai")
+    # Optional hard cap (seconds) on a single provider attempt inside the
+    # fallback chain. The SUM of attempts must stay under the SQS visibility
+    # timeout (900s). Leave unset to rely on each provider's own timeout.
+    PER_PROVIDER_TIMEOUT_SECONDS: Optional[int] = Field(default=None)
 
 class LangSmithSettings(BaseModel):
     TRACING: str = Field(...)
