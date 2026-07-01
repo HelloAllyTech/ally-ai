@@ -285,10 +285,33 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Initialize the base class with the client
         super().__init__(client)
 
+    def _client_for(
+        self,
+        internal_path: str,
+        prompts: Optional[dict] = None,
+    ):
+        """Resolve the LLM client for a prompt: a per-(model, temperature)
+        client when the prompt carries an override, else the default client.
+        Keeps the no-override path identical to today."""
+        from app.core.text_generations.openai_text_generation_client import (
+            OpenAITextGenerationClient,
+        )
+        from app.prompts.resolver import get_backend_llm_overrides
+
+        provider, model, temperature = get_backend_llm_overrides(
+            internal_path, prompts
+        )
+        if provider is None and model is None and temperature is None:
+            return self.model
+        return OpenAITextGenerationClient.get_or_create_client(
+            model=model, temperature=temperature, provider=provider
+        )
+
     async def _invoke_llm(
         self,
         messages: List[BaseMessage],
         output_class: Optional[Type] = None,
+        llm_override: Optional[Any] = None,
         **kwargs,
     ) -> Union[Any, str]:
         """
@@ -319,8 +342,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         await rate_limiter.acquire()
 
         async with self.semaphore:
-            # Use the model from base class
-            llm = self.model
+            # Use the per-prompt override client when provided, else the
+            # process-default model from the base class.
+            llm = llm_override if llm_override is not None else self.model
 
             # Bind structured output class with the llm if passed by user
             if output_class:
@@ -482,6 +506,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ),
                     Nudge,
                     task=LLMTask.NUDGE.value,
+                    llm_override=self._client_for("nudge/nudge", prompts),
                     **kwargs,
                 ),
             )
@@ -703,6 +728,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             template.format(chat_history=summary_input_str),
             StructuredSummaryNote,
             task=LLMTask.SUMMARY.value,
+            llm_override=self._client_for(
+                _structured_summary_template_path(session_mode), prompts
+            ),
             **kwargs,
         )
 
@@ -860,6 +888,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     template.format(content=content),
                     ContentEnhance,
                     task=LLMTask.CONTENT_ENHANCE.value,
+                    llm_override=self._client_for("notes/content_enhance", prompts),
                     **kwargs,
                 ),
             )
@@ -906,6 +935,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     template.format(conversations=formatted_conversations),
                     StructuredIdentifyUsers,
                     task=LLMTask.USER_IDENTIFICATION.value,
+                    llm_override=self._client_for("user/identify_user", prompts),
                     **kwargs,
                 ),
             )
@@ -951,6 +981,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     template.format(tags=formatted_tags),
                     TagList,
                     task=LLMTask.TAG_POSITIVITY.value,
+                    llm_override=self._client_for("tags/positivity_rating", prompts),
                     **kwargs,
                 ),
             )
@@ -1043,6 +1074,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     template.format(transcription=chunks[0]),
                     StructuredDiarization,
                     task=LLMTask.DIARIZATION.value,
+                    llm_override=self._client_for("audio/diarization", prompts),
                     **kwargs,
                 )
                 logger.info("Diarization completed successfully")
@@ -1086,6 +1118,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     template.format(transcription=chunk_text),
                     StructuredDiarization,
                     task=LLMTask.DIARIZATION.value,
+                    llm_override=self._client_for("audio/diarization", prompts),
                     **kwargs,
                 )
                 logger.debug(
@@ -1182,6 +1215,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     prompt,
                     output_class=CounselorMessageAnalysis,
                     task=LLMTask.COUNSELOR_ANALYSIS.value,
+                    llm_override=self._client_for(
+                        "analysis/counselor_analysis", prompts
+                    ),
                 )
 
                 return {
@@ -1375,6 +1411,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     formatted_prompt,
                     response_model,
                     task=LLMTask.SCENARIO_EVALUATION.value,
+                    llm_override=self._client_for(
+                        "scenario/scenario_evaluation_with_memory"
+                        if need_memory
+                        else "scenario/scenario_evaluation",
+                        prompts,
+                    ),
                     **kwargs,
                 ),
             )

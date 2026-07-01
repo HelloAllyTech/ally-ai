@@ -70,6 +70,42 @@ def _extract_backend_template(entry: Any) -> Optional[str]:
     return None
 
 
+def _clamp_temperature(value: Any) -> Optional[float]:
+    """Coerce a prompt-level temperature to a float in [0, 2]; None if invalid."""
+    if value is None or value == "":
+        return None
+    try:
+        temp = float(value)
+    except (TypeError, ValueError):
+        logger.warning("Ignoring invalid prompt-level temperature=%r", value)
+        return None
+    return min(2.0, max(0.0, temp))
+
+
+def _extract_provider_model_temperature(
+    entry: Any,
+) -> tuple[Optional[str], Optional[str], Optional[float]]:
+    """Pull (provider, model, temperature) overrides from a backend prompt entry."""
+    if not isinstance(entry, dict):
+        return (None, None, None)
+    provider = entry.get("provider") or None
+    model = entry.get("model") or None
+    return (provider, model, _clamp_temperature(entry.get("temperature")))
+
+
+def get_backend_llm_overrides(
+    internal_path: str,
+    prompts: Optional[Dict[str, Any]] = None,
+) -> tuple[Optional[str], Optional[str], Optional[float]]:
+    """Return (provider, model, temperature) for a prompt, resolved by the SAME
+    backend key as its text (see resolve_template), so the override aligns
+    exactly with whichever entry supplied the prompt. (None, None, None) when
+    unset/local. `provider` is explicit when ally-be sets it (no inference)."""
+    prompt_code = f"ally_ai_{internal_path.replace('/', '_')}"
+    entry = _get_backend_prompt_entry(prompts, prompt_code)
+    return _extract_provider_model_temperature(entry)
+
+
 def _extract_allowed_variables(entry: Any) -> Optional[set[str]]:
     if not isinstance(entry, dict):
         return None
