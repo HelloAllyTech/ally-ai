@@ -222,6 +222,11 @@ async def main():
             wait_time_seconds=SQSWorkerConstants.WAIT_TIME_SECONDS,
             visibility_timeout=SQSWorkerConstants.VISIBILITY_TIMEOUT,
             polling_interval=SQSWorkerConstants.POLLING_INTERVAL,
+            # Match fetch size to processing capacity so no received message
+            # waits for a slot while its visibility timeout ticks down (which
+            # caused redelivery -> dead-lettering under load). See
+            # SQSWorkerConstants.
+            max_concurrent_messages=SQSWorkerConstants.MAX_CONCURRENT_MESSAGES,
             delete_after_processing=True,
         )
 

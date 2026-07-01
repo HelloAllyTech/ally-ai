@@ -86,7 +86,20 @@ class PipelineStage(str, Enum):
 class SQSWorkerConstants:
     """Constants for SQS worker configuration."""
 
-    MAX_MESSAGES: Final[int] = 10
+    # INVARIANT: never receive more messages than we can process concurrently.
+    # SQS starts the visibility clock on ALL received messages at receive time.
+    # If we fetch more than MAX_CONCURRENT_MESSAGES, the surplus sit invisible
+    # waiting for a processing slot while their visibility ticks down; a slow
+    # transcription on the active slots then lets the waiting messages breach
+    # VISIBILITY_TIMEOUT, so SQS redelivers them (duplicate processing) and,
+    # after the queue's maxReceiveCount, dead-letters them → chat FAILED with no
+    # transcript. Keeping MAX_MESSAGES == MAX_CONCURRENT_MESSAGES means every
+    # received message starts processing immediately, so its visibility window
+    # only ever covers its OWN processing time. Scale throughput horizontally
+    # (more worker replicas), not by fetching a bigger batch one worker can't
+    # chew. Aligned with LLM.MAX_CONCURRENT_LLM_CALLS.
+    MAX_CONCURRENT_MESSAGES: Final[int] = 5
+    MAX_MESSAGES: Final[int] = 5
     WAIT_TIME_SECONDS: Final[int] = 10
     # Must exceed the worst-case end-to-end processing time of a single message
     # (download + transcription + diarization + summary). Sarvam alone allows a

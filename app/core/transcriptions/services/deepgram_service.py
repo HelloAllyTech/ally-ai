@@ -62,6 +62,7 @@ class DeepgramTranscriptionService:
         Raises:
             Exception: If transcription fails
         """
+        segment_paths: list = []
         try:
             # Download and convert audio to WAV format
             segment_paths = await convert_and_segment_audio_async(
@@ -127,6 +128,13 @@ class DeepgramTranscriptionService:
                 )
             )
             raise TranscriptionFailedException("Error transcribing audio from URL")
+        finally:
+            # Clean up the converted/segmented input files. Unlike the OpenAI
+            # and Sarvam services, Deepgram left these in the temp dir; on the
+            # long-running worker they accumulate and eventually fill the disk,
+            # which makes audio conversion fail and the message dead-letter.
+            # Best-effort (never raises).
+            await self._cleanup_segment_files(segment_paths, chat_id)
 
     async def _transcribe_with_deepgram_sdk(
         self, wav_file_path: str, chat_id: int

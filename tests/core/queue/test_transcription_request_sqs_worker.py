@@ -31,6 +31,7 @@ class TestTranscriptionRequestSQSWorker:
         # Provide deterministic worker constants
         test_consts = SimpleNamespace(
             MAX_MESSAGES=5,
+            MAX_CONCURRENT_MESSAGES=5,
             WAIT_TIME_SECONDS=2,
             VISIBILITY_TIMEOUT=30,
             POLLING_INTERVAL=0,
@@ -136,6 +137,7 @@ class TestTranscriptionRequestSQSWorker:
                 wait_time_seconds,
                 visibility_timeout,
                 polling_interval,
+                max_concurrent_messages,
                 delete_after_processing,
             ):
                 # capture args for assertions
@@ -146,6 +148,7 @@ class TestTranscriptionRequestSQSWorker:
                 self.wait_time_seconds = wait_time_seconds
                 self.visibility_timeout = visibility_timeout
                 self.polling_interval = polling_interval
+                self.max_concurrent_messages = max_concurrent_messages
                 self.delete_after_processing = delete_after_processing
                 self._task = None
 
@@ -337,3 +340,13 @@ class TestTranscriptionRequestSQSWorker:
             == transcription_request_sqs_worker.SQSWorkerConstants.POLLING_INTERVAL
         )
         assert proc_kwargs["delete_after_processing"] is True
+        # Fetch size must equal processing concurrency so no received message
+        # waits for a slot while its visibility timeout ticks (which caused
+        # dead-lettering under load).
+        assert (
+            proc_kwargs["max_concurrent_messages"]
+            == transcription_request_sqs_worker.SQSWorkerConstants.MAX_CONCURRENT_MESSAGES
+        )
+        assert (
+            proc_kwargs["max_concurrent_messages"] == proc_kwargs["max_messages"]
+        )
