@@ -10,7 +10,10 @@ from app.core.constants import SQSWorkerConstants
 from app.core.queue.message_processor import MessageProcessor
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
-from app.core.queue.transcription_request_handler import TranscriptionRequestHandler, TranscriptionServiceProvider
+from app.core.queue.transcription_request_handler import (
+    TranscriptionRequestHandler,
+    TranscriptionServiceProvider,
+)
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.core.text_generations.openai_text_generation_client import (
@@ -156,9 +159,7 @@ def create_transcription_service(provider: str | None = None):
         try:
             built.append((name, _build_single_service(name)))
         except ValueError as e:
-            logger.error(
-                f"Skipping transcription provider '{name}': {e}"
-            )
+            logger.error(f"Skipping transcription provider '{name}': {e}")
 
     if not built:
         raise ValueError(
@@ -179,6 +180,7 @@ def create_transcription_service(provider: str | None = None):
             settings.TRANSCRIPTION, "PER_PROVIDER_TIMEOUT_SECONDS", None
         ),
     )
+
 
 async def main():
     """Main function with proper cleanup."""
@@ -209,8 +211,7 @@ async def main():
         transcription_request_handler = TranscriptionRequestHandler(
             ally_core_service=ally_core_service,
             text_generation_service=text_generation_service,
-            transcription_service=selected_transcription_service
-
+            transcription_service=selected_transcription_service,
         )
 
         # Use direct handler instead of router
@@ -228,6 +229,10 @@ async def main():
             # SQSWorkerConstants.
             max_concurrent_messages=SQSWorkerConstants.MAX_CONCURRENT_MESSAGES,
             delete_after_processing=True,
+            # Hard per-message ceiling so a hung STT/LLM call can't block the
+            # poll loop and starve every other queued chat (the "no transcript"
+            # timeout batch). See SQSWorkerConstants.
+            message_timeout_seconds=SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS,
         )
 
         logger.info(
@@ -249,7 +254,7 @@ async def main():
     finally:
         # Critical: Close the SQS client to shut down its ThreadPoolExecutor
         logger.info("Cleaning up SQS client...")
-        if 'queue_service' in locals():
+        if "queue_service" in locals():
             await queue_service.close()
         await SQSQueueClient.close_client()
         logger.info("SQS client cleanup completed")

@@ -108,6 +108,14 @@ class SQSWorkerConstants:
     # Keep this comfortably above the longest provider timeout.
     VISIBILITY_TIMEOUT: Final[int] = 900
     POLLING_INTERVAL: Final[int] = 0
+    # Hard ceiling on processing a SINGLE message. The poll loop awaits the whole
+    # batch before fetching more, so without this a single hung call (an STT/LLM
+    # request that never returns) blocks the worker from polling at all and every
+    # queued chat times out behind it (the reaper's "no transcript" batch). Kept
+    # BELOW VISIBILITY_TIMEOUT (900s) so a timed-out message is abandoned before
+    # SQS would redeliver it, and below the ally-be summary reaper (1200s) so a
+    # legitimately slow-but-finishing job still beats the timeout.
+    MESSAGE_PROCESSING_TIMEOUT_SECONDS: Final[int] = 840
 
 
 class APISettings:

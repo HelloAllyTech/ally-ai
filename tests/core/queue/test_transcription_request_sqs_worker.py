@@ -24,7 +24,12 @@ class TestTranscriptionRequestSQSWorker:
         test_queue = SimpleNamespace(
             TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL="https://q/input",
         )
-        monkeypatch.setattr(transcription_request_sqs_worker.settings, "QUEUE", test_queue, raising=False)
+        monkeypatch.setattr(
+            transcription_request_sqs_worker.settings,
+            "QUEUE",
+            test_queue,
+            raising=False,
+        )
 
     @pytest.fixture
     def patch_constants(self, transcription_request_sqs_worker, monkeypatch):
@@ -35,9 +40,13 @@ class TestTranscriptionRequestSQSWorker:
             WAIT_TIME_SECONDS=2,
             VISIBILITY_TIMEOUT=30,
             POLLING_INTERVAL=0,
+            MESSAGE_PROCESSING_TIMEOUT_SECONDS=25,
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "SQSWorkerConstants", test_consts, raising=False
+            transcription_request_sqs_worker,
+            "SQSWorkerConstants",
+            test_consts,
+            raising=False,
         )
 
     @pytest.fixture
@@ -117,7 +126,7 @@ class TestTranscriptionRequestSQSWorker:
                 ally_core_service,
                 text_generation_service,
                 transcription_service,
-             ):
+            ):
                 self.ally_core_service = ally_core_service
                 self.text_generation_service = text_generation_service
                 self.transcription_service = transcription_service
@@ -139,6 +148,7 @@ class TestTranscriptionRequestSQSWorker:
                 polling_interval,
                 max_concurrent_messages,
                 delete_after_processing,
+                message_timeout_seconds=None,
             ):
                 # capture args for assertions
                 self.queue_service = queue_service
@@ -150,6 +160,7 @@ class TestTranscriptionRequestSQSWorker:
                 self.polling_interval = polling_interval
                 self.max_concurrent_messages = max_concurrent_messages
                 self.delete_after_processing = delete_after_processing
+                self.message_timeout_seconds = message_timeout_seconds
                 self._task = None
 
             async def start(self):
@@ -173,48 +184,83 @@ class TestTranscriptionRequestSQSWorker:
             AllyCoreService=FakeAllyCoreService,
             DeepgramTranscriptionService=FakeDeepgramTranscriptionService,
             OpenAITranscriptionService=FakeOpenAITranscriptionService,
-            SarvamTranscriptionService=FakeSarvamTranscriptionService
+            SarvamTranscriptionService=FakeSarvamTranscriptionService,
         )
 
     @pytest.fixture
     def patch_dependencies(self, transcription_request_sqs_worker, monkeypatch, fakes):
         # Patch all external deps referenced inside transcription_request_sqs_worker
-        monkeypatch.setattr(transcription_request_sqs_worker, "AllyCoreClient", fakes.AllyCoreClient)
-        monkeypatch.setattr(transcription_request_sqs_worker, "AllyCoreService", fakes.AllyCoreService)
-        monkeypatch.setattr(transcription_request_sqs_worker, "SQSQueueClient", fakes.QueueClient)
-        monkeypatch.setattr(transcription_request_sqs_worker, "SQSQueueService", fakes.QueueService)
-        monkeypatch.setattr(transcription_request_sqs_worker, "OpenAIEmbeddingClient", fakes.EmbeddingClient)
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAITextGenerationClient", fakes.TextGenClient
+            transcription_request_sqs_worker, "AllyCoreClient", fakes.AllyCoreClient
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAIEmbeddingService", fakes.EmbeddingService
+            transcription_request_sqs_worker, "AllyCoreService", fakes.AllyCoreService
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAITextGenerationService", fakes.TextGenService
+            transcription_request_sqs_worker, "SQSQueueClient", fakes.QueueClient
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "TranscriptionRequestHandler", fakes.TranscriptionRequestHandler
+            transcription_request_sqs_worker, "SQSQueueService", fakes.QueueService
         )
-        monkeypatch.setattr(transcription_request_sqs_worker, "MessageProcessor", fakes.MessageProcessor)
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAIEmbeddingClient",
+            fakes.EmbeddingClient,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAITextGenerationClient",
+            fakes.TextGenClient,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAIEmbeddingService",
+            fakes.EmbeddingService,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAITextGenerationService",
+            fakes.TextGenService,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "TranscriptionRequestHandler",
+            fakes.TranscriptionRequestHandler,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "MessageProcessor", fakes.MessageProcessor
+        )
 
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "DeepgramTranscriptionService", fakes.DeepgramTranscriptionService
+            transcription_request_sqs_worker,
+            "DeepgramTranscriptionService",
+            fakes.DeepgramTranscriptionService,
         )
 
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "SarvamTranscriptionService", fakes.SarvamTranscriptionService
+            transcription_request_sqs_worker,
+            "SarvamTranscriptionService",
+            fakes.SarvamTranscriptionService,
         )
 
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAITranscriptionService", fakes.OpenAITranscriptionService
+            transcription_request_sqs_worker,
+            "OpenAITranscriptionService",
+            fakes.OpenAITranscriptionService,
         )
         # No-op client initializer
-        monkeypatch.setattr(transcription_request_sqs_worker, "initialize_openai_clients", lambda: None)
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "initialize_openai_clients", lambda: None
+        )
 
     @pytest.mark.asyncio
     async def test_main_happy_path(
-        self, transcription_request_sqs_worker, patch_settings, patch_constants, patch_dependencies, fakes
+        self,
+        transcription_request_sqs_worker,
+        patch_settings,
+        patch_constants,
+        patch_dependencies,
+        fakes,
     ):
         # Act
         await transcription_request_sqs_worker.main()
@@ -238,7 +284,9 @@ class TestTranscriptionRequestSQSWorker:
             async def start(self):  # type: ignore[override]
                 raise KeyboardInterrupt()
 
-        monkeypatch.setattr(transcription_request_sqs_worker, "MessageProcessor", RaisingProcessor)
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "MessageProcessor", RaisingProcessor
+        )
 
         # Act: should NOT raise
         await transcription_request_sqs_worker.main()
@@ -260,7 +308,9 @@ class TestTranscriptionRequestSQSWorker:
             async def start(self):  # type: ignore[override]
                 raise RuntimeError("boom")
 
-        monkeypatch.setattr(transcription_request_sqs_worker, "MessageProcessor", RaisingProcessor)
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "MessageProcessor", RaisingProcessor
+        )
 
         with pytest.raises(RuntimeError):
             await transcription_request_sqs_worker.main()
@@ -270,7 +320,12 @@ class TestTranscriptionRequestSQSWorker:
 
     @pytest.mark.asyncio
     async def test_main_wires_dependencies_and_arguments(
-        self, transcription_request_sqs_worker, patch_settings, patch_constants, fakes, monkeypatch
+        self,
+        transcription_request_sqs_worker,
+        patch_settings,
+        patch_constants,
+        fakes,
+        monkeypatch,
     ):
         # Wrap fakes to capture constructed instances
         constructed = {}
@@ -291,25 +346,51 @@ class TestTranscriptionRequestSQSWorker:
                 constructed["processor_kwargs"] = kwargs
 
         # Patch with capturing fakes and minimal deps
-        monkeypatch.setattr(transcription_request_sqs_worker, "AllyCoreClient", fakes.AllyCoreClient)
-        monkeypatch.setattr(transcription_request_sqs_worker, "AllyCoreService", fakes.AllyCoreService)
-        monkeypatch.setattr(transcription_request_sqs_worker, "SQSQueueClient", fakes.QueueClient)
-        monkeypatch.setattr(transcription_request_sqs_worker, "SQSQueueService", CapturingQueueService)
-        monkeypatch.setattr(transcription_request_sqs_worker, "OpenAIEmbeddingClient", fakes.EmbeddingClient)
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAITextGenerationClient", fakes.TextGenClient
+            transcription_request_sqs_worker, "AllyCoreClient", fakes.AllyCoreClient
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAIEmbeddingService", fakes.EmbeddingService
+            transcription_request_sqs_worker, "AllyCoreService", fakes.AllyCoreService
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "OpenAITextGenerationService", fakes.TextGenService
+            transcription_request_sqs_worker, "SQSQueueClient", fakes.QueueClient
         )
         monkeypatch.setattr(
-            transcription_request_sqs_worker, "TranscriptionRequestHandler", CapturingTranscriptionRequestHandler
+            transcription_request_sqs_worker, "SQSQueueService", CapturingQueueService
         )
-        monkeypatch.setattr(transcription_request_sqs_worker, "MessageProcessor", CapturingMessageProcessor)
-        monkeypatch.setattr(transcription_request_sqs_worker, "initialize_openai_clients", lambda: None)
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAIEmbeddingClient",
+            fakes.EmbeddingClient,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAITextGenerationClient",
+            fakes.TextGenClient,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAIEmbeddingService",
+            fakes.EmbeddingService,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "OpenAITextGenerationService",
+            fakes.TextGenService,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "TranscriptionRequestHandler",
+            CapturingTranscriptionRequestHandler,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "MessageProcessor",
+            CapturingMessageProcessor,
+        )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker, "initialize_openai_clients", lambda: None
+        )
 
         # Run
         await transcription_request_sqs_worker.main()
@@ -326,7 +407,10 @@ class TestTranscriptionRequestSQSWorker:
             proc_kwargs["queue_url"]
             == transcription_request_sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL
         )
-        assert proc_kwargs["max_messages"] == transcription_request_sqs_worker.SQSWorkerConstants.MAX_MESSAGES
+        assert (
+            proc_kwargs["max_messages"]
+            == transcription_request_sqs_worker.SQSWorkerConstants.MAX_MESSAGES
+        )
         assert (
             proc_kwargs["wait_time_seconds"]
             == transcription_request_sqs_worker.SQSWorkerConstants.WAIT_TIME_SECONDS
@@ -347,6 +431,10 @@ class TestTranscriptionRequestSQSWorker:
             proc_kwargs["max_concurrent_messages"]
             == transcription_request_sqs_worker.SQSWorkerConstants.MAX_CONCURRENT_MESSAGES
         )
+        assert proc_kwargs["max_concurrent_messages"] == proc_kwargs["max_messages"]
+        # A per-message hard timeout is wired so one hung message can't stall
+        # the whole poll loop.
         assert (
-            proc_kwargs["max_concurrent_messages"] == proc_kwargs["max_messages"]
+            proc_kwargs["message_timeout_seconds"]
+            == transcription_request_sqs_worker.SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS
         )

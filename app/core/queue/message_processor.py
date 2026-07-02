@@ -27,6 +27,7 @@ class MessageProcessor:
         polling_interval: int = 0,
         delete_after_processing: bool = True,
         max_concurrent_messages: int = 3,
+        message_timeout_seconds: int | None = None,
     ):
         """
         Initialize the message processor.
@@ -58,6 +59,10 @@ class MessageProcessor:
         self.polling_interval = polling_interval
         self.delete_after_processing = delete_after_processing
         self.max_concurrent_messages = max(1, max_concurrent_messages)
+        # Per-message hard timeout. None disables it (legacy behaviour). When
+        # set, a handler that runs longer is cancelled and the message is left
+        # for SQS redrive, so one hung message can't block the poll loop.
+        self.message_timeout_seconds = message_timeout_seconds
         self._running = False
         self._task = None
         self._process_semaphore = asyncio.Semaphore(self.max_concurrent_messages)
@@ -118,14 +123,52 @@ class MessageProcessor:
                     f"correlation_id={correlation_id}"
                 )
 
-                # Process the message using the handler
-                result = await self.handler(body)
+                # Process the message using the handler, bounded by a hard
+                # timeout so a hung STT/LLM call can't block the poll loop (and
+                # thus starve every other queued chat) indefinitely.
+                if self.message_timeout_seconds is not None:
+                    result = await asyncio.wait_for(
+                        self.handler(body),
+                        timeout=self.message_timeout_seconds,
+                    )
+                else:
+                    result = await self.handler(body)
                 # Only an explicit False means "leave for redrive".
                 handled = result is not False
             else:
                 # Malformed body (already logged above): nothing to retry, drop
                 # it so it doesn't loop forever.
                 handled = True
+
+        except asyncio.TimeoutError:
+            # The handler blew past MESSAGE_PROCESSING_TIMEOUT and was cancelled.
+            # Leave the message for SQS redrive (handled stays False) and — most
+            # importantly — free the concurrency slot so the poll loop can keep
+            # draining the queue instead of stalling behind this one message.
+            chat_id = (
+                body.get("chat_id", "unknown") if "body" in locals() else "unknown"
+            )
+            logger.error(
+                f"Timed out processing message for chat_id {chat_id} after "
+                f"{self.message_timeout_seconds}s; leaving for redrive"
+            )
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.SYSTEM_ERROR,
+                    chat_id=chat_id,
+                    audit_id=None,
+                    details={
+                        "error": (
+                            f"Timed out processing message for chat_id {chat_id} "
+                            f"after {self.message_timeout_seconds}s"
+                        ),
+                        "chat_id": chat_id,
+                        "exception_type": "TimeoutError",
+                        "message_id": message.get("message_id", "unknown"),
+                        "queue_url": self.queue_url,
+                    },
+                )
+            )
 
         except Exception as e:
             chat_id = (

@@ -140,6 +140,52 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_process_message_times_out_and_leaves_for_redrive(
+        self, mock_queue_service
+    ):
+        """A handler that exceeds message_timeout_seconds is cancelled and its
+        message is left for SQS redrive (not deleted), so one hung message can't
+        block the poll loop indefinitely."""
+
+        async def hang(_body):
+            await asyncio.sleep(60)  # never completes within the timeout
+
+        handler = AsyncMock(side_effect=hang)
+        mp = MessageProcessor(
+            mock_queue_service,
+            handler,
+            "q-url",
+            message_timeout_seconds=0.05,
+        )
+
+        message = {"receipt_handle": "rh-to", "body": {"chat_id": "c-to"}}
+
+        # Must return (not hang) and must NOT delete the message.
+        await asyncio.wait_for(mp.process_message(message), timeout=5)
+
+        mock_queue_service.delete_message.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_process_message_within_timeout_still_deletes(
+        self, mock_queue_service, mock_handler
+    ):
+        """A handler that finishes within the timeout is processed and deleted
+        normally — the timeout doesn't change the happy path."""
+        mp = MessageProcessor(
+            mock_queue_service,
+            mock_handler,
+            "q-url",
+            message_timeout_seconds=5,
+        )
+
+        message = {"receipt_handle": "rh-ok", "body": {"chat_id": "c-ok"}}
+
+        await mp.process_message(message)
+
+        mock_handler.assert_awaited_once_with({"chat_id": "c-ok"})
+        mock_queue_service.delete_message.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_process_message_skip_delete_when_flag_false(
         self, mock_queue_service, mock_handler
     ):
