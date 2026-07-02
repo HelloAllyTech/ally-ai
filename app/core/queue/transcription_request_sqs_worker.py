@@ -179,6 +179,7 @@ def create_transcription_service(provider: str | None = None):
         per_provider_timeout_seconds=getattr(
             settings.TRANSCRIPTION, "PER_PROVIDER_TIMEOUT_SECONDS", None
         ),
+        ration_by_chat=getattr(settings.TRANSCRIPTION, "RATION_PROVIDERS", False),
     )
 
 

@@ -45,6 +45,7 @@ class OpenAISettings(BaseModel):
     RATE_LIMIT: int = Field(...)
     WINDOW_SECONDS: int = Field(...)
 
+
 class GeminiSettings(BaseModel):
     # Optional so the service still boots in envs that haven't set GEMINI__API_KEY
     # yet; the drift judge raises a clear error if invoked without a key.
@@ -64,8 +65,10 @@ class DriftJudgeSettings(BaseModel):
 class DeepgramSettings(BaseModel):
     API_KEY: str = Field(...)
 
+
 class SarvamSettings(BaseModel):
     API_KEY: str = Field(...)
+
 
 class TranscriptionSettings(BaseModel):
     # Primary provider (backwards compatible). Used as the sole provider when
@@ -83,6 +86,13 @@ class TranscriptionSettings(BaseModel):
     # fallback chain. The SUM of attempts must stay under the SQS visibility
     # timeout (900s). Leave unset to rely on each provider's own timeout.
     PER_PROVIDER_TIMEOUT_SECONDS: Optional[int] = Field(default=None)
+    # When True, the PRIMARY provider is chosen per session (rotate the chain by
+    # chat_id) so traffic spreads evenly across providers and per-provider
+    # failure rates become comparable. The fallback chain is preserved, so
+    # reliability is unchanged — only which provider leads. Default off; flip on
+    # to run the STT-provider comparison, off to revert to the fixed order.
+    RATION_PROVIDERS: bool = Field(default=False)
+
 
 class LangSmithSettings(BaseModel):
     TRACING: str = Field(...)

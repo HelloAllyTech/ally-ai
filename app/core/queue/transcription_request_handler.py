@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 from app.core.ally_core import AllyCoreService
@@ -27,6 +27,7 @@ from app.core.transcriptions.utils.phi_logger import PHILogEvent, log_sync, phi_
 
 logger = get_logger(__name__)
 
+
 class TranscriptionServiceProvider(str, Enum):
     """Enumeration of supported transcription providers."""
 
@@ -49,6 +50,30 @@ class PipelineStageError(Exception):
         super().__init__(f"[{stage.value}] {reason}")
 
 
+# Maps the pipeline stage a failure happened IN to the furthest phase the
+# attempt actually REACHED (the last phase completed before that stage began).
+# Values are ally-be's PhaseReached vocabulary:
+# created, audio-uploaded, transcribed, diarized, summarized, delivered.
+_STAGE_TO_PHASE_REACHED: Dict[PipelineStage, str] = {
+    PipelineStage.REQUEST_PARSE: "created",
+    PipelineStage.DOWNLOAD: "created",
+    PipelineStage.CONVERT: "audio-uploaded",
+    # A TRANSCRIBE failure means the audio was uploaded/converted but never
+    # produced usable text, so the furthest completed phase is audio-uploaded.
+    PipelineStage.TRANSCRIBE: "audio-uploaded",
+    PipelineStage.DIARIZE: "transcribed",
+    PipelineStage.SUMMARIZE: "diarized",
+    PipelineStage.DELIVER: "summarized",
+}
+
+
+def _phase_reached_for_stage(stage: Optional[PipelineStage]) -> Optional[str]:
+    """Furthest phase reached for a failure at ``stage`` (None if unknown)."""
+    if stage is None:
+        return None
+    return _STAGE_TO_PHASE_REACHED.get(stage)
+
+
 class TranscriptionRequestHandler:
     """
     Handler for transcription processing.
@@ -58,7 +83,11 @@ class TranscriptionRequestHandler:
         self,
         ally_core_service: AllyCoreService = None,
         text_generation_service: Optional[OpenAITextGenerationService] = None,
-        transcription_service: SarvamTranscriptionService | DeepgramTranscriptionService | OpenAITranscriptionService = None
+        transcription_service: (
+            SarvamTranscriptionService
+            | DeepgramTranscriptionService
+            | OpenAITranscriptionService
+        ) = None,
     ):
         """
         Initialize the transcription request worker.
@@ -71,9 +100,45 @@ class TranscriptionRequestHandler:
 
         logger.info("Transcription services initialized successfully")
 
-    async def process_transcription_request(
-        self, request_data: Dict[str, Any]
-    ) -> bool:
+    def _snapshot_stt_signals(
+        self,
+    ) -> Tuple[Optional[str], Optional[List[Dict[str, Any]]]]:
+        """Read the per-run STT trail off the transcription service.
+
+        Only FallbackTranscriptionService exposes `last_attempts` /
+        `last_succeeded_provider`; a single concrete service has neither, so this
+        returns (None, None). MUST be called synchronously right after the
+        transcribe call returns/raises so the shared attributes can't be
+        clobbered by a concurrently-processed message.
+        """
+        attempts_objs = getattr(self.transcription_service, "last_attempts", None)
+        # isinstance guards: a single concrete service has no such attribute, and
+        # a test double (Mock) auto-creates a truthy non-list — only trust a real
+        # list of trail entries / a real provider string.
+        attempts = (
+            [a.to_dict() for a in attempts_objs]
+            if isinstance(attempts_objs, list) and attempts_objs
+            else None
+        )
+        provider = getattr(self.transcription_service, "last_succeeded_provider", None)
+        if not isinstance(provider, str):
+            provider = None
+        return provider, attempts
+
+    def _resolve_summary_model(self) -> Optional[str]:
+        """Best-effort name of the LLM used for the summary (None if unknown)."""
+        try:
+            from app.core.llm_usage.tasks import resolve_model_name
+
+            model = getattr(self.text_generation_service, "model", None)
+            if model is None:
+                return None
+            resolved = resolve_model_name(model)
+            return resolved if isinstance(resolved, str) else None
+        except Exception:
+            return None
+
+    async def process_transcription_request(self, request_data: Dict[str, Any]) -> bool:
         """
         Process a single transcription request.
 
@@ -96,6 +161,12 @@ class TranscriptionRequestHandler:
             else None
         )
         started_at = time.time()
+        # Per-request STT trail, snapshotted synchronously right after the
+        # transcribe call returns/raises (no await in between) so a concurrent
+        # message can't clobber the shared fallback-service attributes. Threaded
+        # into the success and error callbacks for ally-be's attempt analytics.
+        stt_provider: Optional[str] = None
+        stt_attempts: Optional[List[Dict[str, Any]]] = None
         try:
             # Parse request message
             request = TranscribeAndSummarizeRequestMessage(**request_data)
@@ -139,7 +210,11 @@ class TranscriptionRequestHandler:
                         is_linear16_encoded=bool(request.is_linear16_encoded),
                     )
                 )
+                # Snapshot synchronously (no await) — safe against concurrent msgs.
+                stt_provider, stt_attempts = self._snapshot_stt_signals()
             except Exception as e:
+                # Capture the failed-provider trail before unwinding.
+                stt_provider, stt_attempts = self._snapshot_stt_signals()
                 raise PipelineStageError(PipelineStage.TRANSCRIBE, str(e)) from e
 
             # An empty transcript is a failure, not a success. STT can return
@@ -177,6 +252,8 @@ class TranscriptionRequestHandler:
                 result_message,
                 session_mode=request.mode,
                 correlation_id=correlation_id,
+                stt_provider=stt_provider,
+                stt_attempts=stt_attempts,
             )
 
             logger.info(
@@ -232,7 +309,12 @@ class TranscriptionRequestHandler:
             # is terminal — delete the message. If we couldn't even report it,
             # leave it for redrive.
             reported = await self._send_error_response(
-                chat_id, e.reason, stage=e.stage, correlation_id=correlation_id
+                chat_id,
+                e.reason,
+                stage=e.stage,
+                correlation_id=correlation_id,
+                stt_provider=stt_provider,
+                stt_attempts=stt_attempts,
             )
             return reported
 
@@ -261,7 +343,12 @@ class TranscriptionRequestHandler:
                 )
             )
             reported = await self._send_error_response(
-                chat_id, str(e), stage=stage, correlation_id=correlation_id
+                chat_id,
+                str(e),
+                stage=stage,
+                correlation_id=correlation_id,
+                stt_provider=stt_provider,
+                stt_attempts=stt_attempts,
             )
             return reported
 
@@ -270,6 +357,8 @@ class TranscriptionRequestHandler:
         request: TranscriptionResultMessage,
         session_mode: Optional[str] = None,
         correlation_id: Optional[str] = None,
+        stt_provider: Optional[str] = None,
+        stt_attempts: Optional[List[Dict[str, Any]]] = None,
     ) -> bool:
         """
         Process the transcription result and do diarization + summary, then
@@ -355,8 +444,7 @@ class TranscriptionRequestHandler:
         # The transcript is ready at this point — capture it BEFORE attempting
         # the summary so a summary failure can't discard it.
         transcription_data = [
-            msg.model_dump() if hasattr(msg, "model_dump") else msg
-            for msg in messages
+            msg.model_dump() if hasattr(msg, "model_dump") else msg for msg in messages
         ]
 
         # PHASE 1: deliver the transcript on its own, immediately, BEFORE the
@@ -370,6 +458,8 @@ class TranscriptionRequestHandler:
             transcription_data,
             None,
             correlation_id=correlation_id,
+            stt_provider=stt_provider,
+            stt_attempts=stt_attempts,
         )
         logger.info(
             f"Phase 1 (transcript-only) delivery for chat_id {chat_id} "
@@ -396,6 +486,13 @@ class TranscriptionRequestHandler:
             )
             summary_error = e.reason
 
+        # Resolve the LLM model that produced the summary (for ally-be's
+        # per-model analytics). Best-effort — a resolution hiccup must never
+        # affect delivery.
+        summary_model = None
+        if summary_data is not None:
+            summary_model = self._resolve_summary_model()
+
         # Deliver to ally-core. Retries internally on transient delivery
         # failure and never raises (the result is idempotent on the receiver),
         # so a slow/blipping callback can't turn a good summary into a FAILED.
@@ -407,6 +504,12 @@ class TranscriptionRequestHandler:
             summary_data,
             correlation_id=correlation_id,
             summary_error=summary_error,
+            stt_provider=stt_provider,
+            stt_attempts=stt_attempts,
+            summary_model=summary_model,
+            # Summary success → delivered; summary failed but transcript saved →
+            # the session reached diarization (matches ally-be's retryable path).
+            phase_reached="diarized" if summary_error else "delivered",
         )
 
         logger.info(
@@ -459,9 +562,7 @@ class TranscriptionRequestHandler:
             return summary
 
         except Exception as e:
-            logger.error(
-                f"Error generating summary for chat_id {chat_id}: {e}"
-            )
+            logger.error(f"Error generating summary for chat_id {chat_id}: {e}")
             await phi_logger.log(
                 PHILogEvent(
                     event_type=PHIEvents.SYSTEM_ERROR,
@@ -498,6 +599,10 @@ class TranscriptionRequestHandler:
         summary: Optional[Dict[str, Any]],
         correlation_id: Optional[str] = None,
         summary_error: Optional[str] = None,
+        stt_provider: Optional[str] = None,
+        stt_attempts: Optional[List[Dict[str, Any]]] = None,
+        summary_model: Optional[str] = None,
+        phase_reached: Optional[str] = None,
     ) -> bool:
         """
         Send transcription (and summary when available) to ally-core's
@@ -530,6 +635,10 @@ class TranscriptionRequestHandler:
                     error=summary_error,
                     stage=stage,
                     correlation_id=correlation_id,
+                    stt_provider_succeeded=stt_provider,
+                    stt_attempts=stt_attempts,
+                    summary_model=summary_model,
+                    phase_reached=phase_reached,
                 )
 
                 logger.info(
@@ -586,9 +695,9 @@ class TranscriptionRequestHandler:
                     "stage": PipelineStage.DELIVER.value,
                     "component": "TranscriptionRequestHandler",
                     "method": "send_combined_result_to_ally_core",
-                    "exception_type": type(last_exception).__name__
-                    if last_exception
-                    else None,
+                    "exception_type": (
+                        type(last_exception).__name__ if last_exception else None
+                    ),
                 },
             )
         )
@@ -607,6 +716,8 @@ class TranscriptionRequestHandler:
         error_message: str,
         stage: Optional[PipelineStage] = None,
         correlation_id: Optional[str] = None,
+        stt_provider: Optional[str] = None,
+        stt_attempts: Optional[List[Dict[str, Any]]] = None,
     ) -> bool:
         """Report a genuine processing failure to ally-core, retrying on
         failure. Forwards the failing stage and upstream reason so the backend
@@ -618,6 +729,7 @@ class TranscriptionRequestHandler:
         """
         last_exception: Optional[Exception] = None
         stage_value = stage.value if stage else None
+        phase_reached = _phase_reached_for_stage(stage)
 
         for attempt in range(1, self._ERROR_RESPONSE_MAX_ATTEMPTS + 1):
             try:
@@ -626,6 +738,9 @@ class TranscriptionRequestHandler:
                     error=error_message,
                     stage=stage_value,
                     correlation_id=correlation_id,
+                    stt_provider_succeeded=stt_provider,
+                    stt_attempts=stt_attempts,
+                    phase_reached=phase_reached,
                 )
 
                 logger.info(
@@ -680,9 +795,9 @@ class TranscriptionRequestHandler:
                     "stage": stage_value,
                     "component": "TranscriptionRequestHandler",
                     "method": "_send_error_response",
-                    "exception_type": type(last_exception).__name__
-                    if last_exception
-                    else None,
+                    "exception_type": (
+                        type(last_exception).__name__ if last_exception else None
+                    ),
                     "error_message": error_message,
                 },
             )

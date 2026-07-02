@@ -15,7 +15,8 @@ replacement wherever a single service is used today.
 """
 
 import asyncio
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 from app.core.transcriptions.utils.exceptions import TranscriptionFailedException
 from app.core.transcriptions.utils.logger import get_logger
@@ -25,13 +26,43 @@ from app.core.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
 logger = get_logger(__name__)
 
 
+@dataclass
+class TranscriptionAttempt:
+    """One provider attempt in a fallback run.
+
+    Serialised into the `sttAttempts` trail forwarded to ally-be so it can
+    record, per pipeline attempt, which providers were tried in order, whether
+    each produced a usable transcript, and (on failure) why not.
+    """
+
+    provider: str
+    ok: bool
+    error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, object]:
+        """camelCase-free per-provider record; ally-be's DTO field names match."""
+        record: Dict[str, object] = {"provider": self.provider, "ok": self.ok}
+        if self.error is not None:
+            record["error"] = self.error
+        return record
+
+
 class FallbackTranscriptionService:
-    """Try each provider in order; fail over on error or empty transcript."""
+    """Try each provider in order; fail over on error or empty transcript.
+
+    After each `transcribe_audio_from_url` call, the run's per-provider trail is
+    exposed on `last_attempts` (list of :class:`TranscriptionAttempt`) and the
+    provider that actually produced the transcript on `last_succeeded_provider`
+    (None if every provider failed). The handler reads these to enrich the
+    ally-be callback. The `(chat_id, text)` return contract is unchanged, so
+    this stays a drop-in replacement for a single concrete service.
+    """
 
     def __init__(
         self,
         services: List[Tuple[str, object]],
         per_provider_timeout_seconds: Optional[int] = None,
+        ration_by_chat: bool = False,
     ) -> None:
         """
         Args:
@@ -48,6 +79,16 @@ class FallbackTranscriptionService:
             raise ValueError("FallbackTranscriptionService requires >=1 provider")
         self.services = services
         self.per_provider_timeout_seconds = per_provider_timeout_seconds
+        # When True, the PRIMARY provider is chosen per session (rotate the chain
+        # by chat_id) instead of always leading with services[0]. This rations
+        # traffic evenly across providers so per-provider success/failure rates
+        # are comparable rather than dominated by whichever is hard-coded first.
+        # The fallback chain (the remaining providers, in order) is preserved.
+        self.ration_by_chat = ration_by_chat
+        # Per-run signals, refreshed at the start of every call so the handler
+        # never reads a stale trail from a previous chat.
+        self.last_attempts: List[TranscriptionAttempt] = []
+        self.last_succeeded_provider: Optional[str] = None
 
     async def transcribe_audio_from_url(
         self,
@@ -59,7 +100,24 @@ class FallbackTranscriptionService:
         last_exception: Optional[Exception] = None
         total = len(self.services)
 
-        for index, (name, service) in enumerate(self.services):
+        # Reset per-run signals so a stale trail from a prior chat can't leak
+        # into this callback.
+        self.last_attempts = []
+        self.last_succeeded_provider = None
+
+        # Deterministic per-session provider order. chat_id % total is stable
+        # across processes/replicas (unlike hash(), which is salted), so the
+        # same chat always starts on the same provider and traffic spreads
+        # evenly. Disabled → the configured order is used unchanged.
+        ordered = self.services
+        if self.ration_by_chat and total > 1:
+            try:
+                start = int(chat_id) % total
+            except (TypeError, ValueError):
+                start = 0
+            ordered = self.services[start:] + self.services[:start]
+
+        for position, (name, service) in enumerate(ordered):
             try:
                 coro = service.transcribe_audio_from_url(
                     audio_url=audio_url,
@@ -83,10 +141,14 @@ class FallbackTranscriptionService:
                         f"{name} returned an empty transcript"
                     )
 
-                if index > 0:
+                # Success: record it and remember which provider won.
+                self.last_attempts.append(TranscriptionAttempt(provider=name, ok=True))
+                self.last_succeeded_provider = name
+
+                if position > 0:
                     logger.warning(
                         f"Transcription recovered via fallback provider "
-                        f"'{name}' (#{index + 1}/{total}) for chat_id={chat_id}"
+                        f"'{name}' (#{position + 1}/{total}) for chat_id={chat_id}"
                     )
                     await phi_logger.log(
                         PHILogEvent(
@@ -100,7 +162,7 @@ class FallbackTranscriptionService:
                                 ),
                                 "chat_id": chat_id,
                                 "provider": name,
-                                "provider_index": index,
+                                "provider_index": position,
                                 "component": "FallbackTranscriptionService",
                                 "method": "transcribe_audio_from_url",
                             },
@@ -110,10 +172,15 @@ class FallbackTranscriptionService:
 
             except Exception as e:
                 last_exception = e
-                is_last = index == total - 1
+                is_last = position == total - 1
+                self.last_attempts.append(
+                    TranscriptionAttempt(
+                        provider=name, ok=False, error=f"{type(e).__name__}: {e}"
+                    )
+                )
                 logger.error(
                     f"Transcription provider '{name}' "
-                    f"(#{index + 1}/{total}) failed for chat_id={chat_id}: "
+                    f"(#{position + 1}/{total}) failed for chat_id={chat_id}: "
                     f"{type(e).__name__}: {e}"
                     + ("" if is_last else "; falling over to next provider")
                 )
@@ -129,7 +196,7 @@ class FallbackTranscriptionService:
                             ),
                             "chat_id": chat_id,
                             "provider": name,
-                            "provider_index": index,
+                            "provider_index": position,
                             "is_last_provider": is_last,
                             "exception_type": type(e).__name__,
                             "component": "FallbackTranscriptionService",

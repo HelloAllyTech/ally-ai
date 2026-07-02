@@ -55,6 +55,10 @@ class AllyCoreService:
         error: str | None = None,
         stage: str | None = None,
         correlation_id: str | None = None,
+        stt_provider_succeeded: str | None = None,
+        stt_attempts: List[Dict[str, Any]] | None = None,
+        summary_model: str | None = None,
+        phase_reached: str | None = None,
     ) -> None:
         url = f"{self._base_url}/api/v1/chats/process-transcript"
 
@@ -88,6 +92,19 @@ class AllyCoreService:
 
         if correlation_id is not None:
             payload["correlationId"] = correlation_id
+
+        # Attempt-analytics signals (ally-be records these per pipeline attempt).
+        if stt_provider_succeeded is not None:
+            payload["sttProviderSucceeded"] = stt_provider_succeeded
+
+        if stt_attempts is not None:
+            payload["sttAttempts"] = stt_attempts
+
+        if summary_model is not None:
+            payload["summaryModel"] = summary_model
+
+        if phase_reached is not None:
+            payload["phaseReached"] = phase_reached
 
         is_error = error is not None
         try:

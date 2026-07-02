@@ -96,6 +96,58 @@ async def test_process_transcript_with_optional_fields(service, mock_client):
 
 
 @pytest.mark.asyncio
+async def test_process_transcript_includes_attempt_analytics_fields(
+    service, mock_client
+):
+    """The Phase-B STT/model/phase signals are forwarded with matching keys."""
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock(return_value=None)
+    mock_client.post.return_value = mock_response
+
+    await service.process_transcript(
+        chat_id=7,
+        transcription=[{"speaker": "client", "text": "hi"}],
+        summary={"session_summary": "ok"},
+        stt_provider_succeeded="openai",
+        stt_attempts=[
+            {"provider": "deepgram", "ok": False, "error": "empty"},
+            {"provider": "openai", "ok": True},
+        ],
+        summary_model="gpt-4o-mini-2024-07-18",
+        phase_reached="delivered",
+    )
+
+    _, kwargs = mock_client.post.call_args
+    body = kwargs["json"]
+    assert body["sttProviderSucceeded"] == "openai"
+    assert body["sttAttempts"] == [
+        {"provider": "deepgram", "ok": False, "error": "empty"},
+        {"provider": "openai", "ok": True},
+    ]
+    assert body["summaryModel"] == "gpt-4o-mini-2024-07-18"
+    assert body["phaseReached"] == "delivered"
+
+
+@pytest.mark.asyncio
+async def test_process_transcript_omits_attempt_fields_when_absent(
+    service, mock_client
+):
+    """Absent signals must not appear in the payload (backward-compatible)."""
+    mock_response = Mock()
+    mock_response.raise_for_status = Mock(return_value=None)
+    mock_client.post.return_value = mock_response
+
+    await service.process_transcript(chat_id=8, transcription=None, summary=None)
+
+    _, kwargs = mock_client.post.call_args
+    body = kwargs["json"]
+    assert "sttProviderSucceeded" not in body
+    assert "sttAttempts" not in body
+    assert "summaryModel" not in body
+    assert "phaseReached" not in body
+
+
+@pytest.mark.asyncio
 async def test_process_transcript_http_error(service, mock_client):
     response = httpx.Response(
         status_code=400,
