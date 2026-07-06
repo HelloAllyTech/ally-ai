@@ -12,9 +12,9 @@ from pydantic import create_model
 
 from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
+from app.core.llm_usage.tasks import LLMTask
 from app.core.phi_events import PHIEvents
 from app.core.phi_logger import PHILogEvent, phi_logger
-from app.core.llm_usage.tasks import LLMTask
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.structured_output_models import (
     CounselorMessageAnalysis,
@@ -135,7 +135,7 @@ SUMMARY_CONDENSE_CHUNK_WORDS = 2000
 
 @tool
 def generate_dynamic_summary(
-    fields: dict[str, Union[str, int]]
+    fields: dict[str, Union[str, int]],
 ) -> dict[str, Union[str, int]]:
     """Generate a dynamic summary with the given fields."""
     try:
@@ -298,9 +298,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         )
         from app.prompts.resolver import get_backend_llm_overrides
 
-        provider, model, temperature = get_backend_llm_overrides(
-            internal_path, prompts
-        )
+        provider, model, temperature = get_backend_llm_overrides(internal_path, prompts)
         if provider is None and model is None and temperature is None:
             return self.model
         return OpenAITextGenerationClient.get_or_create_client(
@@ -660,9 +658,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         if len(chat_history_str.split()) <= MAX_SUMMARY_INPUT_WORDS:
             return chat_history_str
 
-        chunks = split_text_by_length(
-            chat_history_str, SUMMARY_CONDENSE_CHUNK_WORDS
-        )
+        chunks = split_text_by_length(chat_history_str, SUMMARY_CONDENSE_CHUNK_WORDS)
         logger.info(
             "Transcript exceeds %s words; condensing %s chunks before summary",
             MAX_SUMMARY_INPUT_WORDS,
@@ -679,9 +675,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 f"TRANSCRIPT PART {index + 1}/{len(chunks)}:\n{chunk}"
             )
             try:
-                result = await self._invoke_llm(
-                    prompt, task=LLMTask.SUMMARY.value
-                )
+                result = await self._invoke_llm(prompt, task=LLMTask.SUMMARY.value)
                 return result if isinstance(result, str) else str(result)
             except Exception as e:
                 # Don't let one failed chunk fail the whole summary — fall back
@@ -1412,9 +1406,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     response_model,
                     task=LLMTask.SCENARIO_EVALUATION.value,
                     llm_override=self._client_for(
-                        "scenario/scenario_evaluation_with_memory"
-                        if need_memory
-                        else "scenario/scenario_evaluation",
+                        (
+                            "scenario/scenario_evaluation_with_memory"
+                            if need_memory
+                            else "scenario/scenario_evaluation"
+                        ),
                         prompts,
                     ),
                     **kwargs,

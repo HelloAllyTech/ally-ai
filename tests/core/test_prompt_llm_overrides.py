@@ -2,10 +2,7 @@
 
 import pytest
 
-from app.prompts.resolver import (
-    _clamp_temperature,
-    get_backend_llm_overrides,
-)
+from app.prompts.resolver import _clamp_temperature, get_backend_llm_overrides
 
 
 class TestGetBackendLlmOverrides:
@@ -18,9 +15,11 @@ class TestGetBackendLlmOverrides:
                 "temperature": 0.4,
             }
         }
-        assert get_backend_llm_overrides(
-            "analysis/counselor_analysis", prompts
-        ) == ("openai", "gpt-4o", 0.4)
+        assert get_backend_llm_overrides("analysis/counselor_analysis", prompts) == (
+            "openai",
+            "gpt-4o",
+            0.4,
+        )
 
     def test_string_entry_or_missing_returns_none(self):
         assert get_backend_llm_overrides(

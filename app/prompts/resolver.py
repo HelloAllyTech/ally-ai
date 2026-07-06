@@ -5,8 +5,8 @@ Resolve prompt templates from backend metadata or local .txt files.
 import os
 from typing import Any, Dict, Optional
 
-from app.utils.logger import get_logger
 from app.prompts.manager import prompt_manager
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -46,7 +46,10 @@ def _get_local_template(prompt_code: str, internal_path: Optional[str] = None) -
         # If we have internal_path, use it directly to avoid lossy string splitting
         if "/" in internal_path:
             file_key, prompt_key = internal_path.split("/", 1)
-            return prompt_manager.get_template(file_key, prompt_key.replace("/", os.sep)) or ""
+            return (
+                prompt_manager.get_template(file_key, prompt_key.replace("/", os.sep))
+                or ""
+            )
 
     file_key, prompt_key = _prompt_code_to_path(prompt_code)
     if not file_key or not prompt_key:
@@ -54,7 +57,9 @@ def _get_local_template(prompt_code: str, internal_path: Optional[str] = None) -
     return prompt_manager.get_template(file_key, prompt_key) or ""
 
 
-def _get_backend_prompt_entry(backend_prompts: Optional[Dict[str, Any]], prompt_code: str) -> Any:
+def _get_backend_prompt_entry(
+    backend_prompts: Optional[Dict[str, Any]], prompt_code: str
+) -> Any:
     if not backend_prompts:
         return None
     return backend_prompts.get(prompt_code)
@@ -176,9 +181,14 @@ def load_template(
         if isinstance(prompt_data, dict):
             backend_prompts = prompt_data
         else:
-            backend_prompts = getattr(prompt_data, "prompts", None) if prompt_data else None
+            backend_prompts = (
+                getattr(prompt_data, "prompts", None) if prompt_data else None
+            )
 
-    return resolve_template(prompt_code, backend_prompts, internal_path=internal_path) or ""
+    return (
+        resolve_template(prompt_code, backend_prompts, internal_path=internal_path)
+        or ""
+    )
 
 
 def load_and_format(
