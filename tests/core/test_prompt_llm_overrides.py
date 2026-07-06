@@ -91,7 +91,7 @@ class TestResolveProvider:
             pytest.skip("client module not importable in this env")
 
         # Explicit provider wins over model-name inference.
-        assert _resolve_provider("gemini-2.0-flash", "openai") == "openai"
+        assert _resolve_provider("gemini-2.5-flash", "openai") == "openai"
         assert _resolve_provider("gpt-4o", "gemini") == "gemini"
         # Unrunnable explicit provider -> None (override ignored).
         assert _resolve_provider("claude-3", "anthropic") is None
@@ -122,12 +122,12 @@ class TestGeminiClientBranch:
         mod._override_client_cache.clear()
 
         client = mod.OpenAITextGenerationClient.get_or_create_client(
-            model="gemini-2.0-flash", temperature=0.4, provider="gemini"
+            model="gemini-2.5-flash", temperature=0.4, provider="gemini"
         )
         assert client is sentinel
-        assert built == {"model": "gemini-2.0-flash", "temperature": 0.4}
+        assert built == {"model": "gemini-2.5-flash", "temperature": 0.4}
         # Cached by (provider, model, temperature).
-        assert mod._override_client_cache[("gemini", "gemini-2.0-flash", 0.4)] is (
+        assert mod._override_client_cache[("gemini", "gemini-2.5-flash", 0.4)] is (
             sentinel
         )
 
@@ -154,6 +154,6 @@ class TestGeminiClientBranch:
 
         # No temperature override -> degrades to the exact default client.
         client = mod.OpenAITextGenerationClient.get_or_create_client(
-            model="gemini-2.0-flash", temperature=None, provider="gemini"
+            model="gemini-2.5-flash", temperature=None, provider="gemini"
         )
         assert client is default_sentinel
