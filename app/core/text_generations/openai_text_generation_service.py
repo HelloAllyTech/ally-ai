@@ -618,7 +618,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         prompt = template.format(
             chat_history=chat_history_str, key_descriptions=key_descriptions_str
         )
-        model = self.model.bind_tools([generate_dynamic_summary])
+        # Honor the summary prompt's per-prompt model/temperature override
+        # (falls back to the default client when none is set).
+        model = self._client_for("summary/dynamic_summary", prompts).bind_tools(
+            [generate_dynamic_summary]
+        )
         response = await model.ainvoke(prompt)
 
         # Best-effort token-usage emission (bind_tools returns an AIMessage).
@@ -640,7 +644,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         merged = {**tool_fields, **precomputed}
         return DynamicSummaryNoteResponse(fields=merged)
 
-    async def _condense_for_summary(self, chat_history_str: str) -> str:
+    async def _condense_for_summary(
+        self, chat_history_str: str, llm_override: Optional[Any] = None
+    ) -> str:
         """
         Bound the transcript fed to the structured-summary prompt.
 
@@ -675,7 +681,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 f"TRANSCRIPT PART {index + 1}/{len(chunks)}:\n{chunk}"
             )
             try:
-                result = await self._invoke_llm(prompt, task=LLMTask.SUMMARY.value)
+                result = await self._invoke_llm(
+                    prompt, task=LLMTask.SUMMARY.value, llm_override=llm_override
+                )
                 return result if isinstance(result, str) else str(result)
             except Exception as e:
                 # Don't let one failed chunk fail the whole summary — fall back
@@ -709,10 +717,19 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         **kwargs,
     ):
         """Optimized structured summary with parallel processing."""
+        # Resolve the summary prompt's per-prompt client once and use it for both
+        # the condense (map) step and the final structured-summary call, so a
+        # per-prompt model/temperature override applies to the whole summary.
+        summary_client = self._client_for(
+            _structured_summary_template_path(session_mode), prompts
+        )
+
         # Bound the transcript the summariser reads (long sessions otherwise
         # overflow the prompt and fail every time). Metrics below still use the
         # FULL chat_history / chat_history_str.
-        summary_input_str = await self._condense_for_summary(chat_history_str)
+        summary_input_str = await self._condense_for_summary(
+            chat_history_str, llm_override=summary_client
+        )
 
         # Start LLM call and metric calculation in parallel
         template = load_template(
@@ -722,9 +739,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             template.format(chat_history=summary_input_str),
             StructuredSummaryNote,
             task=LLMTask.SUMMARY.value,
-            llm_override=self._client_for(
-                _structured_summary_template_path(session_mode), prompts
-            ),
+            llm_override=summary_client,
             **kwargs,
         )
 
