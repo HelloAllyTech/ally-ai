@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     drift,
     language_quality,
     reference_document,
+    round_trip,
     summary,
 )
 
@@ -20,4 +21,7 @@ api_router.include_router(
 api_router.include_router(drift.router, prefix="/drift", tags=["drift"])
 api_router.include_router(
     language_quality.router, prefix="/language-quality", tags=["language_quality"]
+)
+api_router.include_router(
+    round_trip.router, prefix="/round-trip-wer", tags=["language_quality"]
 )
