@@ -62,6 +62,18 @@ class DriftJudgeSettings(BaseModel):
     PROMPT_VERSION: str = Field("v1")
 
 
+class LanguageJudgeSettings(BaseModel):
+    """Language-quality judge (see language-eval-judge-schema.md). Sibling of
+    the drift judge; separate call, separate rubric version. Comparisons are
+    only valid within one (MODEL, PROMPT_VERSION) pair."""
+
+    MODEL: str = Field("gemini-2.5-pro")
+    # Bump when the judge rubric or typology changes; reported back to the
+    # caller (ally-be) and stored on each annotation row so a re-judge with a
+    # new rubric coexists with prior runs. Stateless — owns no database.
+    PROMPT_VERSION: str = Field("v1")
+
+
 class DeepgramSettings(BaseModel):
     API_KEY: str = Field(...)
 
@@ -184,6 +196,9 @@ class AppSettings(BaseSettings):
     TRANSCRIPTION: TranscriptionSettings
     GEMINI: GeminiSettings = Field(default_factory=GeminiSettings)
     DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
+    LANGUAGE_JUDGE: LanguageJudgeSettings = Field(
+        default_factory=LanguageJudgeSettings
+    )
     LLM_USAGE: LLMUsageSettings = Field(default_factory=LLMUsageSettings)
 
     def model_post_init(self, __context=None) -> None:

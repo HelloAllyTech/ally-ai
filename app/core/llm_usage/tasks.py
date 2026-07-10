@@ -16,6 +16,7 @@ class LLMTask(str, Enum):
     DIARIZATION = "diarization"
     EMBEDDING = "embedding"
     DRIFT_JUDGE = "drift_judge"
+    LANGUAGE_JUDGE = "language_judge"
 
 
 def resolve_model_name(model: Any) -> str:
