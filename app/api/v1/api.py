@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     drift,
     language_quality,
     reference_document,
+    roadmap_opportunity,
     round_trip,
     summary,
 )
@@ -17,6 +18,11 @@ api_router.include_router(
     reference_document.router,
     prefix="/reference-documents",
     tags=["reference_documents"],
+)
+api_router.include_router(
+    roadmap_opportunity.router,
+    prefix="/roadmap-opportunities",
+    tags=["roadmap_opportunities"],
 )
 api_router.include_router(drift.router, prefix="/drift", tags=["drift"])
 api_router.include_router(

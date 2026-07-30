@@ -12,6 +12,7 @@ class VectorDBCollectionNames:
     MIGRATION_HISTORY = "MigrationHistory"
     CONVERSATIONS = "Conversation"
     REFERENCE_DOCUMENTS = "ReferenceDocument"
+    ROADMAP_OPPORTUNITIES = "RoadmapOpportunity"
 
 
 class MigrationHistoryProperties:
@@ -114,3 +115,57 @@ class ReferenceDocumentProperties:
     def get_all_properties(cls):
         """Get all properties for the ReferenceDocument collection"""
         return [cls.HEADING, cls.CONTENT, cls.CATEGORY, cls.TAGS, cls.TENANT_ID]
+
+
+class RoadmapOpportunityProperties:
+    """
+    Properties for the RoadmapOpportunity collection — semantic duplicate detection for the
+    Ally Product Roadmap board.
+
+    THE OPPORTUNITY TEXT IS DELIBERATELY NOT STORED HERE. ally-be's Postgres
+    (roadmap_opportunities.description) is the system of record and this collection is a
+    DERIVED index holding vectors plus the minimum metadata needed to filter and reconcile.
+    Duplicating the description would mean a write on every edit, and any missed write would
+    feed a stale description into the LLM's duplicate judgement — while buying nothing, since
+    ally-be already has every description in hand when it runs that step.
+
+    `stage` is excluded for the same reason, only more so: it changes constantly through the
+    admin workflow and would be the staleness hotspot.
+
+    The Weaviate object UUID IS the roadmap_opportunities.id, so there is no separate id
+    property to keep in sync and every write is idempotent by construction.
+    """
+
+    PRODUCT_GOAL = wvc.Property(
+        name="product_goal",
+        data_type=wvc.DataType.TEXT,
+        description="Product goal name, for optionally scoping a search to one goal",
+    )
+
+    TEXT_HASH = wvc.Property(
+        name="text_hash",
+        data_type=wvc.DataType.TEXT,
+        description="SHA-256 of the embedded text; lets ally-be detect a stale vector",
+    )
+
+    EMBEDDING_MODEL = wvc.Property(
+        name="embedding_model",
+        data_type=wvc.DataType.TEXT,
+        description="Model that produced the vector, so a model change is detectable",
+    )
+
+    EMBEDDED_AT = wvc.Property(
+        name="embedded_at",
+        data_type=wvc.DataType.DATE,
+        description="When the vector was generated",
+    )
+
+    @classmethod
+    def get_all_properties(cls):
+        """Get all properties for the RoadmapOpportunity collection"""
+        return [
+            cls.PRODUCT_GOAL,
+            cls.TEXT_HASH,
+            cls.EMBEDDING_MODEL,
+            cls.EMBEDDED_AT,
+        ]

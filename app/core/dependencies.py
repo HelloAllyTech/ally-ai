@@ -10,6 +10,7 @@ from app.core.conversations.conversation_service import ConversationService
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.core.roadmap.roadmap_opportunity_service import RoadmapOpportunityService
 from app.core.reference_documents.reference_document_service import (
     ReferenceDocumentService,
 )
@@ -155,6 +156,24 @@ async def get_summary_service(
     Returns an instance of SummaryService.
     """
     return _get_summary_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_roadmap_opportunity_service_cached() -> RoadmapOpportunityService:
+    return RoadmapOpportunityService(
+        _get_vector_db_cached(),
+        _get_embedding_service_cached(),
+    )
+
+
+# Dependency for the roadmap opportunity (semantic duplicate detection) service
+async def get_roadmap_opportunity_service(
+    vector_db=Depends(get_vector_db), embedding_service=Depends(get_embedding_service)
+) -> RoadmapOpportunityService:
+    """
+    Returns an instance of RoadmapOpportunityService.
+    """
+    return _get_roadmap_opportunity_service_cached()
 
 
 @lru_cache(maxsize=1)
