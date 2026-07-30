@@ -418,3 +418,61 @@ class WeaviateDB(VectorDB):
         except Exception as e:
             logger.exception(f"Failed to search documents: {type(e).__name__}")
             raise VectorDBSearchFailedException("Failed to search documents")
+
+    async def near_vector_search(
+        self,
+        collection_name: str,
+        vector: List[float],
+        limit: int = 10,
+        min_similarity: float = 0.0,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Similarity search from a caller-supplied vector. See VectorDB.near_vector_search.
+
+        Weaviate returns DISTANCE; with the cosine metric, similarity = 1 - distance. The
+        conversion happens here so callers only ever reason in similarity, which is what the
+        standalone roadmap app's threshold (0.5) was expressed in.
+        """
+        try:
+            collection = self.client.collections.get(collection_name)
+
+            query_filters = None
+            if filters:
+                conditions = [
+                    Filter.by_property(key).equal(value)
+                    for key, value in filters.items()
+                    if value is not None
+                ]
+                if conditions:
+                    query_filters = (
+                        conditions[0]
+                        if len(conditions) == 1
+                        else Filter.all_of(conditions)
+                    )
+
+            # A similarity floor is a distance ceiling.
+            max_distance = 1.0 - min_similarity
+
+            async with self._semaphore:
+                result = await collection.query.near_vector(
+                    near_vector=vector,
+                    limit=limit,
+                    filters=query_filters,
+                    distance=max_distance,
+                    return_metadata=MetadataQuery(distance=True),
+                )
+
+            hits: List[Dict[str, Any]] = []
+            for obj in result.objects:
+                distance = getattr(obj.metadata, "distance", None)
+                similarity = 1.0 - distance if distance is not None else 0.0
+                hits.append(
+                    {"id": str(obj.uuid), "similarity": similarity, **obj.properties}
+                )
+            return hits
+
+        except Exception as e:
+            logger.exception(f"near_vector_search failed: {type(e).__name__}")
+            raise VectorDBSearchFailedException("Failed to run similarity search")
+

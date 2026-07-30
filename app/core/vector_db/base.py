@@ -168,3 +168,36 @@ class VectorDB(Generic[T], ABC):
             VectorDBSearchFailedException: If the search operation fails.
         """
         pass
+
+    @abstractmethod
+    async def near_vector_search(
+        self,
+        collection_name: str,
+        vector: List[float],
+        limit: int = 10,
+        min_similarity: float = 0.0,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Similarity search from a CALLER-SUPPLIED vector, returning a cosine similarity per hit.
+
+        Distinct from search_documents(), which takes a query STRING, embeds it internally, and
+        is shaped around reference-document semantics (its own distance threshold from settings
+        plus a category aggregation). This primitive is the plain building block: you bring the
+        vector and the threshold, you get ids, properties and similarity back.
+
+        Parameters:
+            collection_name (str): Collection to search.
+            vector (List[float]): The query embedding.
+            limit (int): Maximum hits to return.
+            min_similarity (float): Minimum cosine SIMILARITY (not distance), 0..1.
+            filters (Optional[Dict[str, Any]]): Simple property equality filters.
+
+        Returns:
+            List[Dict[str, Any]]: One dict per hit: {"id", "similarity", **properties}.
+
+        Raises:
+            VectorDBSearchFailedException: If the search fails.
+        """
+        pass
+
