@@ -170,6 +170,38 @@ class VectorDB(Generic[T], ABC):
         pass
 
     @abstractmethod
+    async def list_document_ids(
+        self,
+        collection_name: str,
+        limit: int = 200,
+        after: Optional[str] = None,
+    ) -> List[str]:
+        """
+        One page of object UUIDs in a collection, ids only.
+
+        Exists so a caller that owns the system of record can RECONCILE against this index —
+        specifically, find vectors whose source row no longer exists. Every other read here is
+        keyed by an id the caller already has, which cannot surface an object the caller has
+        forgotten about.
+
+        Cursor-paginated rather than offset-paginated: offset paging over a collection that is
+        being written to can skip or repeat objects, and a reconciliation sweep that silently
+        skips an id would fail to report drift.
+
+        Parameters:
+            collection_name (str): Collection to enumerate.
+            limit (int): Maximum ids to return in this page.
+            after (Optional[str]): Cursor — the last id from the previous page, or None to start.
+
+        Returns:
+            List[str]: Up to `limit` object UUIDs. Fewer than `limit` means the end was reached.
+
+        Raises:
+            VectorDBSearchFailedException: If the listing fails.
+        """
+        pass
+
+    @abstractmethod
     async def near_vector_search(
         self,
         collection_name: str,

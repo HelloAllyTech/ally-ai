@@ -89,3 +89,19 @@ class RoadmapOpportunityDeleteResponse(BaseModel):
             "Weaviate does not distinguish the two. False means the delete failed."
         ),
     )
+
+
+class RoadmapOpportunityIdsResponse(BaseModel):
+    """
+    One page of indexed ids, for ally-be's reconciliation sweep.
+
+    `next_cursor` is None when the page was not full, i.e. the end of the collection. Paging is
+    by CURSOR rather than offset because offset paging over a collection being written to can skip
+    objects — and a sweep that skips an id would under-report drift while looking like it passed.
+    """
+
+    ids: List[UUID] = Field(default_factory=list)
+    next_cursor: UUID | None = Field(
+        None,
+        description="Pass as `after` to fetch the next page; None means this was the last",
+    )

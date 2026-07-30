@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.dependencies import get_roadmap_opportunity_service
 from app.core.roadmap.roadmap_opportunity_service import RoadmapOpportunityService
@@ -13,6 +13,7 @@ from app.schemas.roadmap_opportunity import (
     RoadmapOpportunityBulkUpsert,
     RoadmapOpportunityBulkUpsertResponse,
     RoadmapOpportunityDeleteResponse,
+    RoadmapOpportunityIdsResponse,
     RoadmapOpportunitySearchRequest,
     RoadmapOpportunitySearchResponse,
     RoadmapOpportunityUpsert,
@@ -159,6 +160,51 @@ async def delete_roadmap_opportunity(
     return RoadmapOpportunityDeleteResponse(
         opportunity_id=opportunity_id, deleted=deleted
     )
+
+
+# ORDER MATTERS: this must stay ABOVE GET /{opportunity_id}. FastAPI matches routes in
+# declaration order, so if the parameterised route came first, "/ids" would bind to
+# opportunity_id and fail UUID validation with a 422 that looks like a client bug.
+@router.get(
+    "/ids",
+    response_model=RoadmapOpportunityIdsResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["roadmap_opportunities"],
+)
+async def list_roadmap_opportunity_ids(
+    limit: int = Query(200, ge=1, le=1000),
+    after: UUID | None = Query(
+        None, description="Cursor: the last id of the previous page"
+    ),
+    service: RoadmapOpportunityService = Depends(get_roadmap_opportunity_service),
+):
+    """
+    Enumerate indexed ids so ally-be can reconcile this index against its own rows.
+
+    This is the only read here that can surface an object ally-be has FORGOTTEN — every other
+    endpoint is keyed by an id the caller already holds. Without it, a vector whose Postgres row
+    was hard-deleted is undetectable and permanent: soft-deletes call DELETE, but a row that
+    vanished outright never triggered anything.
+
+    Returns ids only, and makes no judgement about which are stale — ally-be owns the system of
+    record and therefore owns that decision.
+    """
+    try:
+        ids = await service.list_ids(limit=limit, after=str(after) if after else None)
+        # A short page means the end of the collection; only offer a cursor when there may be more.
+        next_cursor = ids[-1] if len(ids) == limit else None
+        return RoadmapOpportunityIdsResponse(ids=ids, next_cursor=next_cursor)
+    except VectorDBSearchFailedException:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The vector index is unavailable",
+        )
+    except Exception:
+        logger.exception("Unexpected error listing roadmap opportunity ids")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list indexed ids",
+        )
 
 
 @router.get(
