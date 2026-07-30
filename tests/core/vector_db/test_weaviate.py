@@ -321,6 +321,57 @@ class TestWeaviateDB:
             )
 
     @pytest.mark.asyncio
+    async def test_list_document_ids_returns_ids_only(
+        self, weaviate_db, mock_collection
+    ):
+        """Ids only, and the cursor is passed straight through to fetch_objects."""
+        ids = [str(uuid4()) for _ in range(3)]
+        result = MagicMock()
+        result.objects = [MagicMock(uuid=i) for i in ids]
+        mock_collection.query.fetch_objects.return_value = result
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        got = await weaviate_db.list_document_ids(
+            "test_collection", limit=3, after=ids[0]
+        )
+
+        assert got == ids
+        # return_properties=[] keeps a whole-collection sweep to ids on the wire.
+        mock_collection.query.fetch_objects.assert_called_once_with(
+            limit=3, after=ids[0], return_properties=[]
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_document_ids_starts_without_a_cursor(
+        self, weaviate_db, mock_collection
+    ):
+        """The first page passes after=None rather than omitting the argument."""
+        result = MagicMock()
+        result.objects = []
+        mock_collection.query.fetch_objects.return_value = result
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        assert await weaviate_db.list_document_ids("test_collection") == []
+        mock_collection.query.fetch_objects.assert_called_once_with(
+            limit=200, after=None, return_properties=[]
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_document_ids_failure(self, weaviate_db, mock_collection):
+        """A listing failure must RAISE, never return a short list.
+
+        A reconciliation sweep deletes on the basis of absence, so a silently truncated page
+        would make live objects look orphaned.
+        """
+        mock_collection.query.fetch_objects.side_effect = Exception("Listing failed")
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        with pytest.raises(
+            VectorDBSearchFailedException, match="Failed to list document ids"
+        ):
+            await weaviate_db.list_document_ids("test_collection")
+
+    @pytest.mark.asyncio
     async def test_delete_document_success(self, weaviate_db, mock_collection):
         """Test successful document deletion."""
         # Setup mocks

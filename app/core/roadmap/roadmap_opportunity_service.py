@@ -250,6 +250,25 @@ class RoadmapOpportunityService:
             )
             return False
 
+    async def list_ids(
+        self, limit: int = 200, after: Optional[str] = None
+    ) -> List[str]:
+        """
+        One page of indexed opportunity ids, for RECONCILIATION by ally-be.
+
+        Every other read here is keyed by an id the caller already holds, which by construction
+        cannot surface an object the caller has forgotten. That leaves one drift mode with no
+        detection path: a vector whose Postgres row was HARD-deleted. Nothing ever removes it —
+        soft-deletes call delete(), but a row that vanished outright never triggered anything — so
+        it lingers forever, and while ally-be does filter it out of results, it still occupies one
+        of the top-N candidate slots a real duplicate needed.
+
+        ally-be stays the authority: this only enumerates, it never decides what is stale.
+        """
+        return await self.vector_db.list_document_ids(
+            self.collection_name, limit=limit, after=after
+        )
+
     async def get(self, opportunity_id: str) -> Optional[Dict[str, Any]]:
         """Fetch one indexed object's metadata. For reconciliation and debugging only."""
         try:

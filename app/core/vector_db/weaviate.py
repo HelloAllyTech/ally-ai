@@ -265,6 +265,35 @@ class WeaviateDB(VectorDB):
             logger.exception(f"Failed to delete document: {type(e).__name__}")
             raise VectorDBDeleteFailedException("Failed to delete document")
 
+    async def list_document_ids(
+        self,
+        collection_name: str,
+        limit: int = 200,
+        after: Optional[str] = None,
+    ) -> List[str]:
+        """
+        One page of object UUIDs. See VectorDB.list_document_ids.
+
+        `return_properties=[]` keeps this to ids on the wire — a reconciliation sweep over a whole
+        collection has no use for properties, and fetching them would multiply the payload for
+        nothing.
+        """
+        try:
+            collection = self.client.collections.get(collection_name)
+
+            async with self._semaphore:
+                result = await collection.query.fetch_objects(
+                    limit=limit,
+                    after=after,
+                    return_properties=[],
+                )
+
+            return [str(obj.uuid) for obj in result.objects]
+
+        except Exception as e:
+            logger.exception(f"list_document_ids failed: {type(e).__name__}")
+            raise VectorDBSearchFailedException("Failed to list document ids")
+
     async def search_documents(
         self,
         collection_name: str,

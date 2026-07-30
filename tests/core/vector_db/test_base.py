@@ -64,6 +64,26 @@ class ConcreteVectorDB(VectorDB[MagicMock]):
         """Concrete implementation of search_documents."""
         return {"documents": [], "total_count": 0}
 
+    async def near_vector_search(
+        self,
+        collection_name: str,
+        vector: List[float],
+        limit: int = 10,
+        min_similarity: float = 0.0,
+        filters: Dict[str, Any] = None,
+    ) -> List[Dict[str, Any]]:
+        """Concrete implementation of near_vector_search."""
+        return [{"id": "1", "similarity": 0.9}]
+
+    async def list_document_ids(
+        self,
+        collection_name: str,
+        limit: int = 200,
+        after: str = None,
+    ) -> List[str]:
+        """Concrete implementation of list_document_ids."""
+        return ["1"]
+
 
 class TestVectorDB:
     """Test cases for VectorDB base class."""
