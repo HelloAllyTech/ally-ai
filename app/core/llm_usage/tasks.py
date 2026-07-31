@@ -17,6 +17,11 @@ class LLMTask(str, Enum):
     EMBEDDING = "embedding"
     DRIFT_JUDGE = "drift_judge"
     LANGUAGE_JUDGE = "language_judge"
+    # Analytics Agent: one planning call (question -> SQL) and one narration
+    # call (rows -> answer) per question, priced separately because the
+    # planner carries the whole schema catalogue and the narrator the rows.
+    ANALYTICS_AGENT_PLAN = "analytics_agent_plan"
+    ANALYTICS_AGENT_ANSWER = "analytics_agent_answer"
 
 
 def resolve_model_name(model: Any) -> str:

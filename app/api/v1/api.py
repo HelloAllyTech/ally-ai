@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    analytics_agent,
     conversation,
     drift,
     language_quality,
@@ -25,6 +26,9 @@ api_router.include_router(
     tags=["roadmap_opportunities"],
 )
 api_router.include_router(drift.router, prefix="/drift", tags=["drift"])
+api_router.include_router(
+    analytics_agent.router, prefix="/analytics-agent", tags=["analytics_agent"]
+)
 api_router.include_router(
     language_quality.router, prefix="/language-quality", tags=["language_quality"]
 )

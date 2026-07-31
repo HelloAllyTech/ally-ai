@@ -74,6 +74,22 @@ class LanguageJudgeSettings(BaseModel):
     PROMPT_VERSION: str = Field("v1")
 
 
+class AnalyticsAgentSettings(BaseModel):
+    """Analytics Agent (admin Analytics -> Analytics Agent tab).
+
+    Two calls per question: a planner that sees the schema catalogue and writes
+    SQL, and a narrator that sees the result rows and writes the answer. The
+    planner is the harder job — a wrong column choice produces a confident wrong
+    number — so it may run on a stronger model than the narrator.
+    """
+
+    PLANNER_MODEL: str = Field("gemini-2.5-pro")
+    ANSWER_MODEL: str = Field("gemini-2.5-flash")
+    # Bump when either prompt changes in a way that could move answers; echoed
+    # back to ally-be so a surprising answer can be traced to its instructions.
+    PROMPT_VERSION: str = Field("v1")
+
+
 class DeepgramSettings(BaseModel):
     API_KEY: str = Field(...)
 
@@ -198,6 +214,9 @@ class AppSettings(BaseSettings):
     DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
     LANGUAGE_JUDGE: LanguageJudgeSettings = Field(
         default_factory=LanguageJudgeSettings
+    )
+    ANALYTICS_AGENT: AnalyticsAgentSettings = Field(
+        default_factory=AnalyticsAgentSettings
     )
     LLM_USAGE: LLMUsageSettings = Field(default_factory=LLMUsageSettings)
 
