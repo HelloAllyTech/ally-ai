@@ -87,3 +87,6 @@ logs/
 
 # Docker files (if you don't want to track these)
 docker-compose.override.yml
+
+# Scratch clone of the wiki, created by the wiki-pr flow (see AGENTS.md)
+.wiki-tmp/
