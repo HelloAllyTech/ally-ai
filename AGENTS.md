@@ -6,14 +6,24 @@ This file is a **router**: find your task below, read what it points at, skip th
 Conventions with a canonical home are linked, never restated — if you find a rule written
 twice anywhere in this platform, that's a bug worth fixing.
 
-## Before you write an implementation plan
+## Search Stacks whenever a product judgement comes up
 
-Call the stacks MCP's `search_chunks` tool with **2-3 queries** covering the task's main
-topics, incorporate what comes back, and cite chunk titles. The `stacks` server is declared
-in this repo's committed [`.mcp.json`](.mcp.json) and reads `STACKS_API_KEY` from the
-environment - setup, query technique and citation format:
+Not only while planning. Call the stacks MCP's `search_chunks` tool with **2-3 queries** on the
+topic (not the ticket title), incorporate what comes back, and cite chunk titles:
+
+- **before writing an implementation plan** — the original rule, and still the one that matters
+  most;
+- **while implementing**, at each point you would otherwise invent the answer: an empty, loading,
+  edge or failure state; a user-facing label, button or error message; what a view shows and what
+  it omits; a threshold, limit, cadence or reward rule;
+- **while reviewing**, for how a change behaves rather than how it reads.
+
+Trivial mechanical changes (rename, dependency bump, typo) are exempt. The `stacks` server is
+declared in this repo's committed [`.mcp.json`](.mcp.json) and reads `STACKS_API_KEY` from the
+environment; the [`stacks` skill](.claude/skills/stacks/SKILL.md) carries the query technique, and
+a committed `UserPromptSubmit` hook injects a small search when a prompt looks product-shaped —
+that hook is a floor, not the rule, so keep querying yourself. Setup and citation format:
 [Planning with Stacks](https://tech.helloally.ai/#/wiki/contributing/planning-with-stacks.md).
-Trivial mechanical changes (rename, dependency bump, typo) are exempt.
 
 Stacks **replaced** the wiki's Product Management Best Practices, deprecated 2026-08-07:
 nothing there is a gate, and Stacks wins on conflict. Those pages still record Ally-specific
