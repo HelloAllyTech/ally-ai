@@ -1,0 +1,4 @@
+{
+  "name": "WhatsApp Knowledge Answer",
+  "description": "Answers a mental healthcare worker's WhatsApp question using only the retrieved corpus passages, in the worker's own language, or declines when the corpus does not cover it."
+}

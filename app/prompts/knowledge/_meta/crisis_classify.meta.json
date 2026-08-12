@@ -1,0 +1,4 @@
+{
+  "name": "WhatsApp Crisis Classifier",
+  "description": "Decides whether an inbound WhatsApp message is about a crisis happening now, so the bot points to a supervisor or crisis line instead of answering a reference question. Biased towards false positives on purpose."
+}

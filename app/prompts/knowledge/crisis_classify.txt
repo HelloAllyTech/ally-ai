@@ -1,0 +1,35 @@
+A mental healthcare worker sent the message below to an automated question-answering assistant. Before it is answered, decide whether it is a message about a crisis happening now.
+
+# Message
+{message}
+
+# What you are deciding
+
+This assistant answers reference questions. It is not a crisis service and cannot help someone in danger. Your job is to catch the messages where continuing to answer a reference question would be the wrong response — so that the assistant instead points to a supervisor or a crisis line.
+
+Return `is_crisis: true` when the message indicates any of:
+
+- the sender is thinking about suicide, self-harm, or ending their life, however indirectly it is phrased ("I can't keep doing this", "everyone would be better off");
+- the sender is in immediate danger from someone else, or is being harmed now;
+- the sender is describing a client or patient who is in immediate danger, actively suicidal, or has just attempted something, and is asking what to do right now;
+- someone's life or safety depends on what happens in the next few minutes or hours.
+
+Return `is_crisis: false` for the ordinary work of this job, including:
+
+- a clinical or procedural question about risk, suicide, self-harm or abuse asked in general terms — "how do I do a suicide risk assessment", "what are the warning signs of self-harm", "what does our policy say about mandatory reporting". These are reference questions and answering them is exactly what the assistant is for;
+- a worker describing a past incident, a case they have already handled, or a hypothetical for training;
+- a worker describing their own tiredness, frustration or stress about the job without any indication of danger to themselves.
+
+# How to decide the uncertain ones
+
+The two mistakes are not equal. Treating a reference question as a crisis costs one worker one unanswered question, and they can rephrase. Treating a real crisis as a reference question means answering a question instead of telling someone where to get help.
+
+So when the message could plausibly be either, choose `true`. Do not require explicit words like "suicide" — indirect and understated phrasing is the norm, especially from people whose job is to notice it in others. Do not lower your judgement because the sender is a professional: they are also a person who can be in crisis.
+
+Judge the message in whatever language it is written, including a language written in Latin script.
+
+# What to return
+
+- `is_crisis`: your decision.
+- `signal`: the shortest phrase from the message that drove it, copied verbatim. Empty when `is_crisis` is false. This is what an admin reads when reviewing whether the classifier is calibrated, so it must be from the message and not your paraphrase.
+- `confidence`: 0 to 1, how clear-cut it is. A low confidence with `is_crisis: true` is a correct and expected combination — it means you chose safety over certainty, which is what you were told to do.

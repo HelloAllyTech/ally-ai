@@ -1,6 +1,7 @@
 # dependencies.py
-import httpx
 from functools import lru_cache
+
+import httpx
 from fastapi import Depends
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from weaviate.client import WeaviateAsyncClient
@@ -10,10 +11,12 @@ from app.core.conversations.conversation_service import ConversationService
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
-from app.core.roadmap.roadmap_opportunity_service import RoadmapOpportunityService
+from app.core.knowledge_agent.agent import KnowledgeAgentService
+from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkService
 from app.core.reference_documents.reference_document_service import (
     ReferenceDocumentService,
 )
+from app.core.roadmap.roadmap_opportunity_service import RoadmapOpportunityService
 from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
 from app.core.text_generations.openai_text_generation_client import (
@@ -174,6 +177,39 @@ async def get_roadmap_opportunity_service(
     Returns an instance of RoadmapOpportunityService.
     """
     return _get_roadmap_opportunity_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_knowledge_chunk_service_cached() -> KnowledgeChunkService:
+    return KnowledgeChunkService(
+        _get_vector_db_cached(),
+        _get_embedding_service_cached(),
+    )
+
+
+# Dependency for the knowledge chunk (WhatsApp Q&A corpus) service
+async def get_knowledge_chunk_service(
+    vector_db=Depends(get_vector_db), embedding_service=Depends(get_embedding_service)
+) -> KnowledgeChunkService:
+    """
+    Returns an instance of KnowledgeChunkService.
+    """
+    return _get_knowledge_chunk_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_knowledge_agent_service_cached() -> KnowledgeAgentService:
+    return KnowledgeAgentService(_get_knowledge_chunk_service_cached())
+
+
+# Dependency for the knowledge agent (WhatsApp Q&A retrieval + answering) service
+async def get_knowledge_agent_service(
+    chunk_service=Depends(get_knowledge_chunk_service),
+) -> KnowledgeAgentService:
+    """
+    Returns an instance of KnowledgeAgentService.
+    """
+    return _get_knowledge_agent_service_cached()
 
 
 @lru_cache(maxsize=1)

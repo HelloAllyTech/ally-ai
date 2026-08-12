@@ -7,6 +7,30 @@ from pydantic import BaseModel, Field
 class EmbeddingConstants:
     MODEL: Final[str] = "text-embedding-3-small"
 
+    # Texts per OpenAI embeddings request. The API caps a request at 2048 inputs and
+    # 300k tokens, so the binding limit here is tokens, not inputs: a knowledge-base
+    # chunk targets ~400 tokens, making 64 inputs roughly 26k tokens — an order of
+    # magnitude under the ceiling, which leaves headroom for a batch of unusually long
+    # chunks without a size-based rejection.
+    #
+    # Batching at all is load-bearing, not tidiness: a 300-page PDF is ~500 chunks, and
+    # embedding those in one call would be a single ~200k-token request that fails as a
+    # unit. Whole-batch failure is the worst outcome for the caller, which tracks
+    # progress per chunk.
+    BATCH_SIZE: Final[int] = 64
+
+    # Retries per batch on a rate limit or a connection error, which are the two
+    # failures that are reliably transient. Deliberately small: the caller (ally-be's
+    # ingest consumer) has its own retry via SQS redelivery, so the job here is to ride
+    # out a brief 429, not to become a second retry system layered under one that
+    # already exists.
+    MAX_RETRIES: Final[int] = 3
+
+    # Seconds before the first retry; doubles each attempt (0.5s, 1s, 2s). The total
+    # added delay stays around 3.5s so a batch cannot sit long enough to threaten the
+    # ingest consumer's SQS visibility timeout.
+    RETRY_BASE_DELAY_SECONDS: Final[float] = 0.5
+
 
 class TextGenerationConstants:
     DEFAULT_MODEL: Final[str] = "gpt-4o-mini-2024-07-18"

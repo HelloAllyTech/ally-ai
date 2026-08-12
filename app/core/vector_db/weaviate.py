@@ -6,7 +6,11 @@ from weaviate.classes.query import Filter
 from weaviate.client import WeaviateAsyncClient
 from weaviate.collections.classes.grpc import MetadataQuery
 from weaviate.collections.classes.internal import QueryReturn
-from weaviate.exceptions import AuthenticationFailedException, WeaviateConnectionError
+from weaviate.exceptions import (
+    AuthenticationFailedException,
+    WeaviateConnectionError,
+    WeaviateInsertManyAllFailedError,
+)
 
 from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
@@ -158,6 +162,153 @@ class WeaviateDB(VectorDB):
             logger.exception(f"Failed to create document: {type(e).__name__}")
             raise VectorDBInsertFailedException("Failed to create document")
 
+    async def create_documents_bulk(
+        self,
+        collection_name: str,
+        documents: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Insert many objects in one round trip. See VectorDB.create_documents_bulk.
+
+        Two things worth knowing about `insert_many`:
+
+        * It does NOT raise on per-object failure. The returned BatchObjectReturn
+          carries an
+          `errors` mapping keyed by the object's INDEX in the submitted list, and
+          callers that ignore it get silent data loss. So the errors are translated back
+          to ids here, which is the only identifier the caller reasons in.
+        * It is an upsert only in the sense that a duplicate UUID is reported as a
+          per-object
+          error, not silently merged. Callers re-indexing a document therefore delete
+          the old generation first (delete_by_filter) rather than relying on overwrite
+          semantics.
+
+        An object with an empty vector is rejected before the request rather than
+        written: these collections are created with vectorizer_config=none, so Weaviate
+        will not generate one, and a vector-less object is accepted, stored, and then
+        never returned by any similarity search. That failure is invisible until someone
+        asks the question the chunk would have answered, which is exactly the kind of
+        silence worth spending a guard on.
+        """
+        if not documents:
+            return {"succeeded": [], "failed": []}
+
+        failed: List[Dict[str, str]] = []
+        writable: List[Dict[str, Any]] = []
+
+        for doc in documents:
+            doc_id = str(doc.get("id", ""))
+            if not doc.get("vector"):
+                failed.append(
+                    {
+                        "id": doc_id,
+                        "error": (
+                            "missing embedding vector — the object would be stored "
+                            "but never retrievable, since this collection has no "
+                            "vectorizer"
+                        ),
+                    }
+                )
+                continue
+            writable.append(doc)
+
+        if not writable:
+            return {"succeeded": [], "failed": failed}
+
+        try:
+            collection = self.client.collections.get(collection_name)
+
+            batch = [
+                wvc.data.DataObject(
+                    uuid=str(doc["id"]),
+                    properties=doc["properties"],
+                    vector=doc["vector"],
+                )
+                for doc in writable
+            ]
+
+            async with self._semaphore:
+                result = await collection.data.insert_many(batch)
+
+        except WeaviateInsertManyAllFailedError as e:
+            # The client raises instead of returning when EVERY object fails, which
+            # would otherwise turn a per-object result into a whole-request exception.
+            # Translate it back into the per-object contract: the caller tracks progress
+            # per chunk, so an all-failed batch has to look like N failures, not one
+            # unexplained error, or its retry bookkeeping silently loses the batch.
+            logger.error(f"Bulk insert: all {len(writable)} object(s) failed")
+            failed.extend({"id": str(doc["id"]), "error": str(e)} for doc in writable)
+            return {"succeeded": [], "failed": failed}
+
+        except Exception as e:
+            logger.exception(f"Bulk insert failed: {type(e).__name__}")
+            raise VectorDBInsertFailedException("Failed to bulk insert documents")
+
+        # `errors` is keyed by position in the submitted batch; map it back to ids so
+        # the caller never has to reason about our batching.
+        errors = getattr(result, "errors", None) or {}
+        succeeded: List[str] = []
+        for index, doc in enumerate(writable):
+            doc_id = str(doc["id"])
+            error = errors.get(index)
+            if error is None:
+                succeeded.append(doc_id)
+            else:
+                message = getattr(error, "message", None) or str(error)
+                logger.warning(f"Bulk insert rejected one object in {collection_name}")
+                failed.append({"id": doc_id, "error": message})
+
+        return {"succeeded": succeeded, "failed": failed}
+
+    async def delete_by_filter(
+        self,
+        collection_name: str,
+        filters: Dict[str, Any],
+    ) -> int:
+        """
+        Delete every object matching property equality filters. See
+        VectorDB.delete_by_filter.
+
+        The empty-filter guard is a ValueError raised BEFORE touching Weaviate, not a
+        silent no-op: `delete_many` with a match-everything filter would empty the
+        collection, and a caller that passed an accidentally-empty dict (a None document
+        id stringified away, say) deserves an exception rather than a successful-looking
+        wipe.
+        """
+        conditions = [
+            Filter.by_property(key).equal(value)
+            for key, value in (filters or {}).items()
+            if value is not None
+        ]
+        if not conditions:
+            raise ValueError(
+                "delete_by_filter requires at least one non-null filter; an empty "
+                "filter would match every object in the collection"
+            )
+
+        try:
+            collection = self.client.collections.get(collection_name)
+            where = conditions[0] if len(conditions) == 1 else Filter.all_of(conditions)
+
+            async with self._semaphore:
+                result = await collection.data.delete_many(where=where)
+
+            # `failed` is non-zero when some matches could not be removed. Reported
+            # rather than swallowed: the caller re-indexing a document needs to know the
+            # old generation may still be retrievable, or it will serve duplicate
+            # citations from two versions.
+            failed_count = int(getattr(result, "failed", 0) or 0)
+            if failed_count:
+                logger.error(
+                    f"delete_by_filter left {failed_count} object(s) "
+                    f"in {collection_name}"
+                )
+            return int(getattr(result, "successful", 0) or 0)
+
+        except Exception as e:
+            logger.exception(f"delete_by_filter failed: {type(e).__name__}")
+            raise VectorDBDeleteFailedException("Failed to delete documents by filter")
+
     async def get_document_by_id(
         self, collection_name: str, document_id: str, include_vector: bool = True
     ) -> Dict[str, Any]:
@@ -274,9 +425,9 @@ class WeaviateDB(VectorDB):
         """
         One page of object UUIDs. See VectorDB.list_document_ids.
 
-        `return_properties=[]` keeps this to ids on the wire — a reconciliation sweep over a whole
-        collection has no use for properties, and fetching them would multiply the payload for
-        nothing.
+        `return_properties=[]` keeps this to ids on the wire — a reconciliation sweep
+        over a whole collection has no use for properties, and fetching them would
+        multiply the payload for nothing.
         """
         try:
             collection = self.client.collections.get(collection_name)
@@ -457,11 +608,12 @@ class WeaviateDB(VectorDB):
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Similarity search from a caller-supplied vector. See VectorDB.near_vector_search.
+        Similarity search from a caller-supplied vector. See
+        VectorDB.near_vector_search.
 
-        Weaviate returns DISTANCE; with the cosine metric, similarity = 1 - distance. The
-        conversion happens here so callers only ever reason in similarity, which is what the
-        standalone roadmap app's threshold (0.5) was expressed in.
+        Weaviate returns DISTANCE; with the cosine metric, similarity = 1 - distance.
+        The conversion happens here so callers only ever reason in similarity, which is
+        what the standalone roadmap app's threshold (0.5) was expressed in.
         """
         try:
             collection = self.client.collections.get(collection_name)
@@ -504,4 +656,3 @@ class WeaviateDB(VectorDB):
         except Exception as e:
             logger.exception(f"near_vector_search failed: {type(e).__name__}")
             raise VectorDBSearchFailedException("Failed to run similarity search")
-

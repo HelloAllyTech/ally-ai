@@ -1,0 +1,18 @@
+A mental healthcare worker asked the question below. It will be matched against an English reference library by semantic similarity, so it has to be in English before it is searched.
+
+# Question
+{question}
+
+# What to return
+
+- `language`: the BCP-47 tag of the language the question is written IN. Judge the language, not the script: a Hindi question typed in Latin letters ("bacche ko kaise samjhaun") is `hi`, not `en`. Mixed English and another language is the other language when the substance is in it.
+- `is_english`: true only when the question is already English and needs no restatement.
+- `english_query`: the question restated in plain English, as a question. Empty when `is_english` is true.
+
+# Restating
+
+Translate the meaning, not the words, and keep it short — this text is used only to find passages, never shown to anyone.
+
+Keep verbatim, untranslated: clinical and diagnostic terms, drug names, assessment-instrument names, organisation and helpline names, and any English term the worker already used. These are the words that actually match the reference material, and translating them into a general synonym is what makes retrieval miss.
+
+Do not answer the question. Do not add context, caveats or detail the worker did not write. If the question is too vague to restate meaningfully, restate it as literally as possible rather than guessing what was meant — guessing here silently changes what gets searched.

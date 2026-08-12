@@ -1,0 +1,4 @@
+{
+  "name": "WhatsApp Knowledge Query Translation",
+  "description": "Detects the language of an inbound WhatsApp question and restates it in English for embedding, so a non-English question retrieves against the English corpus."
+}

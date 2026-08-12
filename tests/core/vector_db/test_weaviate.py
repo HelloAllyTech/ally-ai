@@ -4,7 +4,11 @@ from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from weaviate.exceptions import AuthenticationFailedException, WeaviateConnectionError
+from weaviate.exceptions import (
+    AuthenticationFailedException,
+    WeaviateConnectionError,
+    WeaviateInsertManyAllFailedError,
+)
 
 from app.core.vector_db.weaviate import WeaviateDB
 from app.exceptions.custom_exceptions import (
@@ -360,8 +364,8 @@ class TestWeaviateDB:
     async def test_list_document_ids_failure(self, weaviate_db, mock_collection):
         """A listing failure must RAISE, never return a short list.
 
-        A reconciliation sweep deletes on the basis of absence, so a silently truncated page
-        would make live objects look orphaned.
+        A reconciliation sweep deletes on the basis of absence, so a silently truncated
+        page would make live objects look orphaned.
         """
         mock_collection.query.fetch_objects.side_effect = Exception("Listing failed")
         weaviate_db.client.collections.get.return_value = mock_collection
@@ -568,3 +572,186 @@ class TestWeaviateDB:
         assert len(result["documents"]) == 1
         assert "vector" in result["documents"][0]
         assert result["documents"][0]["score"] is None  # No metadata
+
+    # ---- create_documents_bulk ----
+
+    @staticmethod
+    def _bulk_doc(doc_id, vector=(0.1, 0.2)):
+        return {
+            "id": str(doc_id),
+            "properties": {"text": "passage"},
+            "vector": list(vector),
+        }
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_success(self, weaviate_db, mock_collection):
+        """All objects written; ids come back as succeeded."""
+        ids = [str(uuid4()), str(uuid4())]
+        mock_collection.data.insert_many = AsyncMock(return_value=MagicMock(errors={}))
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        result = await weaviate_db.create_documents_bulk(
+            "KnowledgeChunk", [self._bulk_doc(i) for i in ids]
+        )
+
+        assert result == {"succeeded": ids, "failed": []}
+        # One round trip for the whole batch, which is the entire point of the method.
+        mock_collection.data.insert_many.assert_awaited_once()
+        submitted = mock_collection.data.insert_many.call_args.args[0]
+        assert [str(o.uuid) for o in submitted] == ids
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_maps_errors_by_index_to_ids(
+        self, weaviate_db, mock_collection
+    ):
+        """insert_many keys `errors` by BATCH POSITION, not by id.
+
+        Ignoring that mapping is silent data loss: the caller reasons in chunk ids, so a
+        positional error it cannot translate would be reported against the wrong chunk
+        or dropped entirely.
+        """
+        ids = [str(uuid4()), str(uuid4()), str(uuid4())]
+        mock_collection.data.insert_many = AsyncMock(
+            return_value=MagicMock(errors={1: MagicMock(message="invalid property")})
+        )
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        result = await weaviate_db.create_documents_bulk(
+            "KnowledgeChunk", [self._bulk_doc(i) for i in ids]
+        )
+
+        assert result["succeeded"] == [ids[0], ids[2]]
+        assert result["failed"] == [{"id": ids[1], "error": "invalid property"}]
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_rejects_missing_vector(
+        self, weaviate_db, mock_collection
+    ):
+        """An object with no vector is refused before the request.
+
+        These collections have vectorizer_config=none, so Weaviate will not generate
+        one: the object would be accepted, stored, and then never returned by any
+        similarity search. That is invisible until someone asks the question the chunk
+        would have answered.
+        """
+        good_id, bad_id = str(uuid4()), str(uuid4())
+        mock_collection.data.insert_many = AsyncMock(return_value=MagicMock(errors={}))
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        result = await weaviate_db.create_documents_bulk(
+            "KnowledgeChunk",
+            [
+                self._bulk_doc(good_id),
+                {"id": bad_id, "properties": {"text": "x"}, "vector": []},
+            ],
+        )
+
+        assert result["succeeded"] == [good_id]
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["id"] == bad_id
+        assert "vector" in result["failed"][0]["error"]
+        # The valid object is still written — one bad chunk must not fail its batch.
+        submitted = mock_collection.data.insert_many.call_args.args[0]
+        assert [str(o.uuid) for o in submitted] == [good_id]
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_all_vectorless_skips_the_call(
+        self, weaviate_db, mock_collection
+    ):
+        mock_collection.data.insert_many = AsyncMock()
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        result = await weaviate_db.create_documents_bulk(
+            "KnowledgeChunk",
+            [{"id": str(uuid4()), "properties": {}, "vector": []}],
+        )
+
+        assert result["succeeded"] == []
+        assert len(result["failed"]) == 1
+        mock_collection.data.insert_many.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_all_failed_reports_per_object(
+        self, weaviate_db, mock_collection
+    ):
+        """The client RAISES when every object fails, instead of returning errors.
+
+        Left uncaught that would turn a per-object result into one whole-request
+        exception, and the caller's per-chunk retry bookkeeping would silently lose the
+        batch.
+        """
+        ids = [str(uuid4()), str(uuid4())]
+        mock_collection.data.insert_many = AsyncMock(
+            side_effect=WeaviateInsertManyAllFailedError("connection lost")
+        )
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        result = await weaviate_db.create_documents_bulk(
+            "KnowledgeChunk", [self._bulk_doc(i) for i in ids]
+        )
+
+        assert result["succeeded"] == []
+        assert {f["id"] for f in result["failed"]} == set(ids)
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_empty_input(self, weaviate_db):
+        assert await weaviate_db.create_documents_bulk("KnowledgeChunk", []) == {
+            "succeeded": [],
+            "failed": [],
+        }
+
+    @pytest.mark.asyncio
+    async def test_create_documents_bulk_request_failure_raises(
+        self, weaviate_db, mock_collection
+    ):
+        mock_collection.data.insert_many = AsyncMock(side_effect=Exception("boom"))
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        with pytest.raises(VectorDBInsertFailedException):
+            await weaviate_db.create_documents_bulk(
+                "KnowledgeChunk", [self._bulk_doc(uuid4())]
+            )
+
+    # ---- delete_by_filter ----
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_returns_count(self, weaviate_db, mock_collection):
+        mock_collection.data.delete_many = AsyncMock(
+            return_value=MagicMock(successful=5, failed=0)
+        )
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        deleted = await weaviate_db.delete_by_filter(
+            "KnowledgeChunk", {"document_id": "doc-1"}
+        )
+
+        assert deleted == 5
+        mock_collection.data.delete_many.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_refuses_empty_filter(
+        self, weaviate_db, mock_collection
+    ):
+        """An empty filter matches everything, so it raises before touching Weaviate.
+
+        A caller that passed an accidentally-empty dict — a None id stringified away,
+        say — deserves an exception, not a successful-looking wipe of the corpus.
+        """
+        mock_collection.data.delete_many = AsyncMock()
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        for empty in ({}, None, {"document_id": None}):
+            with pytest.raises(ValueError):
+                await weaviate_db.delete_by_filter("KnowledgeChunk", empty)
+
+        mock_collection.data.delete_many.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_delete_by_filter_failure_raises(self, weaviate_db, mock_collection):
+        mock_collection.data.delete_many = AsyncMock(side_effect=Exception("boom"))
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        with pytest.raises(VectorDBDeleteFailedException):
+            await weaviate_db.delete_by_filter(
+                "KnowledgeChunk", {"document_id": "doc-1"}
+            )

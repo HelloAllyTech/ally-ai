@@ -4,6 +4,8 @@ from app.api.v1.endpoints import (
     analytics_agent,
     conversation,
     drift,
+    knowledge_agent,
+    knowledge_chunk,
     language_quality,
     reference_document,
     roadmap_opportunity,
@@ -24,6 +26,16 @@ api_router.include_router(
     roadmap_opportunity.router,
     prefix="/roadmap-opportunities",
     tags=["roadmap_opportunities"],
+)
+api_router.include_router(
+    knowledge_chunk.router,
+    prefix="/knowledge-chunks",
+    tags=["knowledge_chunks"],
+)
+api_router.include_router(
+    knowledge_agent.router,
+    prefix="/knowledge-agent",
+    tags=["knowledge_agent"],
 )
 api_router.include_router(drift.router, prefix="/drift", tags=["drift"])
 api_router.include_router(
