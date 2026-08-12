@@ -52,6 +52,59 @@ class GeminiSettings(BaseModel):
     API_KEY: Optional[str] = None
 
 
+class AnthropicSettings(BaseModel):
+    # Optional so the service still boots in envs that haven't set ANTHROPIC__API_KEY
+    # yet, matching GeminiSettings. The knowledge agent raises a clear error if a Claude
+    # model is selected without a key, rather than silently answering on a different
+    # model than the admin chose.
+    API_KEY: Optional[str] = None
+
+
+class KnowledgeAgentSettings(BaseModel):
+    """WhatsApp Q&A bot's retrieval-augmented answering agent.
+
+    Thresholds are defaults only — ally-be overrides them per request from the
+    `whatsapp_bot` global settings row, so retrieval can be tuned without a deploy.
+
+    MIN_SIMILARITY and DECLINE_SIMILARITY are deliberately different numbers.
+    The first is a permissive retrieval floor; the second is the actual decision
+    about whether the corpus covers the question. A relevant passage matched
+    against a short paraphrased question scores roughly 0.40-0.60 with
+    text-embedding-3-small, so a single hard floor at the decision value would
+    decline constantly on legitimate rephrasings. Retrieving down to 0.35 and
+    gating separately lets the model adjudicate the middle band, which is what
+    it is actually good at.
+    """
+
+    # Default provider/model for the answer call. Claude is the default because this
+    # prompt's hardest requirement is refusing to answer from outside the retrieved
+    # passages, which is an instruction-following problem. Overridable per prompt from
+    # ally-be's prompt management.
+    DEFAULT_PROVIDER: str = Field("anthropic")
+    DEFAULT_MODEL: str = Field("claude-sonnet-4-6")
+    # The translate step is a mechanical transform, so it runs on a cheaper model by
+    # default.
+    TRANSLATE_MODEL: str = Field("claude-haiku-4-5-20251001")
+    # The crisis classifier also runs on the cheap model, but for a different reason: it
+    # runs CONCURRENTLY with the answer call on every question, so its latency is hidden
+    # but its cost is not. A small model is adequate — the prompt asks for one binary
+    # judgement with an explicit instruction to prefer the false positive.
+    CRISIS_MODEL: str = Field("claude-haiku-4-5-20251001")
+    TOP_K: int = Field(8)
+    MIN_SIMILARITY: float = Field(0.35)
+    DECLINE_SIMILARITY: float = Field(0.42)
+    # Passages within this similarity of the best hit are kept; the rest are dropped
+    # even if they cleared the floor. Stops one strong match from being diluted by seven
+    # weak ones.
+    SIMILARITY_BAND: float = Field(0.08)
+    MAX_PASSAGES: int = Field(5)
+    MAX_CONTEXT_TOKENS: int = Field(3000)
+    # Bump when the answer prompt changes in a way that could move answers; echoed back
+    # to ally-be and stored per message so a behaviour change can be traced to its
+    # instructions.
+    PROMPT_VERSION: str = Field("v1")
+
+
 class DriftJudgeSettings(BaseModel):
     """Conversation drift judge (see drift-metrics-spec.md). Gemini for now."""
 
@@ -211,10 +264,12 @@ class AppSettings(BaseSettings):
     SARVAM: SarvamSettings
     TRANSCRIPTION: TranscriptionSettings
     GEMINI: GeminiSettings = Field(default_factory=GeminiSettings)
-    DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
-    LANGUAGE_JUDGE: LanguageJudgeSettings = Field(
-        default_factory=LanguageJudgeSettings
+    ANTHROPIC: AnthropicSettings = Field(default_factory=AnthropicSettings)
+    KNOWLEDGE_AGENT: KnowledgeAgentSettings = Field(
+        default_factory=KnowledgeAgentSettings
     )
+    DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
+    LANGUAGE_JUDGE: LanguageJudgeSettings = Field(default_factory=LanguageJudgeSettings)
     ANALYTICS_AGENT: AnalyticsAgentSettings = Field(
         default_factory=AnalyticsAgentSettings
     )

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TypeVar, Generic
-
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 T = TypeVar("T")
 QueryResult = TypeVar("QueryResult")
@@ -24,7 +23,9 @@ class VectorDB(Generic[T], ABC):
         self.client = client
 
     @abstractmethod
-    async def similarity_search(self, vector: List[float], top_k: int = 1) -> QueryResult:
+    async def similarity_search(
+        self, vector: List[float], top_k: int = 1
+    ) -> QueryResult:
         """
         Perform a similarity search given a vector.
 
@@ -82,6 +83,77 @@ class VectorDB(Generic[T], ABC):
 
         Raises:
             VectorDBInsertFailedException: If the document insertion fails.
+        """
+        pass
+
+    @abstractmethod
+    async def create_documents_bulk(
+        self,
+        collection_name: str,
+        documents: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Insert MANY documents in one round trip, each with a caller-supplied UUID and
+        vector.
+
+        Exists because create_document() is one object per request, and a chunked corpus
+        writes hundreds at a time — a 300-page PDF is roughly 500 chunks, i.e. 500
+        sequential round trips through the concurrency semaphore. That is slow enough to
+        matter and fragile enough that a transient failure halfway leaves the caller
+        guessing how far it got.
+
+        Reports PER-OBJECT outcomes instead of raising on the first problem, for the
+        same reason the roadmap bulk-upsert does: a batch endpoint that reports overall
+        success while silently dropping objects gives the caller no way to retry only
+        what failed, and an unsearchable chunk is invisible until someone asks the
+        question it would have answered.
+
+        Parameters:
+            collection_name (str): Collection to write into.
+            documents (List[Dict[str, Any]]): One dict per object, each
+                {"id": str, "properties": Dict[str, Any], "vector": List[float]}.
+
+        Returns:
+            Dict[str, Any]: {"succeeded": List[str], "failed": List[{"id", "error"}]} —
+            ids that were written, and ids that were not with the reason.
+
+        Raises:
+            VectorDBInsertFailedException: Only if the whole request could not be
+                issued.
+        """
+        pass
+
+    @abstractmethod
+    async def delete_by_filter(
+        self,
+        collection_name: str,
+        filters: Dict[str, Any],
+    ) -> int:
+        """
+        Delete every object matching simple property equality filters, returning the
+        count.
+
+        Needed because delete_document() is keyed by a single UUID, and the caller that
+        owns a document does not necessarily hold the ids of its chunks — after a
+        re-chunk it holds the NEW ids and needs the old generation gone. Enumerating
+        first would be a read per page plus a delete per object, and any page missed
+        would leave orphaned vectors that still occupy top-k slots a relevant passage
+        needed.
+
+        Parameters:
+            collection_name (str): Collection to delete from.
+            filters (Dict[str, Any]): Property equality filters, ANDed together. Must be
+                non-empty
+                — an empty filter would match the entire collection.
+
+        Returns:
+            int: Number of objects deleted. Zero is a legitimate result (nothing
+                matched).
+
+        Raises:
+            ValueError: If `filters` is empty, rather than silently emptying the
+                collection.
+            VectorDBDeleteFailedException: If the delete operation fails.
         """
         pass
 
@@ -179,22 +251,24 @@ class VectorDB(Generic[T], ABC):
         """
         One page of object UUIDs in a collection, ids only.
 
-        Exists so a caller that owns the system of record can RECONCILE against this index —
-        specifically, find vectors whose source row no longer exists. Every other read here is
-        keyed by an id the caller already has, which cannot surface an object the caller has
-        forgotten about.
+        Exists so a caller that owns the system of record can RECONCILE against this
+        index — specifically, find vectors whose source row no longer exists. Every
+        other read here is keyed by an id the caller already has, which cannot surface
+        an object the caller has forgotten about.
 
-        Cursor-paginated rather than offset-paginated: offset paging over a collection that is
-        being written to can skip or repeat objects, and a reconciliation sweep that silently
-        skips an id would fail to report drift.
+        Cursor-paginated rather than offset-paginated: offset paging over a collection
+        that is being written to can skip or repeat objects, and a reconciliation sweep
+        that silently skips an id would fail to report drift.
 
         Parameters:
             collection_name (str): Collection to enumerate.
             limit (int): Maximum ids to return in this page.
-            after (Optional[str]): Cursor — the last id from the previous page, or None to start.
+            after (Optional[str]): Cursor — the last id from the previous page, or None
+                to start.
 
         Returns:
-            List[str]: Up to `limit` object UUIDs. Fewer than `limit` means the end was reached.
+            List[str]: Up to `limit` object UUIDs. Fewer than `limit` means the end was
+            reached.
 
         Raises:
             VectorDBSearchFailedException: If the listing fails.
@@ -211,12 +285,14 @@ class VectorDB(Generic[T], ABC):
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Similarity search from a CALLER-SUPPLIED vector, returning a cosine similarity per hit.
+        Similarity search from a CALLER-SUPPLIED vector, returning a cosine similarity
+        per hit.
 
-        Distinct from search_documents(), which takes a query STRING, embeds it internally, and
-        is shaped around reference-document semantics (its own distance threshold from settings
-        plus a category aggregation). This primitive is the plain building block: you bring the
-        vector and the threshold, you get ids, properties and similarity back.
+        Distinct from search_documents(), which takes a query STRING, embeds it
+        internally, and is shaped around reference-document semantics (its own distance
+        threshold from settings plus a category aggregation). This primitive is the
+        plain building block: you bring the vector and the threshold, you get ids,
+        properties and similarity back.
 
         Parameters:
             collection_name (str): Collection to search.
@@ -232,4 +308,3 @@ class VectorDB(Generic[T], ABC):
             VectorDBSearchFailedException: If the search fails.
         """
         pass
-

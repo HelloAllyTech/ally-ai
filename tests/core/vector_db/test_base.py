@@ -33,6 +33,22 @@ class ConcreteVectorDB(VectorDB[MagicMock]):
         """Concrete implementation of create_document."""
         return document_id
 
+    async def create_documents_bulk(
+        self,
+        collection_name: str,
+        documents: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Concrete implementation of create_documents_bulk."""
+        return {"succeeded": [str(d["id"]) for d in documents], "failed": []}
+
+    async def delete_by_filter(
+        self,
+        collection_name: str,
+        filters: Dict[str, Any],
+    ) -> int:
+        """Concrete implementation of delete_by_filter."""
+        return 0
+
     async def get_document_by_id(
         self, collection_name: str, document_id: str, include_vector: bool = True
     ) -> Dict[str, Any]:
