@@ -16,6 +16,10 @@ class LLMTask(str, Enum):
     DIARIZATION = "diarization"
     EMBEDDING = "embedding"
     DRIFT_JUDGE = "drift_judge"
+    # Backfill-only: the same rubric with the response constrained to the
+    # added labels. Separate from DRIFT_JUDGE so the saving is measurable
+    # rather than asserted.
+    DRIFT_JUDGE_LABELS = "drift_judge_labels"
     LANGUAGE_JUDGE = "language_judge"
     FEEDBACK_GROUNDEDNESS_JUDGE = "feedback_groundedness_judge"
     # Analytics Agent: one planning call (question -> SQL) and one narration

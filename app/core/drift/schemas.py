@@ -176,3 +176,42 @@ class SessionRollup(BaseModel):
 class DriftJudgmentResult(BaseModel):
     per_turn: List[PerTurnJudgment]
     session: SessionRollup
+
+
+class LeanTurnLabels(BaseModel):
+    """The v2-only labels, for topping up turns already judged under v1.
+
+    Every field is Optional and no field carries a default that reads as a
+    negative: a label the model declines to emit must land as NULL, never as
+    ``false``. The rates computed from these count only turns that carry the
+    label, so a NULL removes a turn from the denominator, while a spurious
+    ``false`` would quietly inflate it.
+
+    Deliberately NOT a subclass of PerTurnJudgment: inheriting would drag in
+    coherence, topic_label and the rest as required fields, which is exactly
+    the output this exists to avoid paying for.
+    """
+
+    turn_index: int = Field(description="Index of the AI-client turn judged.")
+
+    role_inversion: Optional[bool] = None
+    offered_solution: Optional[bool] = None
+    solutions_offered: Optional[int] = None
+    resistance_briefed: Optional[bool] = None
+    introduced_new_information: Optional[bool] = None
+    stuck_is_appropriate: Optional[bool] = None
+
+    reasoning: Optional[str] = Field(
+        default=None,
+        description=(
+            "One short sentence, ONLY on a turn where a label actually fires. "
+            "Null on clean turns: justifying 'nothing happened' on every turn "
+            "is the largest avoidable cost in a backfill and is read by nobody."
+        ),
+    )
+
+
+class LeanJudgeOutput(BaseModel):
+    """Exactly what the lean judge LLM returns."""
+
+    per_turn: List[LeanTurnLabels]
