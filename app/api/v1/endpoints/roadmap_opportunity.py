@@ -39,10 +39,12 @@ async def upsert_roadmap_opportunity(
     """
     Index or re-index one opportunity's vector.
 
-    PUT rather than POST because the Weaviate object UUID *is* the ally-be opportunity id, so
+    PUT rather than POST because the Weaviate object UUID *is* the ally-be opportunity
+    id, so
     this is idempotent by construction — no create/update split, no 409 path.
 
-    The description is embedded but NOT stored: ally-be's Postgres is the system of record.
+    The description is embedded but NOT stored: ally-be's Postgres is the system of
+    record.
     """
     try:
         result = await service.upsert(
@@ -77,17 +79,17 @@ async def bulk_upsert_roadmap_opportunities(
     """
     Index a batch (ally-be sends 64 at a time; ~505 opportunities ≈ 8 calls).
 
-    Answers 200 with per-item `succeeded` and `failed` lists rather than failing the whole
-    request. A partially-failed batch that reports success is how the standalone app's backfill
+    Answers 200 with per-item `succeeded` and `failed` lists rather than failing the
+    whole
+    request. A partially-failed batch that reports success is how the standalone app's
+    backfill
     silently corrupted 241 rows — the caller must be able to see and retry the failures.
     """
     try:
         succeeded, failed = await service.bulk_upsert(
             [item.model_dump() for item in payload.items]
         )
-        return RoadmapOpportunityBulkUpsertResponse(
-            succeeded=succeeded, failed=failed
-        )
+        return RoadmapOpportunityBulkUpsertResponse(succeeded=succeeded, failed=failed)
     except Exception:
         logger.exception("Unexpected error in bulk upsert")
         raise HTTPException(
@@ -109,7 +111,8 @@ async def search_roadmap_opportunities(
     """
     Candidate duplicates for a draft, by cosine similarity.
 
-    Returns ids and similarities only — no text. ally-be resolves the ids against Postgres,
+    Returns ids and similarities only — no text. ally-be resolves the ids against
+    Postgres,
     which is also what filters out opportunities that have since been soft-deleted.
     """
     try:
@@ -149,12 +152,16 @@ async def delete_roadmap_opportunity(
     service: RoadmapOpportunityService = Depends(get_roadmap_opportunity_service),
 ):
     """
-    Ensure an opportunity is not in the index. Called when ally-be soft-deletes or merges one away.
+    Ensure an opportunity is not in the index. Called when ally-be soft-deletes or
+    merges one away.
 
-    Always 200, never 404: the caller's intent is "make sure this is gone", which is satisfied
+    Always 200, never 404: the caller's intent is "make sure this is gone", which is
+    satisfied
     whether or not it was there. `deleted` is True when the index no longer holds the id
-    (including when it never did — Weaviate does not distinguish the two) and False only when
-    the delete genuinely failed, which ally-be treats as drift for the reindex sweep to heal.
+    (including when it never did — Weaviate does not distinguish the two) and False only
+    when
+    the delete genuinely failed, which ally-be treats as drift for the reindex sweep to
+    heal.
     """
     deleted = await service.delete(str(opportunity_id))
     return RoadmapOpportunityDeleteResponse(
@@ -181,17 +188,22 @@ async def list_roadmap_opportunity_ids(
     """
     Enumerate indexed ids so ally-be can reconcile this index against its own rows.
 
-    This is the only read here that can surface an object ally-be has FORGOTTEN — every other
-    endpoint is keyed by an id the caller already holds. Without it, a vector whose Postgres row
-    was hard-deleted is undetectable and permanent: soft-deletes call DELETE, but a row that
+    This is the only read here that can surface an object ally-be has FORGOTTEN — every
+    other
+    endpoint is keyed by an id the caller already holds. Without it, a vector whose
+    Postgres row
+    was hard-deleted is undetectable and permanent: soft-deletes call DELETE, but a row
+    that
     vanished outright never triggered anything.
 
-    Returns ids only, and makes no judgement about which are stale — ally-be owns the system of
+    Returns ids only, and makes no judgement about which are stale — ally-be owns the
+    system of
     record and therefore owns that decision.
     """
     try:
         ids = await service.list_ids(limit=limit, after=str(after) if after else None)
-        # A short page means the end of the collection; only offer a cursor when there may be more.
+        # A short page means the end of the collection; only offer a cursor when there
+        # may be more.
         next_cursor = ids[-1] if len(ids) == limit else None
         return RoadmapOpportunityIdsResponse(ids=ids, next_cursor=next_cursor)
     except VectorDBSearchFailedException:

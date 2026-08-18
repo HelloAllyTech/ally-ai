@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 # Shared schema for a chat message
 class ChatMessage(BaseModel):
     id: Optional[str] = Field(
-        None, description="Unique identifier for the message (required for API requests)"
+        None,
+        description="Unique identifier for the message (required for API requests)",
     )
     role: str = Field(..., description="The role of the sender (e.g., user, assistant)")
     content: str = Field(..., description="The content of the message")

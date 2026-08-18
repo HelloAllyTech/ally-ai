@@ -69,7 +69,9 @@ class TestProcessOutput:
                 input_garbled="partial",
                 errors=[
                     _err("adequacy", "off_topic", basis="input_garbled"),
-                    _err("understanding", "misinterpreted_intent", basis="input_garbled"),
+                    _err(
+                        "understanding", "misinterpreted_intent", basis="input_garbled"
+                    ),
                     _err("fluency", "grammar"),
                     _err("register", "too_formal_diglossia"),
                 ],

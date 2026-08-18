@@ -295,4 +295,6 @@ class TestConversationService:
 
         # Assert
         assert result == expected_response
-        mock_text_generation_service.identify_user.assert_called_once_with([], prompts=None)
+        mock_text_generation_service.identify_user.assert_called_once_with(
+            [], prompts=None
+        )

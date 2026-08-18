@@ -46,7 +46,8 @@ def _get_client():
 
 
 def _is_drift_turn(t: PerTurnJudgment) -> bool:
-    """A turn counts toward drift if it's topic-bad OR coherence-bad-and-not-in-character.
+    """A turn counts toward drift if it's topic-bad OR
+    coherence-bad-and-not-in-character.
 
     Unifies the spec's two clauses (>=K consecutive off_topic/gibberish, OR
     >=K consecutive coherence<=degrading while not in_character) into a single

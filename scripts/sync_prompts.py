@@ -12,7 +12,9 @@ PROMPT_DIR = Path("app/prompts")
 
 # Use ALLY_CORE__ENDPOINT and ALLY_CORE__API_KEY from .env
 ALLY_BE_URL = os.getenv("ALLY_CORE__ENDPOINT")
-SYNC_ENDPOINT = f"{ALLY_BE_URL.rstrip('/')}/api/v1/prompts/sync" if ALLY_BE_URL else None
+SYNC_ENDPOINT = (
+    f"{ALLY_BE_URL.rstrip('/')}/api/v1/prompts/sync" if ALLY_BE_URL else None
+)
 API_TOKEN = os.getenv("ALLY_CORE__API_KEY")
 
 PROMPT_CODE_PREFIX = "ally_ai_"
@@ -37,14 +39,14 @@ def scan_prompts():
         # relative path from PROMPT_DIR
         rel_path = txt_file.relative_to(PROMPT_DIR)
         parts = rel_path.parts
-        
+
         if len(parts) < 2:
             print(f"Skipping {txt_file}: Must be in a subdirectory (category/name.txt)")
             continue
 
         folder_name = parts[0]
         name = Path(parts[-1]).stem
-        
+
         # Combine subdirectories for the code if nested deeper than 1 level
         internal_path = "/".join(parts[:-1] + (name,))
         prompt_code = f"{PROMPT_CODE_PREFIX}{internal_path.replace('/', '_')}"
@@ -59,23 +61,33 @@ def scan_prompts():
             except Exception as e:
                 print(f"Error reading meta for {txt_file}: {e}")
 
-        prompts.append({
-            "promptCode": prompt_code,
-            "prompt": content,
-            "name": meta.get("name", f"AI: {folder_name.capitalize()} - {name.replace('_', ' ').capitalize()}"),
-            "description": meta.get("description", f"Generated from ally-ai: {rel_path}"),
-            "category": meta.get("category", folder_name.replace('_', ' ').title()),
-            "useDashboardOverride": meta.get("useDashboardOverride", False),
-            "isDefault": meta.get("isDefault", True),
-            "availableVariables": parse_variables_from_prompt(content),
-        })
+        prompts.append(
+            {
+                "promptCode": prompt_code,
+                "prompt": content,
+                "name": meta.get(
+                    "name",
+                    f"AI: {folder_name.capitalize()} - "
+                    f"{name.replace('_', ' ').capitalize()}",
+                ),
+                "description": meta.get(
+                    "description", f"Generated from ally-ai: {rel_path}"
+                ),
+                "category": meta.get("category", folder_name.replace("_", " ").title()),
+                "useDashboardOverride": meta.get("useDashboardOverride", False),
+                "isDefault": meta.get("isDefault", True),
+                "availableVariables": parse_variables_from_prompt(content),
+            }
+        )
 
     return prompts
 
 
 def sync_prompts(prompts, dry_run=False):
     if not dry_run and (not SYNC_ENDPOINT or not API_TOKEN):
-        print("Error: ALLY_CORE__ENDPOINT or ALLY_CORE__API_KEY not set in environment.")
+        print(
+            "Error: ALLY_CORE__ENDPOINT or ALLY_CORE__API_KEY not set in environment."
+        )
         sys.exit(1)
 
     if dry_run:
@@ -85,7 +97,7 @@ def sync_prompts(prompts, dry_run=False):
         return
 
     print(f"\nSyncing {len(prompts)} prompts to {SYNC_ENDPOINT}...")
-    
+
     payload = {"prompts": prompts}
     headers = {"x-api-key": API_TOKEN, "Content-Type": "application/json"}
 
@@ -104,7 +116,9 @@ def sync_prompts(prompts, dry_run=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sync ally-ai prompts to backend")
-    parser.add_argument("--dry-run", action="store_true", help="Print prompts without syncing")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print prompts without syncing"
+    )
     args = parser.parse_args()
 
     prompts = scan_prompts()

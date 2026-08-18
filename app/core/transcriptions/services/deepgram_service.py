@@ -7,10 +7,14 @@ import asyncio
 import os
 from typing import Tuple
 
-from app.core.config import settings
 from deepgram import BufferSource, DeepgramClient, PrerecordedOptions
 from deepgram.clients.listen.v1.rest import Results
-from app.core.transcriptions.utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
+
+from app.core.config import settings
+from app.core.transcriptions.utils.audio_converter import (
+    convert_and_segment_audio_async,
+    get_audio_duration,
+)
 from app.core.transcriptions.utils.exceptions import TranscriptionFailedException
 from app.core.transcriptions.utils.logger import get_logger
 from app.core.transcriptions.utils.phi_events import PHIEvents
@@ -173,9 +177,7 @@ class DeepgramTranscriptionService:
                 with open(path, "rb") as f:
                     return f.read()
 
-            buffer_data = await asyncio.to_thread(
-                _read_audio_bytes, wav_file_path
-            )
+            buffer_data = await asyncio.to_thread(_read_audio_bytes, wav_file_path)
 
             # Create buffer source
             payload = BufferSource(buffer=buffer_data)
