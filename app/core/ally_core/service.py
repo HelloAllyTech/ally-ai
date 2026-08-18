@@ -1,5 +1,6 @@
-import httpx
 from typing import Any, Dict, List
+
+import httpx
 
 from app.core.config import settings
 from app.utils.logger import get_logger
@@ -38,12 +39,14 @@ class AllyCoreService:
         except httpx.HTTPStatusError as e:
             logger.error(
                 f"AllyCore get_prompts_by_codes failed, "
-                f"status={e.response.status_code}, body={e.response.text}, codes={codes}"
+                f"status={e.response.status_code}, body={e.response.text}, "
+                f"codes={codes}"
             )
             raise
         except httpx.RequestError as e:
             logger.error(
-                f"AllyCore get_prompts_by_codes network error error={str(e)}, codes={codes}"
+                f"AllyCore get_prompts_by_codes network error error={str(e)}, "
+                f"codes={codes}"
             )
             raise
 

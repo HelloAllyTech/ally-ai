@@ -1,18 +1,24 @@
 """
 Migration: create-roadmap-opportunity-collection
 
-Semantic duplicate detection for the Ally Product Roadmap board (ally-be src/product-roadmap).
+Semantic duplicate detection for the Ally Product Roadmap board (ally-be
+src/product-roadmap).
 Replaces the pgvector/HNSW index the standalone roadmap app kept in Supabase; ally-be's
 Postgres stays the system of record and this collection is a derived index.
 
 Two things are set EXPLICITLY here rather than relying on client defaults, because the
 duplicate-detection threshold depends on both:
 
-  * vectorizer_config = none  — vectors are always supplied by ally-ai's OpenAI embedding
-    service (text-embedding-3-small, 1536 dimensions). Weaviate must never try to vectorise
-    these objects itself, since the properties deliberately exclude the opportunity text.
-  * distance_metric = COSINE  — the standalone app's threshold (0.5) was cosine similarity on
-    Voyage voyage-3-large at 1024 dimensions. The metric has to be pinned for any threshold
+  * vectorizer_config = none  — vectors are always supplied by ally-ai's OpenAI
+    embedding
+    service (text-embedding-3-small, 1536 dimensions). Weaviate must never try to
+    vectorise
+    these objects itself, since the properties deliberately exclude the opportunity
+    text.
+  * distance_metric = COSINE — the standalone app's threshold (0.5) was cosine
+  similarity on
+    Voyage voyage-3-large at 1024 dimensions. The metric has to be pinned for any
+    threshold
     to mean anything, and the value itself needs re-calibrating for the new model.
 """
 
@@ -72,7 +78,8 @@ async def down(client):
     """
     Run the migration down (rollback).
 
-    Safe to run: the collection holds only derived data. Everything in it can be rebuilt from
+    Safe to run: the collection holds only derived data. Everything in it can be rebuilt
+    from
     ally-be's Postgres via POST /api/v1/product-roadmap/admin/reindex.
 
     Args:

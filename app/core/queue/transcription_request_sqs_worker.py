@@ -7,6 +7,8 @@ import asyncio
 from app.core.ally_core import AllyCoreClient, AllyCoreService
 from app.core.config import settings
 from app.core.constants import SQSWorkerConstants
+from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
+from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.core.queue.message_processor import MessageProcessor
 from app.core.queue.sqs_queue_client import SQSQueueClient
 from app.core.queue.sqs_queue_service import SQSQueueService
@@ -14,22 +16,18 @@ from app.core.queue.transcription_request_handler import (
     TranscriptionRequestHandler,
     TranscriptionServiceProvider,
 )
-from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
-from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.core.text_generations.openai_text_generation_client import (
     OpenAITextGenerationClient,
 )
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
 )
-
 from app.core.transcriptions.services import (
     DeepgramTranscriptionService,
     FallbackTranscriptionService,
     OpenAITranscriptionService,
     SarvamTranscriptionService,
 )
-
 from app.utils.logger import get_logger
 from app.utils.startup import initialize_openai_clients
 
@@ -233,11 +231,12 @@ async def main():
             # Hard per-message ceiling so a hung STT/LLM call can't block the
             # poll loop and starve every other queued chat (the "no transcript"
             # timeout batch). See SQSWorkerConstants.
-            message_timeout_seconds=SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS,
+            message_timeout_seconds=SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS,  # noqa: E501
         )
 
         logger.info(
-            f"Starting processor for: {settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL}"
+            f"Starting processor for: "
+            f"{settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL}"
         )
 
         # Start processor and wait for it to complete

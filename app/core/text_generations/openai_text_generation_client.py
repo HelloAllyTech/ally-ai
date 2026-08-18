@@ -89,8 +89,6 @@ class OpenAITextGenerationClient:
         Returns:
             ChatOpenAI: The OpenAI chat client.
         """
-        global _openai_chat_client
-
         if not _openai_chat_client:
             logger.error(
                 "OpenAI chat client has not been created. Please create a client first."

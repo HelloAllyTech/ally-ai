@@ -22,7 +22,9 @@ logger = get_logger(__name__)
 
 def _enabled() -> bool:
     cfg = getattr(settings, "LLM_USAGE", None)
-    return bool(cfg and getattr(cfg, "ENABLED", False) and getattr(cfg, "QUEUE_URL", ""))
+    return bool(
+        cfg and getattr(cfg, "ENABLED", False) and getattr(cfg, "QUEUE_URL", "")
+    )
 
 
 def _build_body(
@@ -73,9 +75,7 @@ def _send_blocking(body: str) -> None:
     try:
         SQSQueueClient.create_client()  # idempotent
         client = SQSQueueClient.get_client()
-        client.send_message(
-            QueueUrl=settings.LLM_USAGE.QUEUE_URL, MessageBody=body
-        )
+        client.send_message(QueueUrl=settings.LLM_USAGE.QUEUE_URL, MessageBody=body)
     except Exception:
         logger.debug("llm_usage send failed (best-effort)", exc_info=True)
 
@@ -117,7 +117,12 @@ def emit_ai_usage(
         if room_id and room_id.startswith("preview-"):
             return
         if not _has_quantity(
-            service, prompt_tokens, completion_tokens, total_tokens, audio_ms, characters
+            service,
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            audio_ms,
+            characters,
         ):
             return
         body = _build_body(

@@ -18,8 +18,6 @@ class OpenAIEmbeddingClient:
         Returns:
             OpenAIEmbeddings: The OpenAI embedding client.
         """
-        global _openai_embedding_client
-
         if not _openai_embedding_client:
             logger.error(
                 "OpenAI embedding client has not been created. Please create a "

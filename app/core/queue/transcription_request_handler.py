@@ -1,10 +1,9 @@
 import asyncio
-import json
 import time
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-import boto3
+
 from app.core.ally_core import AllyCoreService
 from app.core.config import settings
 from app.core.constants import PipelineStage
@@ -20,10 +19,10 @@ from app.core.transcriptions.services import (
     OpenAITranscriptionService,
     SarvamTranscriptionService,
 )
-from app.schemas.common import ChatMessage
 from app.core.transcriptions.utils.logger import get_logger
 from app.core.transcriptions.utils.phi_events import PHIEvents
-from app.core.transcriptions.utils.phi_logger import PHILogEvent, log_sync, phi_logger
+from app.core.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
+from app.schemas.common import ChatMessage
 
 logger = get_logger(__name__)
 
@@ -390,7 +389,8 @@ class TranscriptionRequestHandler:
                 chat_id=str(chat_id),
                 audit_id=None,  # Will be set by caller
                 details={
-                    "message": f"Processing diarization and summary for chat_id: {chat_id}",
+                    "message": f"Processing diarization and summary for "
+                    f"chat_id: {chat_id}",
                     "chat_id": chat_id,
                     "correlation_id": correlation_id,
                     "component": "TranscriptionRequestHandler",
@@ -522,7 +522,8 @@ class TranscriptionRequestHandler:
                 chat_id=chat_id,
                 audit_id=None,
                 details={
-                    "message": f"Diarization and summary completed for chat_id {chat_id}",
+                    "message": f"Diarization and summary completed for "
+                    f"chat_id {chat_id}",
                     "chat_id": chat_id,
                     "correlation_id": correlation_id,
                     "delivered": delivered,
@@ -681,7 +682,8 @@ class TranscriptionRequestHandler:
         logger.error(
             f"Exhausted retries delivering result to ally-core for chat_id "
             f"{chat_id} correlation_id={correlation_id}; leaving for backend "
-            f"reaper. Last error: {type(last_exception).__name__ if last_exception else None}"
+            f"reaper. Last error: "
+            f"{type(last_exception).__name__ if last_exception else None}"
         )
         await phi_logger.log(
             PHILogEvent(
@@ -789,7 +791,9 @@ class TranscriptionRequestHandler:
                 chat_id=str(chat_id),
                 audit_id=None,
                 details={
-                    "error": f"Failed to send error response for chat_id {chat_id} after {self._ERROR_RESPONSE_MAX_ATTEMPTS} attempts: {last_exception}",
+                    "error": f"Failed to send error response for chat_id "
+                    f"{chat_id} after {self._ERROR_RESPONSE_MAX_ATTEMPTS} "
+                    f"attempts: {last_exception}",
                     "chat_id": chat_id,
                     "correlation_id": correlation_id,
                     "stage": stage_value,

@@ -71,7 +71,8 @@ class PerTurnJudgment(BaseModel):
         description="True if odd output is realistic in-character distress, not drift."
     )
     counselor_utterance_garbled: GarbleLevel = Field(
-        description="STT quality of the counselor (human) utterance this turn replies to."
+        description="STT quality of the counselor (human) utterance this turn replies "
+                    "to."
     )
     stt_error_type: SttErrorType = Field(
         description="Sub-type of STT garble, or 'none' if not garbled."
@@ -80,7 +81,8 @@ class PerTurnJudgment(BaseModel):
         description="How the AI reply failed, or 'none' if clean."
     )
     root_attribution: RootAttribution = Field(
-        description="Root cause, considering the prior ~3 turns; 'none' if not a drift turn."
+        description="Root cause, considering the prior ~3 turns; 'none' if not a drift "
+                    "turn."
     )
 
     # ---- v2 labels ------------------------------------------------------

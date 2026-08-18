@@ -43,6 +43,7 @@ app = FastAPI(
     middleware=get_middlewares(),
 )
 
+
 # Catch-all exception handler so dep-resolution / middleware errors don't
 # escape as bare uvicorn 500s with no trace_id and no traceback.
 @app.exception_handler(Exception)
