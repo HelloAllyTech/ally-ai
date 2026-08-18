@@ -1,0 +1,85 @@
+# Tests — the PR gate.
+#
+# Until this existed, NO Ally repo ran its tests on a pull request — every
+# repo's suite ran only inside a `workflow_dispatch` deploy pipeline, i.e. on a
+# manual release and nowhere else. Bug Hunter's nightly sweep had quietly become
+# the de-facto CI, and its own fix PRs merged with no check at all.
+#
+# Deliberately its own workflow rather than a `pull_request` trigger on the
+# deploy pipeline, which would ship every PR.
+#
+# NOTE ON ENFORCEMENT: adding this file makes the checks run and report, but does
+# not make them mandatory — that is a branch-protection setting. Landed that way
+# on purpose, so a suite that turns out to be red on master blocks nobody while
+# it is being fixed. Mark "test" and "lint" as required checks once they are
+# green.
+
+name: Tests
+
+on:
+  pull_request:
+    branches: [master]
+  # Also on master, so the branch's own health is visible rather than inferred
+  # from whichever PR last ran.
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push supersedes the run in flight for the same ref — nobody needs the
+  # result for a commit that has already been replaced.
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --with dev
+
+      - name: Run tests
+        run: poetry run pytest tests/ -v
+
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --with dev
+
+      - name: Lint
+        run: poetry run flake8
