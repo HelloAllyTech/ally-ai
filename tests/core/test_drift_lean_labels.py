@@ -104,3 +104,78 @@ def test_lean_schema_does_not_require_the_v1_fields():
     assert "coherence" not in fields
     assert "topic_label" not in fields
     assert "ai_reply_failure_mode" not in fields
+
+
+class _FakeUsage:
+    prompt_token_count = 2400
+    candidates_token_count = 700
+    total_token_count = 3100
+
+
+class _FakeResponse:
+    usage_metadata = _FakeUsage()
+
+    def __init__(self, parsed):
+        self.parsed = parsed
+
+
+def test_judge_session_labels_only_actually_runs(monkeypatch):
+    """Exercise the function, not just the pieces it uses.
+
+    This exists because the first deployed version of this path raised
+    NameError on `build_lean_labels_prompt` — the import was missing — while
+    898 tests passed, because every one of them tested the prompt builder and
+    the schema DIRECTLY and none ever called the judge. A missing import is
+    invisible until call time, so the call itself has to be under test.
+    """
+    from app.core.drift import judge as judge_mod
+
+    captured = {}
+
+    class _FakeModels:
+        def generate_content(self, model, contents, config):
+            captured["prompt"] = contents
+            captured["schema"] = config.response_schema
+            return _FakeResponse(
+                LeanJudgeOutput(
+                    per_turn=[
+                        LeanTurnLabels(turn_index=0, role_inversion=False),
+                        LeanTurnLabels(turn_index=1, introduced_new_information=True),
+                    ]
+                )
+            )
+
+    class _FakeClient:
+        models = _FakeModels()
+
+    monkeypatch.setattr(judge_mod, "_get_client", lambda: _FakeClient())
+
+    per_turn = judge_mod.judge_session_labels_only(
+        TRANSCRIPT, persona="a tired client", language="en"
+    )
+
+    assert [t.turn_index for t in per_turn] == [0, 1]
+    assert per_turn[0].role_inversion is False
+    # The response schema must be the LEAN one, or the saving evaporates.
+    assert captured["schema"] is LeanJudgeOutput
+    assert "LABELS ONLY" in captured["prompt"]
+
+
+def test_judge_session_labels_only_raises_on_unparsable_output(monkeypatch):
+    from app.core.drift import judge as judge_mod
+
+    class _FakeModels:
+        def generate_content(self, model, contents, config):
+            return _FakeResponse(None)
+
+    class _FakeClient:
+        models = _FakeModels()
+
+    monkeypatch.setattr(judge_mod, "_get_client", lambda: _FakeClient())
+
+    # Must fail loudly so the backfill logs and counts it, rather than merging
+    # an empty label set over a session and calling it judged.
+    import pytest
+
+    with pytest.raises(RuntimeError, match="no parsable output"):
+        judge_mod.judge_session_labels_only(TRANSCRIPT, persona="p", language="en")

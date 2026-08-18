@@ -14,7 +14,11 @@ from __future__ import annotations
 from typing import List, Optional
 
 from app.core.config import settings
-from app.core.drift.prompt import TranscriptTurn, build_judge_prompt
+from app.core.drift.prompt import (
+    TranscriptTurn,
+    build_judge_prompt,
+    build_lean_labels_prompt,
+)
 from app.core.drift.schemas import (
     COHERENCE_DRIFT_CUTOFF,
     COHERENCE_RANK,
