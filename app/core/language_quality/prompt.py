@@ -86,8 +86,21 @@ established) | non_sequitur (no discernible connection to the conversation)
 - register: too_formal_diglossia (literary/textbook variety where the \
 colloquial spoken variety is expected) | too_casual (below the socially \
 expected register)
-- dialect_lexicon: wrong_regional_variety (lexical items from outside the \
-configured target variety)
+- dialect_lexicon — LEXICAL CORRECTNESS. Three distinct failures; do not \
+collapse them:
+  * nonexistent_word (a token that is not a word in the target language at \
+all: invented, mis-transliterated, or a malformed compound. If a native \
+speaker would say "that is not a word", this is the category)
+  * wrong_sense (a real word of the target language used with a meaning it \
+does not carry here — the sentence parses but means something else, or \
+something odd)
+  * wrong_regional_variety (a real word with the right meaning, but from \
+outside the configured regional variety)
+
+  Flag these on the MEANING, not on formality — a word that is merely bookish \
+belongs in register, not here. This dimension has historically under-fired \
+while partner organisations reported exactly these problems as blocking, so \
+when a word looks wrong, prefer labelling it over letting it pass.
 - colloquialness: literal_translation_stilt (calqued, translated-sounding \
 phrasing no native speaker would produce)
 - persona_social: too_blunt (socially inappropriate directness given the \

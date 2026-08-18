@@ -1,6 +1,6 @@
 """Judge prompt builder for the conversation drift judge.
 
-This is the v1 rubric — a STARTING POINT to calibrate against a hand-labeled
+This is the v2 rubric — a STARTING POINT to calibrate against a hand-labeled
 seed set (with a native-speaker check for languages we can't read), not a frozen
 artifact. Bump ``DRIFT_JUDGE.PROMPT_VERSION`` whenever this changes.
 
@@ -66,6 +66,35 @@ wrong_language_reply | repetition | role_slip | wrong_intent
   stt_cascade     — AI degrades now, but a garble 1-3 turns earlier is the root
   llm_direct      — inputs clean across the window, AI reply still incoherent
   context_lockin  — incoherent given clean input that referenced earlier context
+
+CLIENTHOOD — is the AI still a client seeking help, or has it turned helpful?
+- role_inversion (true/false): did the AI ask the COUNSELOR about the counselor \
+(their views, feelings, experience) or give the counselor advice? A client \
+asking for help — "what should I do?", "is that normal?" — is NOT inversion. \
+Inversion is the AI taking the counselor's chair.
+- offered_solution (true/false): did the AI propose a solution or coping plan \
+for its OWN problem, unprompted, instead of letting the counselor get there?
+- solutions_offered (integer): how many DISTINCT such solutions this turn. 0 if \
+none. Count them; do not judge whether that is too many.
+- resistance_briefed (true/false): does the persona/scenario brief call for \
+resistance, denial or reluctance? Read this from the BRIEF, not from this turn \
+— your answer will be the same for every turn in the session.
+
+PROGRESSION — did the conversation move?
+- introduced_new_information (true/false): did this turn add anything the client \
+had not already said — a new detail, feeling, event or objection? Restating \
+earlier content in different words is FALSE.
+- stuck_is_appropriate (true/false/null): only when introduced_new_information \
+is false. TRUE if holding the same position was correct portrayal given the \
+brief and what the counselor just did — a resistant client should NOT yield to \
+a weak or premature intervention. FALSE if the client should have moved and did \
+not. NULL when the turn did advance.
+
+  Being "stuck" is not automatically a failure. A client who holds their ground \
+against a poor intervention is behaving correctly; one who repeats because the \
+generation lost the thread is not. That distinction is the whole point of this \
+label — do not collapse it.
+
 - reasoning: one sentence.
 
 Return one object per AI-client turn, in order, keyed by that turn's index.\

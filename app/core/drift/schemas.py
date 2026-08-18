@@ -82,6 +82,71 @@ class PerTurnJudgment(BaseModel):
     root_attribution: RootAttribution = Field(
         description="Root cause, considering the prior ~3 turns; 'none' if not a drift turn."
     )
+
+    # ---- v2 labels ------------------------------------------------------
+    #
+    # Added for the Weak Performing Metrics dashboard. Every one is a boolean
+    # or a count — never a score, rating or rate. Anything derived (per-100
+    # rates, session rollups, over-compliance thresholds) is computed in SQL
+    # from these, so re-weighting never requires re-judging 17k turns.
+    #
+    # Optional with defaults so a v1 row read back through this model still
+    # validates, and so a judge that omits one degrades to "not observed"
+    # rather than failing the whole session.
+    role_inversion: Optional[bool] = Field(
+        default=None,
+        description=(
+            "True if the AI asked the counselor about the COUNSELOR "
+            "(their views, feelings, experience) or gave them advice — i.e. "
+            "acted as the counselor. A client asking for help ('what should I "
+            "do?') is NOT role inversion."
+        ),
+    )
+    offered_solution: Optional[bool] = Field(
+        default=None,
+        description=(
+            "True if the AI proposed a solution or coping plan for its OWN "
+            "problem, unprompted, rather than letting the counselor work "
+            "toward it."
+        ),
+    )
+    solutions_offered: Optional[int] = Field(
+        default=None,
+        description=(
+            "How many DISTINCT solutions the AI proposed for its own problem "
+            "this turn. 0 when none. A real client offers at most one or two; "
+            "the acceptable ceiling is a product decision applied downstream, "
+            "not a judgement made here."
+        ),
+    )
+    introduced_new_information: Optional[bool] = Field(
+        default=None,
+        description=(
+            "True if this turn added anything the client had not already said "
+            "— a new detail, feeling, event or objection. False when it only "
+            "restates earlier content, however differently worded."
+        ),
+    )
+    stuck_is_appropriate: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Only meaningful when introduced_new_information is False. True if "
+            "holding the same position was CORRECT portrayal given the brief "
+            "and what the counselor just did (a resistant client should not "
+            "yield to a weak intervention); False if the client should have "
+            "moved and did not. Set null when the turn did advance."
+        ),
+    )
+    resistance_briefed: Optional[bool] = Field(
+        default=None,
+        description=(
+            "True if the persona/scenario brief calls for resistance, denial "
+            "or reluctance. Judged from the brief, not from this turn — it is "
+            "the same answer for every turn in a session, and it is what makes "
+            "over-compliance readable as a failure rather than a style."
+        ),
+    )
+
     reasoning: str = Field(description="One sentence justifying the labels.")
 
 

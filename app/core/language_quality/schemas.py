@@ -49,6 +49,12 @@ ErrorCategory = Literal[
     "too_casual",
     # dialect_lexicon
     "wrong_regional_variety",
+    # v2: the two lexical failures partners actually report. The dimension was
+    # scoped to regional VARIETY only, which is a different question from "is
+    # this a real word" and "does it mean what the sentence needs" — so the
+    # complaints had nowhere to land and the dimension fired on almost nothing.
+    "nonexistent_word",
+    "wrong_sense",
     # colloquialness
     "literal_translation_stilt",
     # persona_social
@@ -90,7 +96,11 @@ DIMENSION_CATEGORIES: Dict[str, Set[str]] = {
     "fluency": {"grammar", "script_error", "disfluency", "truncation"},
     "coherence": {"contradiction", "non_sequitur"},
     "register": {"too_formal_diglossia", "too_casual"},
-    "dialect_lexicon": {"wrong_regional_variety"},
+    "dialect_lexicon": {
+        "wrong_regional_variety",
+        "nonexistent_word",
+        "wrong_sense",
+    },
     "colloquialness": {"literal_translation_stilt"},
     "persona_social": {"too_blunt", "persona_break"},
     "codeswitch": {"foreign_token_leak", "unnatural_switch"},

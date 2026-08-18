@@ -112,18 +112,43 @@ class DriftJudgeSettings(BaseModel):
     # Bump when the judge rubric changes; reported back to the caller (ally-be)
     # and stored on each judgment row so a re-judge with a new rubric coexists
     # with prior runs. This service is a stateless judge — it owns no database.
-    PROMPT_VERSION: str = Field("v1")
+    #
+    # v2 (Weak Performing Metrics): adds the clienthood labels
+    # (role_inversion, offered_solution, solutions_offered, resistance_briefed)
+    # and the progression labels (introduced_new_information,
+    # stuck_is_appropriate). v1 rows are NOT migrated — they simply carry nulls
+    # in the new columns, and the dashboard pins to the newest version that has
+    # rows, so the two never average together.
+    PROMPT_VERSION: str = Field("v2")
 
 
 class LanguageJudgeSettings(BaseModel):
     """Language-quality judge (see language-eval-judge-schema.md). Sibling of
     the drift judge; separate call, separate rubric version. Comparisons are
-    only valid within one (MODEL, PROMPT_VERSION) pair."""
+    only valid within one (MODEL, PROMPT_VERSION) pair.
+
+    v2 widened dialect_lexicon from regional-variety-only to lexical
+    correctness (adding nonexistent_word and wrong_sense). The old scope had no
+    home for "that is not a Tamil word" or "that word means something else
+    here" — which is what partner organisations were reporting — so the
+    dimension read as near-zero while being their blocking issue. v1 rows keep
+    the narrow meaning and are never averaged with v2.
+    """
 
     MODEL: str = Field("gemini-2.5-pro")
     # Bump when the judge rubric or typology changes; reported back to the
     # caller (ally-be) and stored on each annotation row so a re-judge with a
     # new rubric coexists with prior runs. Stateless — owns no database.
+    PROMPT_VERSION: str = Field("v2")
+
+
+class FeedbackGroundednessJudgeSettings(BaseModel):
+    """Feedback-groundedness judge — is post-session feedback true of the
+    transcript? Sibling of the drift and language judges: separate call,
+    separate rubric version, comparisons valid only within one
+    (MODEL, PROMPT_VERSION) pair."""
+
+    MODEL: str = Field("gemini-2.5-pro")
     PROMPT_VERSION: str = Field("v1")
 
 
@@ -274,6 +299,9 @@ class AppSettings(BaseSettings):
         default_factory=AnalyticsAgentSettings
     )
     LLM_USAGE: LLMUsageSettings = Field(default_factory=LLMUsageSettings)
+    FEEDBACK_GROUNDEDNESS_JUDGE: FeedbackGroundednessJudgeSettings = Field(
+        default_factory=FeedbackGroundednessJudgeSettings
+    )
 
     def model_post_init(self, __context=None) -> None:
         """

@@ -17,6 +17,7 @@ class LLMTask(str, Enum):
     EMBEDDING = "embedding"
     DRIFT_JUDGE = "drift_judge"
     LANGUAGE_JUDGE = "language_judge"
+    FEEDBACK_GROUNDEDNESS_JUDGE = "feedback_groundedness_judge"
     # Analytics Agent: one planning call (question -> SQL) and one narration
     # call (rows -> answer) per question, priced separately because the
     # planner carries the whole schema catalogue and the narrator the rows.

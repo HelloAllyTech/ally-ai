@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     analytics_agent,
     conversation,
     drift,
+    feedback_groundedness,
     knowledge_agent,
     knowledge_chunk,
     language_quality,
@@ -38,6 +39,11 @@ api_router.include_router(
     tags=["knowledge_agent"],
 )
 api_router.include_router(drift.router, prefix="/drift", tags=["drift"])
+api_router.include_router(
+    feedback_groundedness.router,
+    prefix="/feedback-groundedness",
+    tags=["feedback-groundedness"],
+)
 api_router.include_router(
     analytics_agent.router, prefix="/analytics-agent", tags=["analytics_agent"]
 )
