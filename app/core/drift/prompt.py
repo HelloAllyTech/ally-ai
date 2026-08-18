@@ -141,21 +141,33 @@ LEAN_LABELS_INSTRUCTION = """\
 BACKFILL MODE — LABELS ONLY.
 
 The rubric above is the SAME rubric, unchanged, and the definitions in it are \
-the ones to apply. What changes is only what you return.
+the ones to apply. What changes is only which FIELDS you return.
 
-These turns were already judged under the earlier rubric, and those judgments \
-are kept. Do NOT re-emit them. Return ONLY these fields per AI-client turn:
+These turns were already judged under the earlier rubric and those judgments \
+are kept, so do not re-emit them. Omit coherence, topic_label, in_character, \
+counselor_utterance_garbled, stt_error_type, ai_reply_failure_mode and \
+root_attribution entirely.
 
-  role_inversion, offered_solution, solutions_offered, resistance_briefed,
-  introduced_new_information, stuck_is_appropriate
+ANSWER ALL FIVE OF THESE ON EVERY AI-CLIENT TURN. "No" is false or 0 — never a \
+missing field. A turn where nothing happened still needs its answers, because \
+an omitted label removes that turn from the measurement instead of counting as \
+a clean one:
 
-Omit coherence, topic_label, in_character, counselor_utterance_garbled, \
-stt_error_type, ai_reply_failure_mode and root_attribution entirely.
+  role_inversion              true / false, every turn
+  offered_solution            true / false, every turn
+  solutions_offered           an integer, 0 when none, every turn
+  resistance_briefed          true / false, every turn (same answer all session)
+  introduced_new_information  true / false, every turn
 
-reasoning: one short sentence ONLY on turns where role_inversion, \
-offered_solution or stuck_is_appropriate=false actually fires. Leave it null on \
-clean turns — a justification for "nothing happened" is the single largest \
-avoidable cost in this job, and it is read by nobody.\
+Then, conditionally:
+
+  stuck_is_appropriate   ONLY when introduced_new_information is false. Null \
+when the turn advanced — the rubric defines no answer there.
+
+  reasoning              one short sentence ONLY where a label actually fires. \
+Null on clean turns. This is the ONLY field you may leave out: justifying \
+"nothing happened" on every turn is the largest avoidable cost in this job and \
+is read by nobody.\
 """
 
 

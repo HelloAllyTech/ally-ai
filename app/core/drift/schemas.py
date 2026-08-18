@@ -181,11 +181,23 @@ class DriftJudgmentResult(BaseModel):
 class LeanTurnLabels(BaseModel):
     """The v2-only labels, for topping up turns already judged under v1.
 
-    Every field is Optional and no field carries a default that reads as a
-    negative: a label the model declines to emit must land as NULL, never as
-    ``false``. The rates computed from these count only turns that carry the
-    label, so a NULL removes a turn from the denominator, while a spurious
-    ``false`` would quietly inflate it.
+    The five unconditional labels are REQUIRED, and that is the whole lesson of
+    the first attempt. When they were Optional, the model read the instruction
+    "omit reasoning on clean turns" as licence to omit any label whose answer
+    was no: over 155 production turns it emitted `role_inversion` on 2, and both
+    were true. The rate counts only turns carrying the label, so the dashboard
+    would have read role inversion as 100%.
+
+    Optional typing was meant to stop a declined label becoming a false
+    negative. It did the opposite — absence and false collapsed into the same
+    thing, from the other direction. So the schema now compels an answer per
+    turn rather than trusting prose to ask for one; Gemini enforces required
+    fields through `response_schema`, which wording cannot.
+
+    `stuck_is_appropriate` stays optional because it is genuinely conditional:
+    the rubric defines it only for a turn that did NOT advance, and forcing a
+    value on an advancing turn would invent a judgement the rubric never asked
+    for.
 
     Deliberately NOT a subclass of PerTurnJudgment: inheriting would drag in
     coherence, topic_label and the rest as required fields, which is exactly
@@ -194,19 +206,42 @@ class LeanTurnLabels(BaseModel):
 
     turn_index: int = Field(description="Index of the AI-client turn judged.")
 
-    role_inversion: Optional[bool] = None
-    offered_solution: Optional[bool] = None
-    solutions_offered: Optional[int] = None
-    resistance_briefed: Optional[bool] = None
-    introduced_new_information: Optional[bool] = None
-    stuck_is_appropriate: Optional[bool] = None
+    role_inversion: bool = Field(
+        description="Answer for EVERY turn. False, never omitted, when absent."
+    )
+    offered_solution: bool = Field(
+        description="Answer for EVERY turn. False, never omitted, when absent."
+    )
+    solutions_offered: int = Field(
+        description="Answer for EVERY turn. 0, never omitted, when none."
+    )
+    resistance_briefed: bool = Field(
+        description=(
+            "Answer for EVERY turn. Read from the BRIEF, so it is the same "
+            "answer on every turn of a session."
+        )
+    )
+    introduced_new_information: bool = Field(
+        description="Answer for EVERY turn. False, never omitted, when absent."
+    )
+
+    stuck_is_appropriate: Optional[bool] = Field(
+        default=None,
+        description=(
+            "ONLY when introduced_new_information is false: true if holding "
+            "position was correct portrayal, false if the client should have "
+            "moved. Null when the turn advanced — the rubric defines no answer "
+            "there, and inventing one would corrupt the stasis rate."
+        ),
+    )
 
     reasoning: Optional[str] = Field(
         default=None,
         description=(
             "One short sentence, ONLY on a turn where a label actually fires. "
             "Null on clean turns: justifying 'nothing happened' on every turn "
-            "is the largest avoidable cost in a backfill and is read by nobody."
+            "is the largest avoidable cost in a backfill and is read by nobody. "
+            "This is the ONLY field that may be omitted."
         ),
     )
 

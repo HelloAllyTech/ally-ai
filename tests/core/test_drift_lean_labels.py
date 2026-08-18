@@ -64,35 +64,109 @@ def test_lean_prompt_asks_for_only_the_added_labels():
     # The instruction naming what to drop must be present, not merely implied.
     assert "Omit coherence" in lean
     assert "LABELS ONLY" in lean
+    # The instruction must compel an answer per turn, not merely list fields.
+    assert "ANSWER ALL FIVE" in lean
 
 
-def test_absent_labels_are_null_not_false():
-    # A model that declines to answer must remove the turn from the
-    # denominator, never contribute a negative to the numerator.
-    turn = LeanTurnLabels(turn_index=3)
+def test_the_five_unconditional_labels_are_required():
+    """The bug this replaces, verbatim from production.
 
-    assert turn.role_inversion is None
-    assert turn.offered_solution is None
-    assert turn.solutions_offered is None
-    assert turn.resistance_briefed is None
-    assert turn.introduced_new_information is None
-    assert turn.stuck_is_appropriate is None
-    assert turn.reasoning is None
+    With these Optional, the model read "omit reasoning on clean turns" as
+    licence to omit any label whose answer was no. Over 155 real turns it
+    emitted role_inversion on 2 — both true — and because the rate counts only
+    turns carrying the label, the dashboard would have read 100%.
+
+    A schema that permits the omission is the thing that has to change; asking
+    nicely in prose demonstrably did not work.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        LeanTurnLabels(turn_index=3)
+
+    # A "nothing happened" turn is still fully answered.
+    clean = LeanTurnLabels(
+        turn_index=3,
+        role_inversion=False,
+        offered_solution=False,
+        solutions_offered=0,
+        resistance_briefed=True,
+        introduced_new_information=True,
+    )
+    assert clean.role_inversion is False
+    assert clean.solutions_offered == 0
+    # Conditional fields stay absent rather than invented.
+    assert clean.stuck_is_appropriate is None
+    assert clean.reasoning is None
 
 
-def test_lean_output_parses_a_partial_turn():
+def test_a_response_omitting_one_label_is_rejected():
+    # Partial output must fail loudly at the schema rather than land as NULL and
+    # quietly shrink a denominator.
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        LeanJudgeOutput.model_validate(
+            {
+                "per_turn": [
+                    {
+                        "turn_index": 0,
+                        "role_inversion": True,
+                        # offered_solution, solutions_offered,
+                        # resistance_briefed, introduced_new_information missing
+                    }
+                ]
+            }
+        )
+
+
+def test_stuck_is_appropriate_stays_optional():
+    # Genuinely conditional: the rubric defines it only for a turn that did not
+    # advance, so forcing a value would invent a judgement.
+    turn = LeanTurnLabels(
+        turn_index=0,
+        role_inversion=False,
+        offered_solution=False,
+        solutions_offered=0,
+        resistance_briefed=False,
+        introduced_new_information=False,
+        stuck_is_appropriate=True,
+    )
+    assert turn.stuck_is_appropriate is True
+
+
+def test_lean_output_parses_a_fully_answered_turn():
+    base = {
+        "offered_solution": False,
+        "solutions_offered": 0,
+        "resistance_briefed": True,
+    }
     out = LeanJudgeOutput.model_validate(
         {
             "per_turn": [
-                {"turn_index": 0, "role_inversion": True, "reasoning": "asked the counsellor about their own view"},
-                {"turn_index": 1, "introduced_new_information": False, "stuck_is_appropriate": True},
+                {
+                    "turn_index": 0,
+                    "role_inversion": True,
+                    "introduced_new_information": True,
+                    "reasoning": "asked the counsellor about their own view",
+                    **base,
+                },
+                {
+                    "turn_index": 1,
+                    "role_inversion": False,
+                    "introduced_new_information": False,
+                    "stuck_is_appropriate": True,
+                    **base,
+                },
             ]
         }
     )
 
     assert out.per_turn[0].role_inversion is True
-    # Unmentioned on turn 0 — must not have been filled in as False.
-    assert out.per_turn[0].introduced_new_information is None
+    assert out.per_turn[1].stuck_is_appropriate is True
+    # Only reasoning may be absent.
     assert out.per_turn[1].reasoning is None
 
 
@@ -139,8 +213,23 @@ def test_judge_session_labels_only_actually_runs(monkeypatch):
             return _FakeResponse(
                 LeanJudgeOutput(
                     per_turn=[
-                        LeanTurnLabels(turn_index=0, role_inversion=False),
-                        LeanTurnLabels(turn_index=1, introduced_new_information=True),
+                        LeanTurnLabels(
+                            turn_index=0,
+                            role_inversion=False,
+                            offered_solution=False,
+                            solutions_offered=0,
+                            resistance_briefed=True,
+                            introduced_new_information=True,
+                        ),
+                        LeanTurnLabels(
+                            turn_index=1,
+                            role_inversion=False,
+                            offered_solution=True,
+                            solutions_offered=2,
+                            resistance_briefed=True,
+                            introduced_new_information=False,
+                            stuck_is_appropriate=False,
+                        ),
                     ]
                 )
             )
