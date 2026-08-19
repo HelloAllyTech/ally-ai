@@ -36,6 +36,13 @@ OPENAI_TTS_MODEL = "tts-1"
 OPENAI_TTS_VOICE = "alloy"
 OPENAI_ASR_MODEL = "whisper-1"
 
+# Ceiling on concurrent TTS+ASR round trips across this process. The caller
+# judges several sessions at once and each session fans out over its sampled
+# utterances, so without a shared bound the two multiply into a vendor rate
+# limit. Sized for throughput, not for one request: a single request's five
+# utterances still finish in two waves.
+_ROUND_TRIP_SLOTS = asyncio.Semaphore(6)
+
 # Sarvam supports these BCP-47 codes for TTS/STT.
 SARVAM_LANGUAGES = {
     "hi-IN", "bn-IN", "kn-IN", "ml-IN", "mr-IN", "od-IN",
@@ -157,26 +164,41 @@ async def run_round_trip(
     requested_provider: Optional[str],
     unit: Unit,
 ) -> dict:
+    """Round-trip every utterance CONCURRENTLY, not one after another.
+
+    Sequentially this was arithmetically unable to finish: each utterance is a
+    TTS call plus an ASR call, both allowed 60s, so five of them could take 600s
+    against a caller that waits 180s. 37% of sessions timed out — the caller
+    recorded "not measured" while this kept spending vendor calls nobody was
+    waiting for any more. Concurrently the worst case is one utterance's 120s,
+    inside the caller's budget.
+
+    Bounded by a process-wide semaphore rather than let loose: the caller judges
+    several sessions at once, so unbounded fan-out here multiplies into the
+    vendor's rate limit, which is the failure this change exists to stop making.
+    """
     provider = resolve_provider(requested_provider, language)
-    results: List[UtteranceResult] = []
-    async with httpx.AsyncClient() as client:
-        for u in utterances:
-            text = (u.get("text") or "").strip()
-            if not text:
-                continue
-            try:
+
+    async def one(u: Utterance, client: httpx.AsyncClient) -> Optional[UtteranceResult]:
+        text = (u.get("text") or "").strip()
+        if not text:
+            return None
+        try:
+            async with _ROUND_TRIP_SLOTS:
                 hypothesis = await _round_trip_one(client, provider, text, language)
-                results.append(
-                    {
-                        "turn_index": int(u["turn_index"]),
-                        "error_pct": error_rate_pct(text, hypothesis, unit),
-                        "hypothesis": hypothesis,
-                    }
-                )
-            except Exception as e:  # noqa: BLE001 — per-utterance tolerance
-                logger.warning(
-                    f"round-trip failed for turn {u.get('turn_index')}: {e}"
-                )
+            return {
+                "turn_index": int(u["turn_index"]),
+                "error_pct": error_rate_pct(text, hypothesis, unit),
+                "hypothesis": hypothesis,
+            }
+        except Exception as e:  # noqa: BLE001 — per-utterance tolerance
+            logger.warning(f"round-trip failed for turn {u.get('turn_index')}: {e}")
+            return None
+
+    async with httpx.AsyncClient() as client:
+        settled = await asyncio.gather(*(one(u, client) for u in utterances))
+    # gather preserves order, so the response still reads in turn order.
+    results: List[UtteranceResult] = [r for r in settled if r is not None]
     avg = (
         round(sum(r["error_pct"] for r in results) / len(results), 2)
         if results
