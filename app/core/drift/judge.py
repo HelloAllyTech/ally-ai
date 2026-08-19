@@ -14,7 +14,11 @@ from __future__ import annotations
 from typing import List, Optional
 
 from app.core.config import settings
-from app.core.drift.prompt import TranscriptTurn, build_judge_prompt
+from app.core.drift.prompt import (
+    TranscriptTurn,
+    build_judge_prompt,
+    build_lean_labels_prompt,
+)
 from app.core.drift.schemas import (
     COHERENCE_DRIFT_CUTOFF,
     COHERENCE_RANK,
@@ -23,6 +27,8 @@ from app.core.drift.schemas import (
     JudgeOutput,
     PerTurnJudgment,
     SessionRollup,
+    LeanJudgeOutput,
+    LeanTurnLabels,
 )
 
 # Min consecutive drift turns to count the session as drifted (spec: K=2).
@@ -46,7 +52,8 @@ def _get_client():
 
 
 def _is_drift_turn(t: PerTurnJudgment) -> bool:
-    """A turn counts toward drift if it's topic-bad OR coherence-bad-and-not-in-character.
+    """A turn counts toward drift if it's topic-bad OR
+    coherence-bad-and-not-in-character.
 
     Unifies the spec's two clauses (>=K consecutive off_topic/gibberish, OR
     >=K consecutive coherence<=degrading while not in_character) into a single
@@ -158,3 +165,67 @@ def judge_session(
         raise RuntimeError("drift judge returned no parsable output")
     rollup = compute_session_rollup(output.per_turn)
     return DriftJudgmentResult(per_turn=output.per_turn, session=rollup)
+
+
+def judge_session_labels_only(
+    transcript: List[TranscriptTurn],
+    persona: str,
+    language: str,
+    scenario_goal: Optional[str] = None,
+    rubric: Optional[str] = None,
+) -> List[LeanTurnLabels]:
+    """Judge ONLY the v2 labels, for turns already judged under the old rubric.
+
+    Same model, same rubric text, same temperature as :func:`judge_session` —
+    the single difference is the response schema, which is what the cost is in.
+    Measured on production sessions the full judge averages 2.4k prompt against
+    3.8k completion, and completion is eight times the price, so constraining
+    the response is worth roughly three quarters of the spend while re-sending
+    the transcript costs almost nothing.
+
+    No session rollup is computed: `drifted` / `first_drift_turn` are derived
+    from the v1 labels this call deliberately does not re-emit, and the rows
+    being topped up already carry them. Recomputing a rollup from a partial
+    label set would overwrite a real answer with a blind one.
+    """
+    from google.genai import types  # imported lazily; optional dependency
+
+    prompt = build_lean_labels_prompt(
+        transcript, persona, language, scenario_goal, rubric=rubric
+    )
+    client = _get_client()
+    response = client.models.generate_content(
+        model=settings.DRIFT_JUDGE.MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0,
+            response_mime_type="application/json",
+            response_schema=LeanJudgeOutput,
+        ),
+    )
+    try:
+        from app.core.llm_usage.emitter import emit_llm_usage_blocking
+        from app.core.llm_usage.tasks import LLMTask
+
+        um = getattr(response, "usage_metadata", None)
+        if um is not None:
+            prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
+            completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
+            total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
+                prompt_tokens + completion_tokens
+            )
+            # Its own task name: the whole point is to compare its cost against
+            # DRIFT_JUDGE, which is impossible if both land in one bucket.
+            emit_llm_usage_blocking(
+                provider="gemini",
+                model=settings.DRIFT_JUDGE.MODEL,
+                task=LLMTask.DRIFT_JUDGE_LABELS.value,
+                usage=(prompt_tokens, completion_tokens, total_tokens),
+            )
+    except Exception:
+        pass
+
+    output: Optional[LeanJudgeOutput] = response.parsed
+    if output is None or not output.per_turn:
+        raise RuntimeError("lean drift judge returned no parsable output")
+    return output.per_turn

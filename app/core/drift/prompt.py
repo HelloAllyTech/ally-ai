@@ -134,3 +134,65 @@ def build_judge_prompt(
         "Emit one judgment per AI_CLIENT turn (use its [turn N] index)."
     )
     return "\n".join(lines)
+
+
+LEAN_LABELS_INSTRUCTION = """\
+
+BACKFILL MODE — LABELS ONLY.
+
+The rubric above is the SAME rubric, unchanged, and the definitions in it are \
+the ones to apply. What changes is only which FIELDS you return.
+
+These turns were already judged under the earlier rubric and those judgments \
+are kept, so do not re-emit them. Omit coherence, topic_label, in_character, \
+counselor_utterance_garbled, stt_error_type, ai_reply_failure_mode and \
+root_attribution entirely.
+
+ANSWER ALL FIVE OF THESE ON EVERY AI-CLIENT TURN. "No" is false or 0 — never a \
+missing field. A turn where nothing happened still needs its answers, because \
+an omitted label removes that turn from the measurement instead of counting as \
+a clean one:
+
+  role_inversion              true / false, every turn
+  offered_solution            true / false, every turn
+  solutions_offered           an integer, 0 when none, every turn
+  resistance_briefed          true / false, every turn (same answer all session)
+  introduced_new_information  true / false, every turn
+
+Then, conditionally:
+
+  stuck_is_appropriate   ONLY when introduced_new_information is false. Null \
+when the turn advanced — the rubric defines no answer there.
+
+  reasoning              one short sentence ONLY where a label actually fires. \
+Null on clean turns. This is the ONLY field you may leave out: justifying \
+"nothing happened" on every turn is the largest avoidable cost in this job and \
+is read by nobody.\
+"""
+
+
+def build_lean_labels_prompt(
+    transcript: List[TranscriptTurn],
+    persona: str,
+    language: str,
+    scenario_goal: Optional[str] = None,
+    rubric: Optional[str] = None,
+) -> str:
+    """The same prompt as the full judge, asking for only the added labels.
+
+    Deliberately built on top of ``build_judge_prompt`` with the SAME rubric
+    text rather than a trimmed copy of the clienthood/progression sections. Two
+    prompts that define the same labels in their own words will drift, and when
+    they do, backfilled history and live data disagree — which shows up in a
+    chart as a step change indistinguishable from a real regression.
+
+    The rubric is a couple of thousand input tokens and input is an eighth the
+    price of output; the entire saving here is in what comes BACK. Measured on
+    production sessions, the full judge averages 2.4k prompt against 3.8k
+    completion, so trimming the response is where the money is.
+    """
+    return (
+        build_judge_prompt(transcript, persona, language, scenario_goal, rubric)
+        + "\n"
+        + LEAN_LABELS_INSTRUCTION
+    )

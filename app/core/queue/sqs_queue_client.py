@@ -28,8 +28,6 @@ class SQSQueueClient:
         Raises:
             Exception: If the client has not been created yet.
         """
-        global _sqs_client
-
         if not _sqs_client:
             logger.error(
                 "SQS client has not been created. Please create a client first."

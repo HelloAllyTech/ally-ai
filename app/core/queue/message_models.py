@@ -27,6 +27,7 @@ class BaseQueueMessage(BaseModel):
     # with in-flight messages that predate this field.
     correlation_id: Optional[str] = None
 
+
 class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
     """
     Message for requesting audio transcription and summarization.
@@ -41,6 +42,7 @@ class TranscribeAndSummarizeRequestMessage(BaseQueueMessage):
     # raw PCM, so this flag tells the converter to decode it directly as raw
     # rather than relying on container detection.
     is_linear16_encoded: Optional[bool] = None
+
 
 class TranscriptionResultMessage(BaseQueueMessage):
     """

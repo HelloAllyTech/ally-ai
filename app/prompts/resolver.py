@@ -26,7 +26,8 @@ def _prompt_code_to_path(prompt_code: str) -> tuple[str, str]:
         logger.warning(f"Invalid prompt code (no subdir): {prompt_code}")
         return ("", "")
 
-    # For local lookup, we assume the first part is the subdir and the rest is the path/file
+    # For local lookup, we assume the first part is the subdir and the rest is the
+    # path/file
     file_key, prompt_key = code.split("_", 1)
     # Convert any remaining underscores back to slashes for the filename part
     # But wait, PromptManager uses (file_key, prompt_key) as (subdir, filename)
@@ -220,7 +221,8 @@ def load_and_format(
 
     if formatter.missing_keys:
         logger.warning(
-            "Prompt %s: missing placeholders resolved to empty string: %s. Provided kwargs: %s",
+            "Prompt %s: missing placeholders resolved to empty string: %s. Provided "
+            "kwargs: %s",
             internal_path,
             sorted(formatter.missing_keys),
             sorted(kwargs.keys()),

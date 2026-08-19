@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import app.core.queue.transcription_request_sqs_worker as transcription_request_sqs_worker_mod
+import app.core.queue.transcription_request_sqs_worker as transcription_request_sqs_worker_mod  # noqa: E501
 
 # from unittest.mock import MagicMock  # Unused import
 
@@ -399,13 +399,12 @@ class TestTranscriptionRequestSQSWorker:
         assert constructed["queue_service_client"] == "queue-client"
 
         # Verify handler wiring uses settings
-        handler_args = constructed["handler_args"]
 
         # Verify message processor params from constants
         proc_kwargs = constructed["processor_kwargs"]
         assert (
             proc_kwargs["queue_url"]
-            == transcription_request_sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL
+            == transcription_request_sqs_worker.settings.QUEUE.TRANSCRIBE_AND_SUMMARIZE_REQUESTS_QUEUE_URL  # noqa: E501
         )
         assert (
             proc_kwargs["max_messages"]
@@ -429,12 +428,12 @@ class TestTranscriptionRequestSQSWorker:
         # dead-lettering under load).
         assert (
             proc_kwargs["max_concurrent_messages"]
-            == transcription_request_sqs_worker.SQSWorkerConstants.MAX_CONCURRENT_MESSAGES
+            == transcription_request_sqs_worker.SQSWorkerConstants.MAX_CONCURRENT_MESSAGES  # noqa: E501
         )
         assert proc_kwargs["max_concurrent_messages"] == proc_kwargs["max_messages"]
         # A per-message hard timeout is wired so one hung message can't stall
         # the whole poll loop.
         assert (
             proc_kwargs["message_timeout_seconds"]
-            == transcription_request_sqs_worker.SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS
+            == transcription_request_sqs_worker.SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS  # noqa: E501
         )

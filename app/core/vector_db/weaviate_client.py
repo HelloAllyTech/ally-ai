@@ -13,8 +13,6 @@ _weaviate_client = None
 class WeaviateClient:
     @staticmethod
     def get_client() -> WeaviateAsyncClient:
-        global _weaviate_client
-
         if not _weaviate_client:
             logger.error(
                 "Weaviate client has not been created. Please create a client first."

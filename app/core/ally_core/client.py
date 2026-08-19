@@ -11,8 +11,6 @@ _ally_core_client = None
 class AllyCoreClient:
     @staticmethod
     def get_client() -> httpx.AsyncClient:
-        global _ally_core_client
-
         if not _ally_core_client:
             raise Exception("Ally core client not initialised.")
 
@@ -40,7 +38,7 @@ class AllyCoreClient:
                 ),
                 limits=httpx.Limits(
                     max_connections=settings.ALLY_CORE.MAX_CONNECTIONS,
-                    max_keepalive_connections=settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS,
+                    max_keepalive_connections=settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS,  # noqa: E501
                 ),
             )
 

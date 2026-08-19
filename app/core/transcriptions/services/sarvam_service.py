@@ -10,9 +10,13 @@ import shutil
 from pathlib import Path
 from typing import Any, Tuple
 
-from app.core.config import settings
 from sarvamai import AsyncSarvamAI
-from app.core.transcriptions.utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
+
+from app.core.config import settings
+from app.core.transcriptions.utils.audio_converter import (
+    convert_and_segment_audio_async,
+    get_audio_duration,
+)
 from app.core.transcriptions.utils.exceptions import TranscriptionFailedException
 from app.core.transcriptions.utils.logger import get_logger
 from app.core.transcriptions.utils.phi_events import PHIEvents
@@ -72,7 +76,8 @@ class SarvamTranscriptionService:
                     chat_id=str(chat_id),
                     audit_id=None,
                     details={
-                        "message": f"Audio converted into {len(segment_paths)} segments",
+                        "message": f"Audio converted into "
+                        f"{len(segment_paths)} segments",
                         "segment_count": len(segment_paths),
                         "component": "SarvamTranscriptionService",
                         "method": "transcribe_audio_from_url",
@@ -92,7 +97,8 @@ class SarvamTranscriptionService:
 
             # Log the output transcript
             logger.info(
-                f"Transcription completed with {len(segments_text.split(chr(10)))} segments"
+                f"Transcription completed with {len(segments_text.split(chr(10)))} "
+                f"segments"
             )
             await phi_logger.log(
                 PHILogEvent(
@@ -446,7 +452,7 @@ class SarvamTranscriptionService:
                 try:
                     txt_content = await asyncio.to_thread(_read_text, tf)
                     lines = txt_content.splitlines()
-                    text = " ".join(l for l in lines if l.strip())
+                    text = " ".join(line for line in lines if line.strip())
                     add_plain_text_segment(text)
                 except Exception as te:
                     logger.warning(

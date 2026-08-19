@@ -10,7 +10,6 @@ from app.exceptions.custom_exceptions import (
     EmbeddingFailedException,
     VectorDBDeleteFailedException,
     VectorDBInsertFailedException,
-    VectorDBSearchFailedException,
 )
 from app.utils.logger import get_logger
 
@@ -22,15 +21,20 @@ class RoadmapOpportunityService:
     Semantic duplicate detection for the Ally Product Roadmap board.
 
     This collection is a DERIVED INDEX. ally-be's Postgres
-    (roadmap_opportunities.description) is the system of record; here we store only the vector
+    (roadmap_opportunities.description) is the system of record; here we store only the
+    vector
     plus enough metadata to filter and to detect staleness. Consequences worth knowing:
 
-      * The Weaviate object UUID IS roadmap_opportunities.id, so every upsert is idempotent by
+      * The Weaviate object UUID IS roadmap_opportunities.id, so every upsert is
+      idempotent by
         construction — there is no create-vs-update decision and no 409 path.
-      * Nothing here can answer "what does opportunity X say?" That is on purpose. ally-be runs
+      * Nothing here can answer "what does opportunity X say?" That is on purpose.
+      ally-be runs
         the LLM confirmation step and already holds every description.
-      * Drift is possible (a failed delete leaves a phantom candidate), so ally-be re-validates
-        every candidate against live Postgres rows and can rebuild the whole collection with
+      * Drift is possible (a failed delete leaves a phantom candidate), so ally-be
+      re-validates
+        every candidate against live Postgres rows and can rebuild the whole collection
+        with
         POST /api/v1/product-roadmap/admin/reindex.
     """
 
@@ -43,7 +47,8 @@ class RoadmapOpportunityService:
 
     @staticmethod
     def hash_text(text: str) -> str:
-        """SHA-256 of the embedded text. ally-be stores this to detect a stale vector."""
+        """SHA-256 of the embedded text. ally-be stores this to detect a stale
+        vector."""
         return sha256(text.encode("utf-8")).hexdigest()
 
     async def upsert(
@@ -53,8 +58,10 @@ class RoadmapOpportunityService:
         Index (or re-index) one opportunity.
 
         Delete-then-insert rather than an update: Weaviate's update path would need a
-        get-then-decide round trip, and because the object UUID is the opportunity id, a blind
-        delete followed by an insert is both simpler and exactly idempotent. A delete of a
+        get-then-decide round trip, and because the object UUID is the opportunity id, a
+        blind
+        delete followed by an insert is both simpler and exactly idempotent. A delete of
+        a
         non-existent object is not an error here.
         """
         text = description.strip()
@@ -64,7 +71,9 @@ class RoadmapOpportunityService:
         try:
             vector = await self.embedding_service.embed(text)
         except Exception as e:
-            logger.exception(f"Embedding failed for {opportunity_id}: {type(e).__name__}")
+            logger.exception(
+                f"Embedding failed for {opportunity_id}: {type(e).__name__}"
+            )
             raise EmbeddingFailedException("Failed to embed opportunity description")
 
         text_hash = self.hash_text(text)
@@ -100,20 +109,28 @@ class RoadmapOpportunityService:
         """
         Index a batch, embedding all descriptions in ONE embed_many call.
 
-        Returns (succeeded, failed) SEPARATELY and never raises for a per-item problem. The
-        caller has to be able to see partial failure: reporting a batch as successful while
-        silently dropping items is precisely how the standalone roadmap app's backfill wrote 241
+        Returns (succeeded, failed) SEPARATELY and never raises for a per-item problem.
+        The
+        caller has to be able to see partial failure: reporting a batch as successful
+        while
+        silently dropping items is precisely how the standalone roadmap app's backfill
+        wrote 241
         fallback classifications and logged "Done. 241 classified."
         """
         succeeded: List[Dict[str, Any]] = []
         failed: List[Dict[str, str]] = []
 
         prepared = [
-            (str(item["opportunity_id"]), item["description"].strip(), item["product_goal"])
+            (
+                str(item["opportunity_id"]),
+                item["description"].strip(),
+                item["product_goal"],
+            )
             for item in items
         ]
 
-        # Blank descriptions can never be embedded; fail them individually rather than poisoning
+        # Blank descriptions can never be embedded; fail them individually rather than
+        # poisoning
         # the whole batch.
         embeddable = [(oid, text, goal) for oid, text, goal in prepared if text]
         for oid, text, _goal in prepared:
@@ -124,25 +141,35 @@ class RoadmapOpportunityService:
             return succeeded, failed
 
         try:
-            vectors = await self.embedding_service.embed_many([t for _, t, _ in embeddable])
+            vectors = await self.embedding_service.embed_many(
+                [t for _, t, _ in embeddable]
+            )
         except Exception as e:
-            # A whole-batch embedding failure is reported per item so the caller's counters and
+            # A whole-batch embedding failure is reported per item so the caller's
+            # counters and
             # retry bookkeeping stay accurate.
             logger.exception(f"Batch embedding failed: {type(e).__name__}")
             for oid, _text, _goal in embeddable:
                 failed.append(
-                    {"opportunity_id": oid, "error": f"embedding failed: {type(e).__name__}"}
+                    {
+                        "opportunity_id": oid,
+                        "error": f"embedding failed: {type(e).__name__}",
+                    }
                 )
             return succeeded, failed
 
         if len(vectors) != len(embeddable):
-            # Never silently pair up mismatched lists — that would attach the wrong vector to an
+            # Never silently pair up mismatched lists — that would attach the wrong
+            # vector to an
             # opportunity, which is worse than failing.
             logger.error(
-                f"Embedding count mismatch: asked for {len(embeddable)}, got {len(vectors)}"
+                f"Embedding count mismatch: asked for {len(embeddable)}, got "
+                f"{len(vectors)}"
             )
             for oid, _text, _goal in embeddable:
-                failed.append({"opportunity_id": oid, "error": "embedding count mismatch"})
+                failed.append(
+                    {"opportunity_id": oid, "error": "embedding count mismatch"}
+                )
             return succeeded, failed
 
         now = datetime.now(timezone.utc)
@@ -188,12 +215,16 @@ class RoadmapOpportunityService:
         """
         Find the most similar opportunities to a draft.
 
-        `threshold` is a cosine SIMILARITY floor. Note the standalone app calibrated 0.5 against
-        Voyage voyage-3-large at 1024 dimensions; this runs OpenAI text-embedding-3-small at
+        `threshold` is a cosine SIMILARITY floor. Note the standalone app calibrated 0.5
+        against
+        Voyage voyage-3-large at 1024 dimensions; this runs OpenAI
+        text-embedding-3-small at
         1536, so the value needs re-calibrating against real data before it is trusted.
 
-        Voyage also distinguished input_type document vs query; OpenAI has no such distinction,
-        so the same embedding path serves both sides here. In practice that makes stored items
+        Voyage also distinguished input_type document vs query; OpenAI has no such
+        distinction,
+        so the same embedding path serves both sides here. In practice that makes stored
+        items
         and drafts directly comparable, which is what we want.
         """
         text = description.strip()
@@ -227,17 +258,24 @@ class RoadmapOpportunityService:
         """
         Ensure an opportunity is not in the index.
 
-        MANDATORY when ally-be soft-deletes or merges away an opportunity: Postgres reads filter
-        on deletedAt IS NULL but this collection has no idea, so a skipped delete means the
+        MANDATORY when ally-be soft-deletes or merges away an opportunity: Postgres
+        reads filter
+        on deletedAt IS NULL but this collection has no idea, so a skipped delete means
+        the
         opportunity is proposed as a duplicate forever.
 
-        Returns True when the index no longer contains the id — which includes the case where it
-        never did. Weaviate's delete_by_id does NOT distinguish "deleted one" from "there was
-        nothing to delete", and telling them apart would cost an extra read on every delete for
-        a boolean no caller acts on. So this is idempotent by design: calling it twice returns
+        Returns True when the index no longer contains the id — which includes the case
+        where it
+        never did. Weaviate's delete_by_id does NOT distinguish "deleted one" from
+        "there was
+        nothing to delete", and telling them apart would cost an extra read on every
+        delete for
+        a boolean no caller acts on. So this is idempotent by design: calling it twice
+        returns
         True twice.
 
-        False means the delete genuinely FAILED and the vector may still be there — ally-be
+        False means the delete genuinely FAILED and the vector may still be there —
+        ally-be
         treats that as drift to be healed by the reindex sweep.
         """
         try:
@@ -245,7 +283,8 @@ class RoadmapOpportunityService:
             return True
         except VectorDBDeleteFailedException:
             logger.warning(
-                f"Failed to delete opportunity {opportunity_id} from the index; it may still "
+                f"Failed to delete opportunity {opportunity_id} from the index; it may "
+                f"still "
                 f"surface as a duplicate candidate until the next reindex"
             )
             return False
@@ -256,21 +295,28 @@ class RoadmapOpportunityService:
         """
         One page of indexed opportunity ids, for RECONCILIATION by ally-be.
 
-        Every other read here is keyed by an id the caller already holds, which by construction
-        cannot surface an object the caller has forgotten. That leaves one drift mode with no
-        detection path: a vector whose Postgres row was HARD-deleted. Nothing ever removes it —
-        soft-deletes call delete(), but a row that vanished outright never triggered anything — so
-        it lingers forever, and while ally-be does filter it out of results, it still occupies one
+        Every other read here is keyed by an id the caller already holds, which by
+        construction
+        cannot surface an object the caller has forgotten. That leaves one drift mode
+        with no
+        detection path: a vector whose Postgres row was HARD-deleted. Nothing ever
+        removes it —
+        soft-deletes call delete(), but a row that vanished outright never triggered
+        anything — so
+        it lingers forever, and while ally-be does filter it out of results, it still
+        occupies one
         of the top-N candidate slots a real duplicate needed.
 
-        ally-be stays the authority: this only enumerates, it never decides what is stale.
+        ally-be stays the authority: this only enumerates, it never decides what is
+        stale.
         """
         return await self.vector_db.list_document_ids(
             self.collection_name, limit=limit, after=after
         )
 
     async def get(self, opportunity_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch one indexed object's metadata. For reconciliation and debugging only."""
+        """Fetch one indexed object's metadata. For reconciliation and debugging
+        only."""
         try:
             return await self.vector_db.get_document_by_id(
                 self.collection_name, opportunity_id, include_vector=False

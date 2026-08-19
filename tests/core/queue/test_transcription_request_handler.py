@@ -1,8 +1,7 @@
 """Tests for TranscriptionHandler."""
 
-import json
 from types import SimpleNamespace
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -31,12 +30,15 @@ class TestTranscriptionHandler:
 
     @pytest.fixture
     def handler(
-        self, mock_ally_core_service, mock_text_generation_service, mock_transcription_service
+        self,
+        mock_ally_core_service,
+        mock_text_generation_service,
+        mock_transcription_service,
     ):
         return TranscriptionRequestHandler(
             ally_core_service=mock_ally_core_service,
             text_generation_service=mock_text_generation_service,
-            transcription_service=mock_transcription_service
+            transcription_service=mock_transcription_service,
         )
 
     # ---------------- process_request ----------------
@@ -48,7 +50,7 @@ class TestTranscriptionHandler:
             "audio_url": "http://example.com",
             "chat_id": 123,
             "sample_rate": 8000,
-            "timestamp": 1
+            "timestamp": 1,
         }
         handler.transcription_service.transcribe_audio_from_url = AsyncMock(
             return_value=(None, "transcribed text")
@@ -63,17 +65,20 @@ class TestTranscriptionHandler:
         handler.transcription_service.transcribe_audio_from_url.assert_awaited_once()
         handler._process_transcription_result.assert_awaited_once()
         handler._send_error_response.assert_not_awaited()
-        mock_ally_core_service.process_transcript.assert_not_awaited()  # no direct sends here
+        # no direct sends here
+        mock_ally_core_service.process_transcript.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_process_transcription_request_audio_transcribe_failure_sends_error(self, handler):
+    async def test_process_transcription_request_audio_transcribe_failure_sends_error(
+        self, handler
+    ):
         # Arrange
         message_data = {
             "message_type": MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST,
             "audio_url": "http://example.com",
             "chat_id": 123,
             "sample_rate": 8000,
-            "timestamp": 1
+            "timestamp": 1,
         }
         handler.transcription_service.transcribe_audio_from_url = AsyncMock(
             side_effect=Exception("Audio Transcribe Failure")
@@ -124,7 +129,9 @@ class TestTranscriptionHandler:
         assert call.kwargs["stage"] == PipelineStage.TRANSCRIBE
 
     @pytest.mark.asyncio
-    async def test_process_transcription_request_delivery_failure_no_error(self, handler):
+    async def test_process_transcription_request_delivery_failure_no_error(
+        self, handler
+    ):
         # A False from _process_transcription_result means the result could not
         # be *delivered* (not a processing failure). We must NOT post an error
         # (that could clobber a result that landed); the message is left for
@@ -134,7 +141,7 @@ class TestTranscriptionHandler:
             "audio_url": "http://example.com",
             "chat_id": 123,
             "sample_rate": 8000,
-            "timestamp": 1
+            "timestamp": 1,
         }
         handler.transcription_service.transcribe_audio_from_url = AsyncMock(
             return_value=(None, "transcribed text")
@@ -158,13 +165,15 @@ class TestTranscriptionHandler:
             "audio_url": "http://example.com",
             "chat_id": 123,
             "sample_rate": 8000,
-            "timestamp": 1
+            "timestamp": 1,
         }
         handler.transcription_service.transcribe_audio_from_url = AsyncMock(
             return_value=(None, "transcribed text")
         )
 
-        handler._process_transcription_result = AsyncMock(side_effect=RuntimeError("boom"))
+        handler._process_transcription_result = AsyncMock(
+            side_effect=RuntimeError("boom")
+        )
         handler._send_error_response = AsyncMock()
 
         # Act

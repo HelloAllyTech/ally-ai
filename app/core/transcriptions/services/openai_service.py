@@ -7,9 +7,13 @@ import asyncio
 import os
 from typing import Tuple
 
-from app.core.config import settings
 from openai import OpenAI
-from app.core.transcriptions.utils.audio_converter import convert_and_segment_audio_async, get_audio_duration
+
+from app.core.config import settings
+from app.core.transcriptions.utils.audio_converter import (
+    convert_and_segment_audio_async,
+    get_audio_duration,
+)
 from app.core.transcriptions.utils.exceptions import TranscriptionFailedException
 from app.core.transcriptions.utils.logger import get_logger
 from app.core.transcriptions.utils.phi_events import PHIEvents

@@ -186,7 +186,9 @@ def build_judge_prompt(
     lines.append(f"SESSION LANGUAGE: {label}")
     lines.append(f"TARGET VARIETY: {lp.target_variety or 'unknown'}")
     lines.append(f"DIGLOSSIA APPLIES: {_yn(lp.diglossia)}")
-    partners = ", ".join(lp.code_switch_partners) if lp.code_switch_partners else "unknown"
+    partners = (
+        ", ".join(lp.code_switch_partners) if lp.code_switch_partners else "unknown"
+    )
     lines.append(f"CODE-SWITCH PARTNERS: {partners}")
     lines.append(
         f"REGISTER DIRECTIVE CONFIGURED: {_yn(sp.register_directive_configured)}"
