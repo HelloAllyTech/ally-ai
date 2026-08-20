@@ -13,7 +13,7 @@ or a key configured — only ``judge_session`` requires them.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from app.core.config import settings
 from app.core.language_quality.prompt import (
@@ -24,6 +24,7 @@ from app.core.language_quality.prompt import (
 )
 from app.core.language_quality.schemas import (
     CONDITIONED_DIMENSIONS,
+    INTERRUPTION_CONDITIONED_CATEGORIES,
     DIMENSION_CATEGORIES,
     DIMENSION_LAYER,
     MAX_EVIDENCE_CHARS,
@@ -54,16 +55,47 @@ def _get_client():
     return _client
 
 
-def process_output(per_turn: List[TurnJudgment]) -> LanguageJudgmentResult:
+def _interrupted_turns(transcript: List[TranscriptTurn]) -> Set[int]:
+    """Turn indices the learner barged in on, read off the transcript.
+
+    The caller marks client turns with ``interrupted: true``; a turn without the
+    key is not evidence of anything either way, so it simply does not join the
+    set. Tolerant of dicts and objects because the transcript crosses a service
+    boundary as plain JSON.
+    """
+    out: Set[int] = set()
+    for turn in transcript or []:
+        get = turn.get if isinstance(turn, dict) else lambda k, d=None: getattr(turn, k, d)  # type: ignore[union-attr]
+        if not get("interrupted"):
+            continue
+        idx = get("turn_index")
+        if isinstance(idx, int):
+            out.add(idx)
+    return out
+
+
+def process_output(
+    per_turn: List[TurnJudgment],
+    interrupted_turns: Optional[Set[int]] = None,
+) -> LanguageJudgmentResult:
     """Deterministic post-processing of the LLM's per-turn annotations.
 
     - drops annotations whose category doesn't belong to their dimension
       (counted in ``dropped_annotations`` — a rubric-tuning signal, never guessed)
     - derives ``layer`` from ``dimension`` (fixed mapping)
     - marks ``conditioned_out`` on understanding/adequacy errors of turns whose
-      counselor input was garbled (PRD conditioning rule)
+      counselor input was garbled (PRD conditioning rule), and on `truncation`
+      of turns the learner talked over (see the schemas module for why the two
+      causes are scoped differently)
     - clamps evidence quotes to MAX_EVIDENCE_CHARS
+
+    ``interrupted_turns`` carries turn indices the learner barged in on. It is
+    runtime metadata the LLM cannot see, so it arrives as INPUT and is joined to
+    the model's output by turn index here. Absent (the pre-2026-08-17 sessions,
+    where the flag was never written) nothing is conditioned on it — an unknown
+    must not silently read as "not interrupted".
     """
+    interrupted = interrupted_turns or set()
     turns = sorted(per_turn, key=lambda t: t.turn_index)
     processed: List[ProcessedTurn] = []
     dropped = 0
@@ -86,8 +118,14 @@ def process_output(per_turn: List[TurnJudgment]) -> LanguageJudgmentResult:
                     },
                     layer=DIMENSION_LAYER[err.dimension],
                     conditioned_out=(
-                        err.dimension in CONDITIONED_DIMENSIONS
-                        and turn.input_garbled != "none"
+                        (
+                            err.dimension in CONDITIONED_DIMENSIONS
+                            and turn.input_garbled != "none"
+                        )
+                        or (
+                            err.category in INTERRUPTION_CONDITIONED_CATEGORIES
+                            and turn.turn_index in interrupted
+                        )
                     ),
                 )
             )
@@ -163,4 +201,4 @@ def judge_session(
         # Fail loudly so the backfill loop logs + skips this session rather
         # than persisting an empty judgment as "no errors".
         raise RuntimeError("language judge returned no parsable output")
-    return process_output(output.per_turn)
+    return process_output(output.per_turn, _interrupted_turns(transcript))

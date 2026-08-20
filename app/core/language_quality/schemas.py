@@ -110,9 +110,33 @@ DIMENSION_CATEGORIES: Dict[str, Set[str]] = {
 # in ally-be); kept here as the single normative definition.
 SEVERITY_WEIGHT: Dict[str, int] = {"minor": 1, "major": 5, "critical": 10}
 
-# Dimensions whose errors are conditioned out on garbled counselor input
-# (PRD conditioning rule: mishearing must not be billed to the LLM).
+# ---------------------------------------------------------------------------
+# Conditioning: errors that are real but not the actor's fault.
+#
+# Two causes, and they excuse DIFFERENT things — which is why this is a pair of
+# rules rather than one flag. A garbled question explains misunderstanding it; it
+# does not explain a sentence stopping mid-word. Being talked over explains the
+# sentence stopping; it does not explain bad grammar.
+#
+# Conditioned annotations are KEPT, flagged, and excluded from rates by the read
+# side. Keeping them is what let us measure that just over half of `truncation`
+# was barge-in in the first place.
+# ---------------------------------------------------------------------------
+
+# Garbled counselor input (PRD conditioning rule: mishearing must not be billed
+# to the LLM). Scoped by DIMENSION: it undermines comprehension wholesale.
 CONDITIONED_DIMENSIONS: Set[str] = {"understanding", "adequacy"}
+
+# The learner talking over the actor. Scoped by CATEGORY, not dimension, and
+# deliberately narrow: `truncation` shares the `fluency` dimension with
+# `grammar`, `script_error` and `disfluency`, and an interruption is no excuse
+# for any of those — only for the reply being cut off.
+#
+# Measured 2026-08-17 (the first week the `interrupted` flag was written at all):
+# truncation runs 4.42% on uninterrupted turns against 15.63% on interrupted
+# ones, and 15 of 28 truncated turns sat on interrupted turns. A learner
+# interrupting is normal conversation, not an actor defect.
+INTERRUPTION_CONDITIONED_CATEGORIES: Set[str] = {"truncation"}
 
 # Guardrail for evidence quotes (LLM is instructed to stay short; we clamp).
 MAX_EVIDENCE_CHARS = 200

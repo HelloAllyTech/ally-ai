@@ -181,3 +181,131 @@ class TestSchemaValidation:
     def test_invalid_dimension_rejected(self):
         with pytest.raises(Exception):
             _err("naturalness", "grammar")
+
+
+class TestInterruptionConditioning:
+    """The learner talking over the actor is normal conversation, not a defect.
+
+    Measured on the first week the `interrupted` flag was written at all
+    (2026-08-17): truncation ran 4.42% on uninterrupted turns against 15.63% on
+    interrupted ones, and 15 of 28 truncated turns sat on interrupted turns. So
+    just over half of the second-largest annotation category was being charged to
+    actor quality for something the learner did.
+
+    The scoping is the part worth pinning. Interruption excuses `truncation` and
+    nothing else — it shares the `fluency` dimension with `grammar`,
+    `script_error` and `disfluency`, and being talked over is no excuse for any
+    of those.
+    """
+
+    def test_truncation_on_an_interrupted_turn_is_conditioned_out(self):
+        turns = [
+            TurnJudgment(
+                turn_index=3,
+                input_garbled="none",
+                errors=[_err("fluency", "truncation")],
+            )
+        ]
+        result = process_output(turns, interrupted_turns={3})
+        assert result.per_turn[0].errors[0].conditioned_out is True
+
+    def test_truncation_on_an_uninterrupted_turn_still_counts(self):
+        # The 4.42% residual is genuine mid-sentence stopping and must survive.
+        turns = [
+            TurnJudgment(
+                turn_index=3,
+                input_garbled="none",
+                errors=[_err("fluency", "truncation")],
+            )
+        ]
+        result = process_output(turns, interrupted_turns={7})
+        assert result.per_turn[0].errors[0].conditioned_out is False
+
+    def test_interruption_does_not_excuse_other_fluency_errors(self):
+        # Category-scoped, not dimension-scoped: being talked over does not
+        # explain bad grammar in the words that were spoken.
+        turns = [
+            TurnJudgment(
+                turn_index=3,
+                input_garbled="none",
+                errors=[_err("fluency", "grammar"), _err("fluency", "disfluency")],
+            )
+        ]
+        result = process_output(turns, interrupted_turns={3})
+        assert [e.conditioned_out for e in result.per_turn[0].errors] == [False, False]
+
+    def test_interruption_does_not_excuse_a_persona_break(self):
+        turns = [
+            TurnJudgment(
+                turn_index=3,
+                input_garbled="none",
+                errors=[_err("persona_social", "persona_break")],
+            )
+        ]
+        result = process_output(turns, interrupted_turns={3})
+        assert result.per_turn[0].errors[0].conditioned_out is False
+
+    def test_absent_interruption_data_conditions_nothing(self):
+        # Sessions before the flag existed pass no set at all. An unknown must
+        # not read as "not interrupted" OR as "interrupted" — it just does not
+        # participate, leaving those annotations exactly as they were.
+        turns = [
+            TurnJudgment(
+                turn_index=3,
+                input_garbled="none",
+                errors=[_err("fluency", "truncation")],
+            )
+        ]
+        assert process_output(turns).per_turn[0].errors[0].conditioned_out is False
+
+    def test_the_two_causes_compose(self):
+        # A garbled, interrupted turn: each cause conditions what it explains.
+        turns = [
+            TurnJudgment(
+                turn_index=3,
+                input_garbled="severe",
+                errors=[
+                    _err("understanding", "ignored_context"),
+                    _err("fluency", "truncation"),
+                    _err("fluency", "grammar"),
+                ],
+            )
+        ]
+        result = process_output(turns, interrupted_turns={3})
+        assert [e.conditioned_out for e in result.per_turn[0].errors] == [
+            True,
+            True,
+            False,
+        ]
+
+
+class TestInterruptedTurnsFromTranscript:
+    """`interrupted` rides on the transcript's client turns, so it crosses the
+    service boundary as plain JSON with no new request field."""
+
+    def test_reads_flagged_client_turns(self):
+        from app.core.language_quality.judge import _interrupted_turns
+
+        assert _interrupted_turns(
+            [
+                {"role": "counselor", "text": "and then?"},
+                {"role": "client", "turn_index": 0, "text": "I", "interrupted": True},
+                {"role": "client", "turn_index": 1, "text": "fine", "interrupted": False},
+                {"role": "client", "turn_index": 2, "text": "ok"},
+            ]
+        ) == {0}
+
+    def test_tolerates_a_missing_or_non_integer_turn_index(self):
+        from app.core.language_quality.judge import _interrupted_turns
+
+        assert _interrupted_turns(
+            [
+                {"role": "client", "interrupted": True},
+                {"role": "client", "turn_index": "2", "interrupted": True},
+            ]
+        ) == set()
+
+    def test_empty_transcript_is_not_an_error(self):
+        from app.core.language_quality.judge import _interrupted_turns
+
+        assert _interrupted_turns([]) == set()
