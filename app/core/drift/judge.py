@@ -24,7 +24,7 @@ from app.core.drift.schemas import (
     COHERENCE_RANK,
     AttributionMix,
     DriftJudgmentResult,
-    JudgeOutput,
+    LiveJudgeOutput,
     PerTurnJudgment,
     SessionRollup,
     LeanJudgeOutput,
@@ -133,7 +133,9 @@ def judge_session(
         config=types.GenerateContentConfig(
             temperature=0,
             response_mime_type="application/json",
-            response_schema=JudgeOutput,
+            # Strict: the v2 labels are required here, so Gemini answers them
+            # on every turn instead of only where they fired.
+            response_schema=LiveJudgeOutput,
         ),
     )
     # Best-effort token-usage emission for the cost-by-model/task dashboard.
@@ -157,7 +159,7 @@ def judge_session(
     except Exception:
         pass
 
-    output: Optional[JudgeOutput] = response.parsed
+    output: Optional[LiveJudgeOutput] = response.parsed
     if output is None or not output.per_turn:
         # Gemini occasionally returns no parsable content despite the schema;
         # fail this session loudly so the backfill loop logs + skips it rather

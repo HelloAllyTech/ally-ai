@@ -13,7 +13,12 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.drift.prompt import DEFAULT_JUDGE_RUBRIC
-from app.core.drift.schemas import JudgeOutput, PerTurnJudgment
+from app.core.drift.schemas import (
+    JudgeOutput,
+    LiveJudgeOutput,
+    LiveTurnJudgment,
+    PerTurnJudgment,
+)
 
 V1_TURN = {
     "turn_index": 0,
@@ -116,3 +121,126 @@ def test_rubric_excludes_client_questions_from_inversion():
     """The commonest way to get role inversion wrong is to count a client
     asking for help as the actor taking the counsellor's chair."""
     assert "is NOT inversion" in DEFAULT_JUDGE_RUBRIC
+
+
+# ---- the live path must compel an answer, exactly as the lean one does -----
+#
+# PerTurnJudgment stays lenient on purpose (a stored v1 row is read back through
+# it), so leniency has to stop at the schema the LIVE judge hands to Gemini.
+# Without that, the live path repeats the lean judge's production failure: over
+# 155 turns it emitted role_inversion on 2, both true, and a rate that counts
+# only turns carrying the label read 100%.
+
+
+def test_live_turn_judgment_requires_the_five_unconditional_labels():
+    with pytest.raises(ValidationError):
+        LiveTurnJudgment(**V1_TURN)
+
+    clean = LiveTurnJudgment(
+        **V1_TURN,
+        role_inversion=False,
+        offered_solution=False,
+        solutions_offered=0,
+        resistance_briefed=True,
+        introduced_new_information=True,
+    )
+    assert clean.role_inversion is False
+    assert clean.solutions_offered == 0
+    # Genuinely conditional — the rubric defines no answer on a turn that
+    # advanced, so it must not be invented.
+    assert clean.stuck_is_appropriate is None
+
+
+@pytest.mark.parametrize(
+    "omitted",
+    [
+        "role_inversion",
+        "offered_solution",
+        "solutions_offered",
+        "resistance_briefed",
+        "introduced_new_information",
+    ],
+)
+def test_live_response_rejects_a_turn_missing_any_unconditional_label(omitted):
+    answered = {
+        "role_inversion": False,
+        "offered_solution": False,
+        "solutions_offered": 0,
+        "resistance_briefed": True,
+        "introduced_new_information": True,
+    }
+    answered.pop(omitted)
+
+    with pytest.raises(ValidationError):
+        LiveJudgeOutput.model_validate({"per_turn": [{**V1_TURN, **answered}]})
+
+
+def test_live_turn_judgment_still_carries_the_v1_fields():
+    """Unlike the lean schema, the live judge emits the whole row."""
+    fields = set(LiveTurnJudgment.model_fields)
+
+    assert {"coherence", "topic_label", "root_attribution"} <= fields
+    # And it stays assignable to the result model the endpoint returns.
+    assert issubclass(LiveTurnJudgment, PerTurnJudgment)
+
+
+def test_rubric_compels_an_answer_on_every_turn():
+    """Prose alone did not hold in the lean judge, but the rubric must still
+    say it: a model told to omit reasoning on clean turns generalises that to
+    every label whose answer is no."""
+    assert "EVERY AI-CLIENT TURN" in DEFAULT_JUDGE_RUBRIC
+    assert "never a missing field" in DEFAULT_JUDGE_RUBRIC
+
+
+class _FakeUsage:
+    prompt_token_count = 2400
+    candidates_token_count = 3800
+    total_token_count = 6200
+
+
+class _FakeResponse:
+    usage_metadata = _FakeUsage()
+
+    def __init__(self, parsed):
+        self.parsed = parsed
+
+
+def test_judge_session_hands_gemini_the_strict_schema(monkeypatch):
+    """The enforcement point. Gemini marks a field required only when the
+    response_schema does, so the live call has to pass the strict model — a
+    lenient one lets the labels come back only where they fired."""
+    from app.core.drift import judge as judge_mod
+
+    captured = {}
+
+    fully_answered = dict(
+        V1_TURN,
+        role_inversion=False,
+        offered_solution=False,
+        solutions_offered=0,
+        resistance_briefed=True,
+        introduced_new_information=True,
+    )
+
+    class _FakeModels:
+        def generate_content(self, model, contents, config):
+            captured["schema"] = config.response_schema
+            return _FakeResponse(
+                LiveJudgeOutput(per_turn=[LiveTurnJudgment(**fully_answered)])
+            )
+
+    class _FakeClient:
+        models = _FakeModels()
+
+    monkeypatch.setattr(judge_mod, "_get_client", lambda: _FakeClient())
+
+    result = judge_mod.judge_session(
+        [{"role": "client", "turn_index": 0, "text": "hi"}],
+        persona="a tired client",
+        language="en",
+    )
+
+    assert captured["schema"] is LiveJudgeOutput
+    # The rollup still comes out of the same per-turn rows.
+    assert result.session.drifted is False
+    assert result.per_turn[0].role_inversion is False

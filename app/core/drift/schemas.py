@@ -1,6 +1,6 @@
 """Schemas for the conversation drift judge (see drift-metrics-spec.md).
 
-The judge LLM emits ONLY the per-turn array (``JudgeOutput``). The session
+The judge LLM emits ONLY the per-turn array (``LiveJudgeOutput``). The session
 rollup (drifted? / first-drift turn / attribution mix) is computed
 deterministically in code from those per-turn rows — never asked of the LLM —
 so the headline numbers are reproducible and don't depend on the model's
@@ -153,9 +153,56 @@ class PerTurnJudgment(BaseModel):
 
 
 class JudgeOutput(BaseModel):
-    """Exactly what the judge LLM returns (per-turn array, wrapped)."""
+    """A per-turn array, wrapped — the lenient read-back shape.
+
+    NOT what the live judge asks Gemini for: see ``LiveJudgeOutput``.
+    """
 
     per_turn: List[PerTurnJudgment]
+
+
+class LiveTurnJudgment(PerTurnJudgment):
+    """One turn as the LIVE judge is REQUIRED to answer it.
+
+    Same lesson as :class:`LeanTurnLabels`, applied to the path that judges new
+    sessions. Gemini marks a field required only when ``response_schema`` says
+    so, and with every v2 label Optional it returned them only where they fired
+    — the omission that made the lean backfill read role inversion as 100%.
+    Prose in the rubric did not prevent that and cannot; the schema can.
+
+    ``PerTurnJudgment`` stays lenient because it is also how a stored v1 row is
+    read back, and those rows legitimately carry nulls in the v2 columns. So the
+    tightening lives here, on the model handed to the model.
+
+    ``stuck_is_appropriate`` stays optional, inherited unchanged: the rubric
+    defines it only for a turn that did NOT advance, and forcing a value on an
+    advancing turn would invent a judgement.
+    """
+
+    role_inversion: bool = Field(
+        description="Answer for EVERY turn. False, never omitted, when absent."
+    )
+    offered_solution: bool = Field(
+        description="Answer for EVERY turn. False, never omitted, when absent."
+    )
+    solutions_offered: int = Field(
+        description="Answer for EVERY turn. 0, never omitted, when none."
+    )
+    resistance_briefed: bool = Field(
+        description=(
+            "Answer for EVERY turn. Read from the BRIEF, so it is the same "
+            "answer on every turn of a session."
+        )
+    )
+    introduced_new_information: bool = Field(
+        description="Answer for EVERY turn. False, never omitted, when absent."
+    )
+
+
+class LiveJudgeOutput(BaseModel):
+    """Exactly what the live judge LLM returns."""
+
+    per_turn: List[LiveTurnJudgment]
 
 
 class AttributionMix(BaseModel):
