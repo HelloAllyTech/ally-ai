@@ -5,7 +5,9 @@ Conversation Transcript:
 {chat_history}
 
 Evaluate the counselor's performance and return ONLY a JSON object with
-exactly five fields.
+exactly seven fields.
+
+{SUPERVISOR_NOTE_SECTION}
 
 Important rules:
 - Provide specific, actionable feedback points.
@@ -65,3 +67,12 @@ Return only valid JSON with these fields:
 - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
   "Listening Engagement", "Emotional Attunement", "Supportive engagement") and
   "percentage" (number from 0 to 100). Base percentages on actual demonstration.
+  IMPORTANT: skill_coverage percentages measure what the counselor actually
+  demonstrated, on one fixed standard. Do NOT move these percentages up or
+  down because of who the learner is — the note's voice adapts to them, the
+  scores never do.
+- "supervisor_note": The markdown debrief note to the learner, written as
+  described above. This is the only field where [[msg:ID]] markers are allowed.
+- "memory_update": Object with "focus_areas" (array of 1-3 short strings),
+  "trajectory" (1-2 sentences), and "next_time" (one sentence). About the
+  LEARNER's development across sessions — never about the client.

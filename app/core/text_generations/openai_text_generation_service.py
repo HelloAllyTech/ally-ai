@@ -46,6 +46,7 @@ from app.utils.common import (
     build_id_mapping,
     filter_emotional_movement,
     filter_message_tags,
+    remap_note_references,
 )
 from app.utils.counselor_interruption_calculator import (
     calculate_counselor_interruptions,
@@ -97,12 +98,63 @@ def _language_directive(language_code: str) -> str:
     return (
         "\n\n---\n\n"
         "OUTPUT LANGUAGE: Write all human-readable feedback text — every string "
-        'value in "positives" and in each "areas_of_growth" item\'s "improvement" '
-        'and "recommendation" fields — in the language identified by the code '
-        f"'{language_code}' ({language_name}), so the learner can read their "
-        "strengths and areas for improvement directly. Keep the JSON keys and "
-        "structure exactly as specified (in English). Preserve any direct quotes "
-        "pulled from the conversation verbatim in their original language."
+        'value in "positives", in each "areas_of_growth" item\'s "improvement" '
+        'and "recommendation" fields, and the whole of "supervisor_note" — in the '
+        f"language identified by the code '{language_code}' ({language_name}), so "
+        "the learner can read their debrief and their strengths directly. Keep the "
+        "JSON keys and structure exactly as specified (in English). Preserve any "
+        "direct quotes pulled from the conversation verbatim in their original "
+        "language, and leave [[msg:ID]] anchors exactly as they are."
+    )
+
+
+# Worker type drives the register, depth and expectations of the supervisor
+# note — never the skill scores, which stay on one fixed standard so they remain
+# comparable across an organisation. Each register lives in its own template so
+# it can be tuned independently from the dashboard.
+_WORKER_TYPE_TEMPLATES = {
+    "LAY": "shared/worker_type_lay",
+    "EARLY_PROFESSIONAL": "shared/worker_type_early_professional",
+    "EXPERIENCED_PROFESSIONAL": "shared/worker_type_experienced_professional",
+}
+DEFAULT_WORKER_TYPE = "LAY"
+
+
+def _build_supervisor_note_section(
+    prompts: Optional[Dict[str, Any]] = None,
+    worker_type: Optional[str] = None,
+    learner_name: Optional[str] = None,
+    supervisor_memory: Optional[str] = None,
+) -> str:
+    """Build the supervisor-note instruction block injected into the evaluation prompt.
+
+    An unknown or missing worker type falls back to the lay register: plain
+    language is the safe wrong answer, since an experienced clinician reading
+    slightly simple feedback costs far less than a volunteer reading clinical
+    jargon they can't act on.
+    """
+    resolved_type = (worker_type or DEFAULT_WORKER_TYPE).strip().upper()
+    template_path = _WORKER_TYPE_TEMPLATES.get(resolved_type)
+    if template_path is None:
+        logger.warning(
+            "_build_supervisor_note_section: unknown worker_type=%r, "
+            "falling back to %s",
+            worker_type,
+            DEFAULT_WORKER_TYPE,
+        )
+        template_path = _WORKER_TYPE_TEMPLATES[DEFAULT_WORKER_TYPE]
+
+    return load_and_format(
+        "shared/supervisor_note",
+        prompts=prompts,
+        WORKER_TYPE_GUIDANCE=load_template(template_path, prompts=prompts),
+        # "there" keeps the greeting grammatical when we have no name; the
+        # template tells the model to open without a name in that case.
+        LEARNER_NAME=(learner_name or "").strip() or "there",
+        SUPERVISOR_MEMORY=(
+            (supervisor_memory or "").strip()
+            or "No previous sessions with this learner yet."
+        ),
     )
 
 
@@ -1278,13 +1330,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         memory_prompt: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
         language_code: Optional[str] = None,
+        worker_type: Optional[str] = None,
+        learner_name: Optional[str] = None,
+        supervisor_memory: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
         Generate scenario evaluation.
 
         Uses a single LLM call. Returns improvements, positives, message_tags,
-        emotional_movement, and skill_coverage.
+        emotional_movement, skill_coverage, supervisor_note and memory_update.
         When need_memory is True, also returns session_glimpse and cumulative_memory.
 
         Parameters:
@@ -1295,11 +1350,21 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             language_code (Optional[str]): Preferred output language (ISO 639-1 /
                 BCP 47) for the human-readable feedback text. When unset or English,
                 the prompt is left unchanged.
+            worker_type (Optional[str]): The learner's worker type — one of LAY,
+                EARLY_PROFESSIONAL, EXPERIENCED_PROFESSIONAL. Sets the register,
+                depth and expectations of the supervisor note. Unset or unknown
+                falls back to LAY. Never affects skill_coverage scoring.
+            learner_name (Optional[str]): The learner's first name, so the
+                supervisor note can address them directly.
+            supervisor_memory (Optional[str]): What the supervisor carries forward
+                about THIS LEARNER from previous debriefs. Distinct from
+                previous_memory, which is about the client and the case.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
             Dict[str, Any]: Dictionary with improvements, positives,
-                message_tags, emotional_movement, and skill_coverage.
+                message_tags, emotional_movement, skill_coverage,
+                supervisor_note and memory_update.
                 When need_memory=True, also includes session_glimpse and
                 cumulative_memory.
 
@@ -1309,12 +1374,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         logger.info(
             "OpenAI.generate_scenario_evaluation: starting "
             "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s, "
-            "has_memory_prompt=%s, has_prompt_overrides=%s)",
+            "has_memory_prompt=%s, has_prompt_overrides=%s, worker_type=%s, "
+            "has_learner_name=%s, has_supervisor_memory=%s)",
             len(chat_history),
             need_memory,
             previous_memory is not None,
             memory_prompt is not None,
             prompts is not None,
+            worker_type,
+            bool(learner_name),
+            bool(supervisor_memory),
         )
 
         # Map UUIDs to compact keys to reduce token usage
@@ -1344,6 +1413,13 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 counselor_keys.add(key)
 
         try:
+            supervisor_note_section = _build_supervisor_note_section(
+                prompts=prompts,
+                worker_type=worker_type,
+                learner_name=learner_name,
+                supervisor_memory=supervisor_memory,
+            )
+
             # Select prompt and response model based on memory requirement
             if need_memory:
                 custom_prompt_section = (
@@ -1359,6 +1435,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         previous_memory or "No previous summary available."
                     ),
                     custom_prompt_section=custom_prompt_section,
+                    SUPERVISOR_NOTE_SECTION=supervisor_note_section,
                     MESSAGE_TAG_PROMPT_TEXT=load_template(
                         "shared/message_tags", prompts=prompts
                     ),
@@ -1378,6 +1455,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     "scenario/scenario_evaluation",
                     prompts=prompts,
                     chat_history=chat_history_str,
+                    SUPERVISOR_NOTE_SECTION=supervisor_note_section,
                     MESSAGE_TAG_PROMPT_TEXT=load_template(
                         "shared/message_tags", prompts=prompts
                     ),
@@ -1475,6 +1553,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     }
                     for item in response.skill_coverage
                 ],
+                # The note's [[msg:...]] anchors come back holding compact keys;
+                # clients need real UUIDs to link them to transcript messages.
+                "supervisor_note": remap_note_references(
+                    response.supervisor_note, key_to_uuid
+                ),
+                "memory_update": {
+                    "focus_areas": response.memory_update.focus_areas,
+                    "trajectory": response.memory_update.trajectory,
+                    "next_time": response.memory_update.next_time,
+                },
             }
 
             if need_memory:
@@ -1484,13 +1572,16 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             logger.info(
                 "OpenAI.generate_scenario_evaluation: post-processing complete "
                 "(areas_of_growth=%d, positives=%d, message_tags=%d, "
-                "emotional_movement=%d, skill_coverage=%d, has_memory=%s)",
+                "emotional_movement=%d, skill_coverage=%d, has_memory=%s, "
+                "supervisor_note_chars=%d, focus_areas=%d)",
                 len(result.get("areas_of_growth", [])),
                 len(result.get("positives", [])),
                 len(result.get("message_tags", [])),
                 len(result.get("emotional_movement", [])),
                 len(result.get("skill_coverage", [])),
                 need_memory,
+                len(result.get("supervisor_note") or ""),
+                len(result.get("memory_update", {}).get("focus_areas", [])),
             )
             return result
 

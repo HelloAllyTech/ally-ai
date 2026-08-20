@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Set, Tuple
 
 from app.core.text_generations.structured_output_models import (
@@ -132,3 +133,45 @@ def filter_emotional_movement(
         }
         for msg_key in client_keys
     ]
+
+
+# Matches the [[msg:KEY]] anchors the supervisor note uses to point at a
+# transcript moment. Tolerant of stray whitespace and casing, because the
+# model writes these by hand inside prose.
+_NOTE_REFERENCE_PATTERN = re.compile(r"\[\[\s*msg\s*:\s*([^\]]*?)\s*\]\]", re.I)
+
+
+def remap_note_references(note: str, key_to_uuid: Dict[str, str]) -> str:
+    """
+    Rewrite [[msg:KEY]] anchors in a supervisor note to original message UUIDs.
+
+    The LLM sees compact keys (m1, m2, ...) to save tokens, so anchors come back
+    referring to those. Clients need the real message UUID to link an anchor to
+    a transcript message.
+
+    Anchors naming a key that isn't in the transcript are dropped rather than
+    kept, so a hallucinated reference degrades to plain prose instead of a link
+    that goes nowhere. The prompt requires each sentence to read correctly
+    without its anchor, which is what makes dropping safe.
+
+    Parameters:
+        note: The supervisor note markdown as returned by the LLM.
+        key_to_uuid: Mapping of compact keys back to original UUIDs.
+
+    Returns:
+        The note with valid anchors remapped to UUIDs and invalid ones removed.
+    """
+    if not note:
+        return note
+
+    def _replace(match: re.Match) -> str:
+        uuid = key_to_uuid.get(match.group(1).strip())
+        return f"[[msg:{uuid}]]" if uuid else ""
+
+    remapped = _NOTE_REFERENCE_PATTERN.sub(_replace, note)
+
+    # Dropping an anchor can leave a doubled space or a space before
+    # punctuation; tidy those so the prose still reads cleanly.
+    remapped = re.sub(r"[ \t]{2,}", " ", remapped)
+    remapped = re.sub(r"[ \t]+([,.;:!?])", r"\1", remapped)
+    return remapped.strip()

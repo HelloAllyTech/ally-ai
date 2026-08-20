@@ -787,6 +787,35 @@ class AreasOfGrowth(BaseModel):
     )
 
 
+class SupervisorMemoryUpdate(BaseModel):
+    """What the supervisor carries forward about THIS LEARNER to the next debrief.
+
+    Distinct from ``cumulative_memory``, which tracks the client and the case.
+    This tracks the learner's development as a practitioner and follows them
+    across cases.
+    """
+
+    focus_areas: List[str] = Field(
+        description=(
+            "1-3 short skill areas this learner is actively working on now, "
+            "carried forward to the next session. Prefer continuity with any "
+            "prior focus areas unless this session resolved or replaced them."
+        )
+    )
+    trajectory: str = Field(
+        description=(
+            "1-2 sentences on how this learner is developing across sessions, "
+            "integrating prior context with the current session."
+        )
+    )
+    next_time: str = Field(
+        description=(
+            "The single concrete thing the supervisor asked the learner to try, "
+            "phrased so it can be checked on at the next session."
+        )
+    )
+
+
 class ScenarioEvaluation(BaseModel):
     """Structured output model for scenario evaluation with competency tracking."""
 
@@ -828,6 +857,23 @@ class ScenarioEvaluation(BaseModel):
             "encouragement, and "
             "created a safe space (warmth, affirmation, normalizing, holding space, "
             "non-judgmental presence)."
+        )
+    )
+    supervisor_note: str = Field(
+        description=(
+            "A personal markdown debrief note written to the learner in the voice "
+            "of Ally, their training supervisor: what worked and why, what to work "
+            "on framed as consequences rather than mistakes, and one concrete thing "
+            "to try next session, closing with an invitation to reply. Anchored to "
+            "at most two specific transcript moments using [[msg:ID]] markers. "
+            "150-250 words of flowing prose, not a bulleted list. This is the only "
+            "field in which message IDs may appear."
+        )
+    )
+    memory_update: SupervisorMemoryUpdate = Field(
+        description=(
+            "What the supervisor carries forward about this LEARNER's development "
+            "to their next debrief. Never about the client or the case."
         )
     )
 

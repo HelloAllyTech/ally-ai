@@ -11,6 +11,7 @@ from app.utils.common import (
     convert_chat_messages_to_string,
     filter_emotional_movement,
     filter_message_tags,
+    remap_note_references,
 )
 
 
@@ -383,3 +384,60 @@ class TestFilterEmotionalMovement:
         result = filter_emotional_movement(items, ["m2"], key_to_uuid)
 
         assert result == [{"message_id": "bbb-222", "level": -3}]
+
+
+class TestRemapNoteReferences:
+    """Test cases for remap_note_references."""
+
+    def test_remaps_valid_keys_to_uuids(self):
+        """Valid compact keys are rewritten to their mapped UUIDs."""
+        note = "You asked a great question [[msg:m1]] and followed up well [[msg:m3]]."
+        key_to_uuid = {"m1": "uuid-1", "m2": "uuid-2", "m3": "uuid-3"}
+
+        result = remap_note_references(note, key_to_uuid)
+
+        assert result == (
+            "You asked a great question [[msg:uuid-1]] and followed up well "
+            "[[msg:uuid-3]]."
+        )
+
+    def test_unknown_key_dropped_leaving_readable_prose(self):
+        """An anchor naming a key not in the mapping is dropped entirely,
+        with no leftover brackets, doubled spaces, or space before punctuation.
+        """
+        note = "That was a strong moment [[msg:m99]]."
+        key_to_uuid = {"m1": "uuid-1"}
+
+        result = remap_note_references(note, key_to_uuid)
+
+        assert result == "That was a strong moment."
+        assert "[[" not in result
+        assert "]]" not in result
+        assert "  " not in result
+
+    def test_unknown_key_mid_sentence_leaves_no_double_space(self):
+        """Dropping an anchor mid-sentence doesn't leave a doubled space."""
+        note = "You handled the silence [[msg:m99]] with real care."
+        key_to_uuid = {}
+
+        result = remap_note_references(note, key_to_uuid)
+
+        assert result == "You handled the silence with real care."
+        assert "  " not in result
+
+    def test_tolerant_of_whitespace_and_case_variants(self):
+        """The pattern tolerates stray whitespace and mixed case."""
+        note = "A key moment happened here [[ MSG : m1 ]] in the session."
+        key_to_uuid = {"m1": "uuid-1"}
+
+        result = remap_note_references(note, key_to_uuid)
+
+        assert result == "A key moment happened here [[msg:uuid-1]] in the session."
+
+    def test_empty_note_returns_unchanged(self):
+        """An empty string is returned unchanged rather than raising."""
+        assert remap_note_references("", {"m1": "uuid-1"}) == ""
+
+    def test_none_note_returns_unchanged(self):
+        """A None-ish note is returned unchanged rather than raising."""
+        assert remap_note_references(None, {"m1": "uuid-1"}) is None

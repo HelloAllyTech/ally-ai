@@ -523,6 +523,48 @@ class ScenarioEvaluationRequest(BaseModel):
             "feedback language is unchanged."
         ),
     )
+    worker_type: Optional[str] = Field(
+        default=None,
+        description=(
+            "The learner's worker type: 'LAY', 'EARLY_PROFESSIONAL' or "
+            "'EXPERIENCED_PROFESSIONAL'. Sets the register, depth and "
+            "expectations of the supervisor note. Unset or unknown falls back to "
+            "'LAY'. Never affects skill_coverage scoring, which stays on one "
+            "fixed standard so scores remain comparable across an organisation."
+        ),
+    )
+    learner_name: Optional[str] = Field(
+        default=None,
+        description=(
+            "The learner's first name, so the supervisor note can address them "
+            "directly. When unset the note opens without a name."
+        ),
+    )
+    supervisor_memory: Optional[str] = Field(
+        default=None,
+        description=(
+            "What the supervisor carries forward about THIS LEARNER from previous "
+            "debriefs (focus areas, trajectory, what they were asked to try). "
+            "Distinct from previous_memory, which is about the client and case."
+        ),
+    )
+
+
+class SupervisorMemoryUpdateItem(BaseModel):
+    """What the supervisor carries into this learner's next debrief."""
+
+    focus_areas: List[str] = Field(
+        default_factory=list,
+        description="1-3 skill areas the learner is actively working on",
+    )
+    trajectory: str = Field(
+        default="",
+        description="How the learner is developing across sessions",
+    )
+    next_time: str = Field(
+        default="",
+        description="The one concrete thing the learner was asked to try next",
+    )
 
 
 class ScenarioEvaluationResponse(BaseModel):
@@ -570,5 +612,21 @@ class ScenarioEvaluationResponse(BaseModel):
         description=(
             "Comprehensive cumulative narrative across sessions (only when "
             "need_memory=True)"
+        ),
+    )
+    supervisor_note: Optional[str] = Field(
+        default=None,
+        description=(
+            "Markdown debrief note written to the learner in the voice of Ally, "
+            "their training supervisor. Anchors to specific transcript moments "
+            "with [[msg:<message-uuid>]] markers, which clients resolve into "
+            "links to that message."
+        ),
+    )
+    memory_update: Optional[SupervisorMemoryUpdateItem] = Field(
+        default=None,
+        description=(
+            "What the supervisor carries forward about this learner's development "
+            "into their next debrief. Not learner-facing."
         ),
     )
