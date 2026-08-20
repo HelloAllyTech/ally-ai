@@ -261,10 +261,15 @@ If the STT bucket is large and you want to compare providers: sample ~50–100 u
 **Recipe — add one new per-turn judged field, in dependency order:**
 
 1. **ally-ai — teach the judge.** Add the field to the prompt rubric
-   (`prompt.py`) and to the per-turn Pydantic model (`schemas.py`). If it feeds
-   the session rollup, extend `compute_session_rollup` in `judge.py`. The
-   endpoint needs no change — it returns whatever the schema holds. Add/extend a
-   judge unit test.
+   (`prompt.py`) and to the per-turn Pydantic model (`schemas.py`). If the field
+   is unconditional — an answer exists on every turn — also declare it
+   **required** on `LiveTurnJudgment`, the strict subclass handed to Gemini as
+   `response_schema`. `PerTurnJudgment` stays lenient so older stored rows read
+   back, and an optional field is one the model returns only where it fired: a
+   rate computed over the turns carrying the label then reads far too high. If
+   it feeds the session rollup, extend `compute_session_rollup` in `judge.py`.
+   The endpoint needs no change — it returns whatever the schema holds.
+   Add/extend a judge unit test.
 2. **ally-be — persist it.** Add the column via a **new** idempotent migration
    (`ADD COLUMN IF NOT EXISTS`; never edit a released migration; unique
    timestamp), then store it in `upsertJudgments` (drift-judge.repository.ts).

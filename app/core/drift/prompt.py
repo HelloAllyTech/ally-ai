@@ -68,6 +68,13 @@ wrong_language_reply | repetition | role_slip | wrong_intent
   context_lockin  — incoherent given clean input that referenced earlier context
 
 CLIENTHOOD — is the AI still a client seeking help, or has it turned helpful?
+
+ANSWER role_inversion, offered_solution, solutions_offered, resistance_briefed \
+AND introduced_new_information ON EVERY AI-CLIENT TURN. "No" is false or 0 — \
+never a missing field. A turn where nothing happened still needs its answers, \
+because an omitted label removes that turn from the measurement instead of \
+counting as a clean one.
+
 - role_inversion (true/false): did the AI ask the COUNSELOR about the counselor \
 (their views, feelings, experience) or give the counselor advice? A client \
 asking for help — "what should I do?", "is that normal?" — is NOT inversion. \
