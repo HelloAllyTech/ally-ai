@@ -169,13 +169,16 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
         memory_prompt: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
         language_code: Optional[str] = None,
+        worker_type: Optional[str] = None,
+        learner_name: Optional[str] = None,
+        supervisor_memory: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
         Generate scenario evaluation.
 
         Uses a single LLM call. Returns improvements, positives, message_tags,
-        emotional_movement, and skill_coverage.
+        emotional_movement, skill_coverage, supervisor_note and memory_update.
         When need_memory is True, also returns session_glimpse and cumulative_memory.
 
         Parameters:
@@ -189,12 +192,22 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
             language_code (Optional[str]): Preferred output language (ISO 639-1 /
                 BCP 47) for the human-readable feedback text. When unset or English,
                 feedback language is unchanged.
+            worker_type (Optional[str]): The learner's worker type — one of LAY,
+                EARLY_PROFESSIONAL, EXPERIENCED_PROFESSIONAL. Sets the register,
+                depth and expectations of the supervisor note. Unset or unknown
+                falls back to LAY. Never affects skill_coverage scoring.
+            learner_name (Optional[str]): The learner's first name, so the
+                supervisor note can address them directly.
+            supervisor_memory (Optional[str]): What the supervisor carries forward
+                about THIS LEARNER from previous debriefs. Distinct from
+                previous_memory, which is about the client and the case.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
             Dict[str, Any]: Dictionary with 'improvements', 'positives', 'message_tags',
-                'emotional_movement', and 'skill_coverage'. When need_memory=True, also
-                includes 'session_glimpse' and 'cumulative_memory'.
+                'emotional_movement', 'skill_coverage', 'supervisor_note' and
+                'memory_update'. When need_memory=True, also includes
+                'session_glimpse' and 'cumulative_memory'.
 
         Raises:
             LLMInvocationFailedException: If LLM invocation fails

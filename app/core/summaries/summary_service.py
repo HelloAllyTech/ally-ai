@@ -285,6 +285,9 @@ class SummaryService:
         chat_id: Optional[str] = None,
         prompts: Optional[Dict[str, Any]] = None,
         language_code: Optional[str] = None,
+        worker_type: Optional[str] = None,
+        learner_name: Optional[str] = None,
+        supervisor_memory: Optional[str] = None,
     ):
         """
         Generate scenario evaluation.
@@ -299,6 +302,12 @@ class SummaryService:
             memory_prompt (Optional[str]): Custom instructions for memory
                 generation (when need_memory=True).
             chat_id (Optional[str]): The chat ID for PHI logging.
+            worker_type (Optional[str]): The learner's worker type, setting the
+                register and depth of the supervisor note (LAY,
+                EARLY_PROFESSIONAL, EXPERIENCED_PROFESSIONAL; defaults to LAY).
+            learner_name (Optional[str]): The learner's first name for the note.
+            supervisor_memory (Optional[str]): Prior supervisor context about
+                this LEARNER (not the client).
 
         Returns:
             Dict[str, Any]: Dictionary containing:
@@ -309,6 +318,9 @@ class SummaryService:
                 - "skill_coverage": Skill coverage percentages across categories
                 - "session_glimpse": Brief session overview (only if need_memory=True)
                 - "cumulative_memory": Cumulative narrative (only if need_memory=True)
+                - "supervisor_note": Markdown debrief note written to the learner
+                - "memory_update": What the supervisor carries forward about the
+                  learner's development
 
         Raises:
             CounselorTrainingAnalysisFailedException: If evaluation generation fails.
@@ -334,6 +346,9 @@ class SummaryService:
                 chat_id=chat_id,
                 prompts=prompts,
                 language_code=language_code,
+                worker_type=worker_type,
+                learner_name=learner_name,
+                supervisor_memory=supervisor_memory,
             )
 
             # Calculate processing time

@@ -9,6 +9,7 @@ from httpx import Request, Response
 
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
+    _build_supervisor_note_section,
     _language_directive,
     _wants_translated_feedback,
     split_text_by_length,
@@ -28,6 +29,7 @@ from app.core.text_generations.structured_output_models import (
     StructuredIdentifyUsers,
     StructuredSummaryNote,
     StructuredTag,
+    SupervisorMemoryUpdate,
 )
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
@@ -819,6 +821,17 @@ class TestOpenAITextGenerationService:
                     category=SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT, percentage=40
                 ),
             ],
+            supervisor_note=(
+                "You held steady pacing when you asked about the evenings "
+                "[[msg:m1]], which gave the client room to open up. Try "
+                "paraphrasing back what you heard before moving to your next "
+                "question. Reply any time you want to talk through a moment."
+            ),
+            memory_update=SupervisorMemoryUpdate(
+                focus_areas=["Reflective listening"],
+                trajectory="Steadily building comfort with open-ended questions.",
+                next_time="Paraphrase the client's last statement before asking.",
+            ),
         )
 
         with patch.object(
@@ -904,6 +917,17 @@ class TestOpenAITextGenerationService:
                     category=SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT, percentage=55
                 ),
             ],
+            supervisor_note=(
+                "Naming the anxiety out loud [[msg:m1]] was well judged - it gave "
+                "the client permission to slow down. Next time, sit with the "
+                "silence a beat longer before offering a reflection. Reply "
+                "whenever you'd like to unpack any part of this session."
+            ),
+            memory_update=SupervisorMemoryUpdate(
+                focus_areas=["Use of silence"],
+                trajectory="Building on last session's work on pacing.",
+                next_time="Let a silence sit for a count of three before speaking.",
+            ),
             session_glimpse="Brief session overview",
             cumulative_memory="Comprehensive memory narrative",
         )
@@ -971,6 +995,17 @@ class TestOpenAITextGenerationService:
             message_tags=[],
             emotional_movement=[],
             skill_coverage=[],
+            supervisor_note=(
+                "Good rapport building came through clearly in this session. "
+                "Working on open-ended questions and reflective listening will "
+                "help you go deeper next time. Reply if you want to talk "
+                "through any of this."
+            ),
+            memory_update=SupervisorMemoryUpdate(
+                focus_areas=["Open-ended questions", "Reflective listening"],
+                trajectory="Early sessions show solid rapport-building instincts.",
+                next_time="Ask one 'what' or 'how' question before summarising.",
+            ),
         )
 
         with patch.object(
@@ -1071,6 +1106,20 @@ class TestOpenAITextGenerationService:
                     category=SkillCategoryEnum.SUPPORTIVE_ENGAGEMENT, percentage=30
                 ),
             ],
+            # Mirrors the mix above: m1 is a real transcript message, m99 is
+            # hallucinated and must be dropped rather than remapped.
+            supervisor_note=(
+                "The steady pacing when you checked in [[msg:m1]] helped keep "
+                "things grounded. There's also a moment worth revisiting "
+                "[[msg:m99]] where staying with the silence a little longer "
+                "might have opened things up further. Reply if you'd like to "
+                "talk through it."
+            ),
+            memory_update=SupervisorMemoryUpdate(
+                focus_areas=["Steady pacing"],
+                trajectory="Consistent, grounded pacing across sessions so far.",
+                next_time="Let a silence sit for a few extra seconds before speaking.",
+            ),
         )
 
         with patch.object(
@@ -1109,8 +1158,13 @@ class TestOpenAITextGenerationService:
                 )
 
 
-def _make_scenario_evaluation():
-    """Build a minimal valid ScenarioEvaluation for prompt-inspection tests."""
+def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
+    """Build a minimal valid ScenarioEvaluation for prompt-inspection tests.
+
+    Accepts overrides for supervisor_note/memory_update so callers testing
+    those fields specifically (e.g. anchor remapping) don't need to
+    duplicate the whole builder.
+    """
     return ScenarioEvaluation(
         areas_of_growth=[
             AreasOfGrowth(
@@ -1126,6 +1180,18 @@ def _make_scenario_evaluation():
                 category=SkillCategoryEnum.LISTENING_ENGAGEMENT, percentage=60
             ),
         ],
+        supervisor_note=supervisor_note
+        or (
+            "Good rapport building came through in this session. Try asking "
+            "more open-ended questions next time. Reply if you'd like to talk "
+            "through any of it."
+        ),
+        memory_update=memory_update
+        or SupervisorMemoryUpdate(
+            focus_areas=["Open-ended questions"],
+            trajectory="Off to a steady start with rapport-building.",
+            next_time="Ask one open-ended question before summarising.",
+        ),
     )
 
 
@@ -1171,6 +1237,63 @@ class TestLanguageDirective:
     def test_directive_falls_back_to_raw_code_for_unknown(self):
         directive = _language_directive("xx")
         assert "'xx'" in directive
+
+    def test_directive_names_supervisor_note(self):
+        """The output-language directive must also cover supervisor_note, so
+        the debrief note is translated along with the rest of the feedback.
+        """
+        directive = _language_directive("hi")
+        assert "supervisor_note" in directive
+
+
+class TestBuildSupervisorNoteSection:
+    """Unit tests for the _build_supervisor_note_section helper."""
+
+    def test_lay_worker_type_pulls_lay_register(self):
+        section = _build_supervisor_note_section(worker_type="LAY")
+        assert "not clinically trained" in section
+
+    def test_early_professional_worker_type_pulls_its_register(self):
+        section = _build_supervisor_note_section(worker_type="EARLY_PROFESSIONAL")
+        assert "clinically trained but early in practice" in section
+
+    def test_experienced_professional_worker_type_pulls_its_register(self):
+        section = _build_supervisor_note_section(worker_type="EXPERIENCED_PROFESSIONAL")
+        assert "seasoned practitioner" in section
+
+    def test_unknown_worker_type_falls_back_to_lay_register(self):
+        section = _build_supervisor_note_section(worker_type="SOME_MADE_UP_TYPE")
+        assert "not clinically trained" in section
+
+    def test_none_worker_type_falls_back_to_lay_register(self):
+        section = _build_supervisor_note_section(worker_type=None)
+        assert "not clinically trained" in section
+
+    def test_worker_type_is_case_insensitive(self):
+        section = _build_supervisor_note_section(worker_type="lay")
+        assert "not clinically trained" in section
+
+    def test_missing_learner_name_uses_there_placeholder(self):
+        section = _build_supervisor_note_section(learner_name=None)
+        assert "is: there" in section
+
+    def test_blank_learner_name_uses_there_placeholder(self):
+        section = _build_supervisor_note_section(learner_name="   ")
+        assert "is: there" in section
+
+    def test_learner_name_is_interpolated(self):
+        section = _build_supervisor_note_section(learner_name="Priya")
+        assert "is: Priya" in section
+
+    def test_missing_supervisor_memory_uses_default_text(self):
+        section = _build_supervisor_note_section(supervisor_memory=None)
+        assert "No previous sessions with this learner yet." in section
+
+    def test_supervisor_memory_is_interpolated(self):
+        section = _build_supervisor_note_section(
+            supervisor_memory="Worked on pacing last time."
+        )
+        assert "Worked on pacing last time." in section
 
 
 class TestScenarioEvaluationLanguageDirective:
@@ -1264,6 +1387,115 @@ class TestScenarioEvaluationLanguageDirective:
         )
         assert "OUTPUT LANGUAGE" not in prompt
         assert prompt == baseline
+
+
+class TestGenerateScenarioEvaluationSupervisorNote:
+    """Tests that worker_type/learner_name/supervisor_memory thread into the
+    prompt sent to the LLM, and that the returned supervisor_note/memory_update
+    are correctly post-processed.
+    """
+
+    @pytest.fixture
+    def text_generation_service(self):
+        with patch(
+            "app.core.text_generations.openai_text_generation_service.settings"
+        ) as mock_settings:
+            mock_settings.LLM.MAX_CONCURRENT_LLM_CALLS = 10
+            return OpenAITextGenerationService(MagicMock(), AsyncMock())
+
+    @pytest.fixture
+    def sample_chat_messages(self):
+        return [
+            ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_worker_context_threads_into_prompt(
+        self, text_generation_service, sample_chat_messages
+    ):
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages,
+                worker_type="EXPERIENCED_PROFESSIONAL",
+                learner_name="Priya",
+                supervisor_memory="Worked on pacing last time.",
+            )
+            prompt = mock_invoke.await_args.args[0]
+
+        assert "seasoned practitioner" in prompt
+        assert "is: Priya" in prompt
+        assert "Worked on pacing last time." in prompt
+
+    @pytest.mark.asyncio
+    async def test_missing_worker_context_falls_back_to_defaults_in_prompt(
+        self, text_generation_service, sample_chat_messages
+    ):
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+            prompt = mock_invoke.await_args.args[0]
+
+        assert "not clinically trained" in prompt
+        assert "is: there" in prompt
+        assert "No previous sessions with this learner yet." in prompt
+
+    @pytest.mark.asyncio
+    async def test_supervisor_note_anchors_remapped_to_uuids_in_result(
+        self, text_generation_service, sample_chat_messages
+    ):
+        mock_evaluation = _make_scenario_evaluation(
+            supervisor_note=(
+                "You held steady pacing when you checked in [[msg:m1]]. "
+                "Reply any time you want to talk through this session."
+            )
+        )
+        with patch.object(
+            text_generation_service, "_invoke_llm", return_value=mock_evaluation
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+
+        assert "[[msg:msg-1]]" in result["supervisor_note"]
+        assert "[[msg:m1]]" not in result["supervisor_note"]
+
+    @pytest.mark.asyncio
+    async def test_memory_update_is_plain_dict_with_three_keys(
+        self, text_generation_service, sample_chat_messages
+    ):
+        mock_evaluation = _make_scenario_evaluation(
+            memory_update=SupervisorMemoryUpdate(
+                focus_areas=["Use of silence", "Open-ended questions"],
+                trajectory="Building confidence across sessions.",
+                next_time="Let a silence sit for three seconds before speaking.",
+            )
+        )
+        with patch.object(
+            text_generation_service, "_invoke_llm", return_value=mock_evaluation
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+
+        assert result["memory_update"] == {
+            "focus_areas": ["Use of silence", "Open-ended questions"],
+            "trajectory": "Building confidence across sessions.",
+            "next_time": "Let a silence sit for three seconds before speaking.",
+        }
 
 
 class TestCondenseForSummary:

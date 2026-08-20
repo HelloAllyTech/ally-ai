@@ -141,6 +141,11 @@ async def generate_scenario_evaluation(
     Always returns:
     - improvements: Areas needing development
     - positives: Demonstrated strengths
+    - supervisor_note: Markdown debrief note written to the learner, in the
+      voice of Ally as their training supervisor. Its register and depth follow
+      the optional worker_type (LAY / EARLY_PROFESSIONAL /
+      EXPERIENCED_PROFESSIONAL, defaulting to LAY).
+    - memory_update: What the supervisor carries into the learner's next debrief
 
     When need_memory=True, additionally returns:
     - session_glimpse: Brief overview of the current session
@@ -163,6 +168,9 @@ async def generate_scenario_evaluation(
             memory_prompt=request.memory_prompt,
             prompts=request.prompts,
             language_code=request.language_code,
+            worker_type=request.worker_type,
+            learner_name=request.learner_name,
+            supervisor_memory=request.supervisor_memory,
         )
 
         logger.info(
