@@ -289,8 +289,18 @@ class TestInterruptedTurnsFromTranscript:
         assert _interrupted_turns(
             [
                 {"role": "counselor", "text": "and then?"},
-                {"role": "client", "turn_index": 0, "text": "I", "interrupted": True},
-                {"role": "client", "turn_index": 1, "text": "fine", "interrupted": False},
+                {
+                    "role": "client",
+                    "turn_index": 0,
+                    "text": "I",
+                    "interrupted": True,
+                },
+                {
+                    "role": "client",
+                    "turn_index": 1,
+                    "text": "fine",
+                    "interrupted": False,
+                },
                 {"role": "client", "turn_index": 2, "text": "ok"},
             ]
         ) == {0}
@@ -298,12 +308,15 @@ class TestInterruptedTurnsFromTranscript:
     def test_tolerates_a_missing_or_non_integer_turn_index(self):
         from app.core.language_quality.judge import _interrupted_turns
 
-        assert _interrupted_turns(
-            [
-                {"role": "client", "interrupted": True},
-                {"role": "client", "turn_index": "2", "interrupted": True},
-            ]
-        ) == set()
+        assert (
+            _interrupted_turns(
+                [
+                    {"role": "client", "interrupted": True},
+                    {"role": "client", "turn_index": "2", "interrupted": True},
+                ]
+            )
+            == set()
+        )
 
     def test_empty_transcript_is_not_an_error(self):
         from app.core.language_quality.judge import _interrupted_turns
