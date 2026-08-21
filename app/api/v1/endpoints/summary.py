@@ -173,6 +173,7 @@ async def generate_scenario_evaluation(
             supervisor_memory=request.supervisor_memory,
             helpful_behaviours=request.helpful_behaviours,
             unhelpful_behaviours=request.unhelpful_behaviours,
+            live_notes=request.live_notes,
         )
 
         logger.info(

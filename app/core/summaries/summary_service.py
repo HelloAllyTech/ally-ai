@@ -290,6 +290,7 @@ class SummaryService:
         supervisor_memory: Optional[str] = None,
         helpful_behaviours: Optional[List[str]] = None,
         unhelpful_behaviours: Optional[List[str]] = None,
+        live_notes: Optional[List[str]] = None,
     ):
         """
         Generate scenario evaluation.
@@ -314,6 +315,9 @@ class SummaryService:
                 is configured to reward.
             unhelpful_behaviours (Optional[List[str]]): Behaviours this
                 scenario is configured to flag.
+            live_notes (Optional[List[str]]): Coaching hints the supervisor
+                already sent the learner DURING this session, in order. Empty
+                for most sessions — live notes are opt-in per scenario.
 
         Returns:
             Dict[str, Any]: Dictionary containing:
@@ -357,6 +361,7 @@ class SummaryService:
                 supervisor_memory=supervisor_memory,
                 helpful_behaviours=helpful_behaviours,
                 unhelpful_behaviours=unhelpful_behaviours,
+                live_notes=live_notes,
             )
 
             # Calculate processing time

@@ -174,6 +174,7 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
         supervisor_memory: Optional[str] = None,
         helpful_behaviours: Optional[List[str]] = None,
         unhelpful_behaviours: Optional[List[str]] = None,
+        live_notes: Optional[List[str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -211,6 +212,9 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
                 specific scenario is configured to flag. Additional
                 scenario-specific context for message_tags and the supervisor
                 note; never affects skill_coverage scoring.
+            live_notes (Optional[List[str]]): Coaching hints the supervisor
+                already sent this learner DURING the session, in order. Empty
+                for most sessions — live notes are opt-in per scenario.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:

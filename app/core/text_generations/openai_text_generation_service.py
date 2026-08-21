@@ -125,6 +125,7 @@ def _build_supervisor_note_section(
     worker_type: Optional[str] = None,
     learner_name: Optional[str] = None,
     supervisor_memory: Optional[str] = None,
+    live_notes: Optional[List[str]] = None,
 ) -> str:
     """Build the supervisor-note instruction block injected into the evaluation prompt.
 
@@ -155,6 +156,7 @@ def _build_supervisor_note_section(
             (supervisor_memory or "").strip()
             or "No previous sessions with this learner yet."
         ),
+        LIVE_NOTES=_format_live_notes(live_notes),
     )
 
 
@@ -187,6 +189,19 @@ def _build_scenario_behaviours_section(
             "Unhelpful behaviours for this scenario:", unhelpful_behaviours
         ),
     )
+
+
+def _format_live_notes(live_notes: Optional[List[str]]) -> str:
+    """Render the hints already sent to the learner mid-session as a list.
+
+    Most sessions have none — live supervisor notes are opt-in per scenario — so
+    the empty case has to read as a plain fact rather than a missing value, or
+    the model starts referring to advice it never gave.
+    """
+    cleaned = [note.strip() for note in (live_notes or []) if note and note.strip()]
+    if not cleaned:
+        return "You gave no live notes during this session."
+    return "\n".join(f"- {note}" for note in cleaned)
 
 
 def _structured_summary_template_path(session_mode: Optional[str]) -> str:
@@ -1366,6 +1381,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         supervisor_memory: Optional[str] = None,
         helpful_behaviours: Optional[List[str]] = None,
         unhelpful_behaviours: Optional[List[str]] = None,
+        live_notes: Optional[List[str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -1392,6 +1408,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             supervisor_memory (Optional[str]): What the supervisor carries forward
                 about THIS LEARNER from previous debriefs. Distinct from
                 previous_memory, which is about the client and the case.
+            live_notes (Optional[List[str]]): Coaching hints the supervisor
+                already sent this learner DURING the session, in order. Empty
+                for most sessions — live notes are opt-in per scenario.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
@@ -1409,7 +1428,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s, "
             "has_memory_prompt=%s, has_prompt_overrides=%s, worker_type=%s, "
             "has_learner_name=%s, has_supervisor_memory=%s, "
-            "helpful_behaviours_count=%d, unhelpful_behaviours_count=%d)",
+            "helpful_behaviours_count=%d, unhelpful_behaviours_count=%d, "
+            "live_notes=%d)",
             len(chat_history),
             need_memory,
             previous_memory is not None,
@@ -1420,6 +1440,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             bool(supervisor_memory),
             len(helpful_behaviours or []),
             len(unhelpful_behaviours or []),
+            len(live_notes or []),
         )
 
         # Map UUIDs to compact keys to reduce token usage
@@ -1454,6 +1475,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 worker_type=worker_type,
                 learner_name=learner_name,
                 supervisor_memory=supervisor_memory,
+                live_notes=live_notes,
             )
             scenario_behaviours_section = _build_scenario_behaviours_section(
                 prompts=prompts,
