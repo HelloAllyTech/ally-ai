@@ -11,6 +11,7 @@ from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
     _build_scenario_behaviours_section,
     _build_supervisor_note_section,
+    _format_live_notes,
     _language_directive,
     _wants_translated_feedback,
     split_text_by_length,
@@ -1295,6 +1296,36 @@ class TestBuildSupervisorNoteSection:
             supervisor_memory="Worked on pacing last time."
         )
         assert "Worked on pacing last time." in section
+
+    def test_missing_live_notes_states_none_were_given(self):
+        # Must read as a fact, not a blank: otherwise the note starts
+        # referring to advice it never gave.
+        section = _build_supervisor_note_section(live_notes=None)
+        assert "You gave no live notes during this session." in section
+
+    def test_live_notes_are_rendered_as_a_list(self):
+        section = _build_supervisor_note_section(
+            live_notes=["Slow down here.", "She just named a fear."]
+        )
+        assert "- Slow down here." in section
+        assert "- She just named a fear." in section
+
+    def test_blank_live_notes_fall_back_to_the_none_given_text(self):
+        section = _build_supervisor_note_section(live_notes=["  ", ""])
+        assert "You gave no live notes during this session." in section
+
+
+class TestFormatLiveNotes:
+    """Unit tests for the _format_live_notes helper."""
+
+    def test_empty_and_none_are_equivalent(self):
+        assert _format_live_notes(None) == _format_live_notes([])
+
+    def test_notes_keep_their_order(self):
+        assert _format_live_notes(["first", "second"]) == "- first\n- second"
+
+    def test_whitespace_is_trimmed(self):
+        assert _format_live_notes(["  padded  "]) == "- padded"
 
 
 class TestBuildScenarioBehavioursSection:

@@ -567,6 +567,16 @@ class ScenarioEvaluationRequest(BaseModel):
             "fixed standard."
         ),
     )
+    live_notes: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Coaching hints the supervisor already gave the learner DURING this "
+            "session, in the order sent, when the scenario had live supervisor "
+            "notes enabled. Lets the debrief pick up a thread the learner has "
+            "already seen instead of delivering it cold. Unset or empty for the "
+            "common case — the per-scenario toggle is off by default."
+        ),
+    )
 
 
 class SupervisorMemoryUpdateItem(BaseModel):
