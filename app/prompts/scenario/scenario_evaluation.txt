@@ -9,6 +9,8 @@ exactly seven fields.
 
 {SUPERVISOR_NOTE_SECTION}
 
+{SCENARIO_BEHAVIOUR_GUIDANCE}
+
 Important rules:
 - Provide specific, actionable feedback points.
 - Reference exact quotes or paraphrase specific moments from the conversation

@@ -172,6 +172,8 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
         worker_type: Optional[str] = None,
         learner_name: Optional[str] = None,
         supervisor_memory: Optional[str] = None,
+        helpful_behaviours: Optional[List[str]] = None,
+        unhelpful_behaviours: Optional[List[str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -201,6 +203,14 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
             supervisor_memory (Optional[str]): What the supervisor carries forward
                 about THIS LEARNER from previous debriefs. Distinct from
                 previous_memory, which is about the client and the case.
+            helpful_behaviours (Optional[List[str]]): Behaviours this specific
+                scenario is configured to reward. Additional scenario-specific
+                context for message_tags and the supervisor note; never affects
+                skill_coverage scoring.
+            unhelpful_behaviours (Optional[List[str]]): Behaviours this
+                specific scenario is configured to flag. Additional
+                scenario-specific context for message_tags and the supervisor
+                note; never affects skill_coverage scoring.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:

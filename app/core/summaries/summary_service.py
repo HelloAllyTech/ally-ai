@@ -288,6 +288,8 @@ class SummaryService:
         worker_type: Optional[str] = None,
         learner_name: Optional[str] = None,
         supervisor_memory: Optional[str] = None,
+        helpful_behaviours: Optional[List[str]] = None,
+        unhelpful_behaviours: Optional[List[str]] = None,
     ):
         """
         Generate scenario evaluation.
@@ -308,6 +310,10 @@ class SummaryService:
             learner_name (Optional[str]): The learner's first name for the note.
             supervisor_memory (Optional[str]): Prior supervisor context about
                 this LEARNER (not the client).
+            helpful_behaviours (Optional[List[str]]): Behaviours this scenario
+                is configured to reward.
+            unhelpful_behaviours (Optional[List[str]]): Behaviours this
+                scenario is configured to flag.
 
         Returns:
             Dict[str, Any]: Dictionary containing:
@@ -349,6 +355,8 @@ class SummaryService:
                 worker_type=worker_type,
                 learner_name=learner_name,
                 supervisor_memory=supervisor_memory,
+                helpful_behaviours=helpful_behaviours,
+                unhelpful_behaviours=unhelpful_behaviours,
             )
 
             # Calculate processing time

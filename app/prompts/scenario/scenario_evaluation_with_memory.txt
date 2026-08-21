@@ -18,6 +18,8 @@ exactly nine fields.
 
 {SUPERVISOR_NOTE_SECTION}
 
+{SCENARIO_BEHAVIOUR_GUIDANCE}
+
 NOTE ON THE TWO KINDS OF MEMORY — do not confuse them:
 - "cumulative_memory" and "session_glimpse" are about the CLIENT and the
   case: the therapeutic relationship, the client's journey and patterns.

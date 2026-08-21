@@ -171,6 +171,8 @@ async def generate_scenario_evaluation(
             worker_type=request.worker_type,
             learner_name=request.learner_name,
             supervisor_memory=request.supervisor_memory,
+            helpful_behaviours=request.helpful_behaviours,
+            unhelpful_behaviours=request.unhelpful_behaviours,
         )
 
         logger.info(
