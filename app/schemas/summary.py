@@ -548,6 +548,25 @@ class ScenarioEvaluationRequest(BaseModel):
             "Distinct from previous_memory, which is about the client and case."
         ),
     )
+    helpful_behaviours: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Behaviours this specific scenario is configured to reward (e.g. "
+            "'Reflects feelings before offering advice'). Used as additional "
+            "scenario-specific context for message_tags and the supervisor_note — "
+            "never for skill_coverage, which stays on one fixed standard."
+        ),
+    )
+    unhelpful_behaviours: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Behaviours this specific scenario is configured to flag (e.g. "
+            "'Interrupts before the client finishes a thought'). Used as "
+            "additional scenario-specific context for message_tags and the "
+            "supervisor_note — never for skill_coverage, which stays on one "
+            "fixed standard."
+        ),
+    )
 
 
 class SupervisorMemoryUpdateItem(BaseModel):

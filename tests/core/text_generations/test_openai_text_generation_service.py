@@ -9,6 +9,7 @@ from httpx import Request, Response
 
 from app.core.text_generations.openai_text_generation_service import (
     OpenAITextGenerationService,
+    _build_scenario_behaviours_section,
     _build_supervisor_note_section,
     _language_directive,
     _wants_translated_feedback,
@@ -1294,6 +1295,47 @@ class TestBuildSupervisorNoteSection:
             supervisor_memory="Worked on pacing last time."
         )
         assert "Worked on pacing last time." in section
+
+
+class TestBuildScenarioBehavioursSection:
+    """Unit tests for the _build_scenario_behaviours_section helper."""
+
+    def test_no_behaviours_returns_empty_section(self):
+        section = _build_scenario_behaviours_section()
+        assert section == ""
+
+    def test_empty_lists_return_empty_section(self):
+        section = _build_scenario_behaviours_section(
+            helpful_behaviours=[], unhelpful_behaviours=[]
+        )
+        assert section == ""
+
+    def test_helpful_behaviours_are_bulleted(self):
+        section = _build_scenario_behaviours_section(
+            helpful_behaviours=["Reflects feelings before offering advice"]
+        )
+        assert "- Reflects feelings before offering advice" in section
+        assert "Helpful behaviours for this scenario:" in section
+
+    def test_unhelpful_behaviours_are_bulleted(self):
+        section = _build_scenario_behaviours_section(
+            unhelpful_behaviours=["Interrupts before the client finishes a thought"]
+        )
+        assert "- Interrupts before the client finishes a thought" in section
+        assert "Unhelpful behaviours for this scenario:" in section
+
+    def test_only_one_list_present_omits_the_other_heading(self):
+        section = _build_scenario_behaviours_section(
+            helpful_behaviours=["Uses silence well"]
+        )
+        assert "Helpful behaviours for this scenario:" in section
+        assert "Unhelpful behaviours for this scenario:" not in section
+
+    def test_never_moves_skill_coverage(self):
+        section = _build_scenario_behaviours_section(
+            helpful_behaviours=["Uses silence well"]
+        )
+        assert "skill_coverage" in section
 
 
 class TestScenarioEvaluationLanguageDirective:

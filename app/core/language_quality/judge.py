@@ -24,9 +24,9 @@ from app.core.language_quality.prompt import (
 )
 from app.core.language_quality.schemas import (
     CONDITIONED_DIMENSIONS,
-    INTERRUPTION_CONDITIONED_CATEGORIES,
     DIMENSION_CATEGORIES,
     DIMENSION_LAYER,
+    INTERRUPTION_CONDITIONED_CATEGORIES,
     MAX_EVIDENCE_CHARS,
     JudgeOutput,
     LanguageJudgmentResult,
@@ -65,10 +65,14 @@ def _interrupted_turns(transcript: List[TranscriptTurn]) -> Set[int]:
     """
     out: Set[int] = set()
     for turn in transcript or []:
-        get = turn.get if isinstance(turn, dict) else lambda k, d=None: getattr(turn, k, d)  # type: ignore[union-attr]
-        if not get("interrupted"):
+        if isinstance(turn, dict):
+            interrupted = turn.get("interrupted")
+            idx = turn.get("turn_index")
+        else:
+            interrupted = getattr(turn, "interrupted", None)
+            idx = getattr(turn, "turn_index", None)
+        if not interrupted:
             continue
-        idx = get("turn_index")
         if isinstance(idx, int):
             out.add(idx)
     return out

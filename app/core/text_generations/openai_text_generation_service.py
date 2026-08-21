@@ -158,6 +158,37 @@ def _build_supervisor_note_section(
     )
 
 
+def _build_scenario_behaviours_section(
+    prompts: Optional[Dict[str, Any]] = None,
+    helpful_behaviours: Optional[List[str]] = None,
+    unhelpful_behaviours: Optional[List[str]] = None,
+) -> str:
+    """Build the scenario-specific helpful/unhelpful behaviour guidance block.
+
+    Empty when the scenario carries neither list — the evaluation then falls
+    back to the fixed skill_coverage/message_tags rubric alone, as before.
+    """
+    if not helpful_behaviours and not unhelpful_behaviours:
+        return ""
+
+    def _bullet_list(heading: str, behaviours: Optional[List[str]]) -> str:
+        if not behaviours:
+            return ""
+        items = "\n".join(f"- {b}" for b in behaviours if b and b.strip())
+        return f"{heading}\n{items}" if items else ""
+
+    return load_and_format(
+        "shared/scenario_behaviours",
+        prompts=prompts,
+        HELPFUL_BEHAVIOURS_LIST=_bullet_list(
+            "Helpful behaviours for this scenario:", helpful_behaviours
+        ),
+        UNHELPFUL_BEHAVIOURS_LIST=_bullet_list(
+            "Unhelpful behaviours for this scenario:", unhelpful_behaviours
+        ),
+    )
+
+
 def _structured_summary_template_path(session_mode: Optional[str]) -> str:
     """Pick prompt template for post-call structured summary (scribe vs dictation)."""
     if session_mode and str(session_mode).upper() == SCRIBE_SESSION_MODE_DICTATION:
@@ -1333,6 +1364,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         worker_type: Optional[str] = None,
         learner_name: Optional[str] = None,
         supervisor_memory: Optional[str] = None,
+        helpful_behaviours: Optional[List[str]] = None,
+        unhelpful_behaviours: Optional[List[str]] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -1375,7 +1408,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             "OpenAI.generate_scenario_evaluation: starting "
             "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s, "
             "has_memory_prompt=%s, has_prompt_overrides=%s, worker_type=%s, "
-            "has_learner_name=%s, has_supervisor_memory=%s)",
+            "has_learner_name=%s, has_supervisor_memory=%s, "
+            "helpful_behaviours_count=%d, unhelpful_behaviours_count=%d)",
             len(chat_history),
             need_memory,
             previous_memory is not None,
@@ -1384,6 +1418,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             worker_type,
             bool(learner_name),
             bool(supervisor_memory),
+            len(helpful_behaviours or []),
+            len(unhelpful_behaviours or []),
         )
 
         # Map UUIDs to compact keys to reduce token usage
@@ -1419,6 +1455,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 learner_name=learner_name,
                 supervisor_memory=supervisor_memory,
             )
+            scenario_behaviours_section = _build_scenario_behaviours_section(
+                prompts=prompts,
+                helpful_behaviours=helpful_behaviours,
+                unhelpful_behaviours=unhelpful_behaviours,
+            )
 
             # Select prompt and response model based on memory requirement
             if need_memory:
@@ -1436,6 +1477,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ),
                     custom_prompt_section=custom_prompt_section,
                     SUPERVISOR_NOTE_SECTION=supervisor_note_section,
+                    SCENARIO_BEHAVIOUR_GUIDANCE=scenario_behaviours_section,
                     MESSAGE_TAG_PROMPT_TEXT=load_template(
                         "shared/message_tags", prompts=prompts
                     ),
@@ -1456,6 +1498,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     prompts=prompts,
                     chat_history=chat_history_str,
                     SUPERVISOR_NOTE_SECTION=supervisor_note_section,
+                    SCENARIO_BEHAVIOUR_GUIDANCE=scenario_behaviours_section,
                     MESSAGE_TAG_PROMPT_TEXT=load_template(
                         "shared/message_tags", prompts=prompts
                     ),
