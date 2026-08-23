@@ -186,6 +186,32 @@ class TestOpenAITextGenerationService:
         )
 
     @pytest.mark.asyncio
+    async def test_invoke_llm_reports_usage_against_override_model(
+        self, text_generation_service
+    ):
+        """A per-prompt llm_override's usage must be attributed to that
+        override model, not to the service's default model."""
+        default_model = MagicMock()
+        default_model.model_name = "gpt-default"
+        text_generation_service.model = default_model
+
+        override_model = MagicMock()
+        override_model.model_name = "gpt-override"
+        mock_response = MagicMock()
+        mock_response.content = "Test response"
+        override_model.ainvoke = AsyncMock(return_value=mock_response)
+
+        with patch(
+            "app.core.llm_usage.emitter.emit_llm_usage"
+        ) as mock_emit:
+            await text_generation_service._invoke_llm(
+                "Test prompt", llm_override=override_model, task="nudge"
+            )
+
+        mock_emit.assert_called_once()
+        assert mock_emit.call_args.kwargs["model"] == "gpt-override"
+
+    @pytest.mark.asyncio
     async def test_invoke_llm_rate_limit_error(
         self, text_generation_service, mock_client
     ):
