@@ -198,7 +198,10 @@ def judge_session(
                 usage=(prompt_tokens, completion_tokens, total_tokens),
             )
     except Exception:
-        pass
+        # Never fails the judge over cost telemetry; logged so a bug here
+        # (as opposed to the emitter's own send failures, which it logs
+        # itself) doesn't vanish with zero trace.
+        logger.debug("language judge usage emit skipped (best-effort)", exc_info=True)
 
     output: Optional[JudgeOutput] = response.parsed
     if output is None or not output.per_turn:

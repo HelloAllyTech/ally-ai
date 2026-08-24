@@ -30,6 +30,9 @@ from app.core.drift.schemas import (
     LeanJudgeOutput,
     LeanTurnLabels,
 )
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Min consecutive drift turns to count the session as drifted (spec: K=2).
 DRIFT_RUN_K = 2
@@ -157,7 +160,10 @@ def judge_session(
                 usage=(prompt_tokens, completion_tokens, total_tokens),
             )
     except Exception:
-        pass
+        # Never fails the judge over cost telemetry, but a bug in this block
+        # (as opposed to the emitter's own send failures, which it logs itself)
+        # would otherwise vanish with zero trace.
+        logger.debug("drift judge usage emit skipped (best-effort)", exc_info=True)
 
     output: Optional[LiveJudgeOutput] = response.parsed
     if output is None or not output.per_turn:
@@ -225,7 +231,12 @@ def judge_session_labels_only(
                 usage=(prompt_tokens, completion_tokens, total_tokens),
             )
     except Exception:
-        pass
+        # Never fails the judge over cost telemetry; logged so a bug here
+        # (as opposed to the emitter's own send failures, which it logs
+        # itself) doesn't vanish with zero trace.
+        logger.debug(
+            "lean drift judge usage emit skipped (best-effort)", exc_info=True
+        )
 
     output: Optional[LeanJudgeOutput] = response.parsed
     if output is None or not output.per_turn:

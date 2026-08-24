@@ -39,12 +39,22 @@ class DeclineReason(str, Enum):
     MODEL_DECLINED (decided by the model with the passages in front of it) is what makes
     threshold tuning possible: a pile of BELOW_THRESHOLD means the floor is too high, a
     pile of MODEL_DECLINED means retrieval is finding the wrong passages.
+
+    TRANSLATION_FAILED is a THIRD, distinct kind of gap: query translation failed and
+    retrieval fell back to searching the worker's original-language text (see
+    KnowledgeAgentService.prepare_query). A NO_HITS/BELOW_THRESHOLD decline that follows
+    a translation failure is not evidence the corpus lacks this topic — it is evidence
+    only that this question was searched in the wrong language — so it must not be
+    reported, or answered for, as the same thing. Without this, "we don't cover this"
+    and "we couldn't understand your language" are indistinguishable to the caller and
+    both silently become the same unanswered-question row.
     """
 
     NONE = "none"
     NO_HITS = "no_hits"
     BELOW_THRESHOLD = "below_threshold"
     MODEL_DECLINED = "model_declined"
+    TRANSLATION_FAILED = "translation_failed"
     ERROR = "error"
 
 

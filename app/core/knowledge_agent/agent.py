@@ -66,18 +66,24 @@ class KnowledgeAgentService:
 
     async def prepare_query(
         self, question: str, *, prompts: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, str, Optional[str]]:
+    ) -> Tuple[str, str, Optional[str], bool]:
         """
         Detect the question's language and, when it is not English, restate it in
         English.
 
-        Returns ``(search_text, language, translated_query)``. `translated_query` is
-        None when no translation happened, so the caller can show an admin exactly what
-        was searched versus what was asked.
+        Returns ``(search_text, language, translated_query, degraded)``.
+        `translated_query` is None when no translation happened, so the caller can show
+        an admin exactly what was searched versus what was asked. `degraded` is True
+        only when translation was ATTEMPTED and failed (call error, or a missing prompt
+        template) — never for a question that was already English, which is a normal,
+        fully-successful outcome and must not be conflated with a failure.
 
         A failure here degrades to searching the ORIGINAL text rather than failing the
         question. That is deliberate: a translation outage should cost retrieval quality
-        for non-English questions, not take the bot down for everyone.
+        for non-English questions, not take the bot down for everyone. But the caller
+        needs `degraded` precisely because of that: a NO_HITS/BELOW_THRESHOLD decline
+        that follows is "we couldn't understand your language", not "we don't cover
+        this" — see DeclineReason.TRANSLATION_FAILED.
         """
         provider, model, temperature = get_backend_llm_overrides(
             TRANSLATE_PROMPT_PATH, prompts
@@ -87,7 +93,7 @@ class KnowledgeAgentService:
             logger.error(
                 "Translate prompt template resolved empty; skipping translation"
             )
-            return question, "en", None
+            return question, "en", None, True
 
         try:
             parsed, _meta = await generate_structured(
@@ -105,14 +111,14 @@ class KnowledgeAgentService:
                 "Query translation failed (%s); searching the original text",
                 type(e).__name__,
             )
-            return question, "en", None
+            return question, "en", None, True
 
         language = (parsed.language or "en").strip() or "en"
         english = (parsed.english_query or "").strip()
 
         if parsed.is_english or not english:
-            return question, language, None
-        return english, language, english
+            return question, language, None, False
+        return english, language, english, False
 
     # ------------------------------------------------------------------ crisis
 
@@ -335,11 +341,19 @@ class KnowledgeAgentService:
             cfg.SIMILARITY_BAND if similarity_band is None else similarity_band
         )
 
-        search_text, language, translated = (question, "en", None)
+        search_text, language, translated, translation_degraded = (
+            question,
+            "en",
+            None,
+            False,
+        )
         if translate_query:
-            search_text, language, translated = await self.prepare_query(
-                question, prompts=prompts
-            )
+            (
+                search_text,
+                language,
+                translated,
+                translation_degraded,
+            ) = await self.prepare_query(question, prompts=prompts)
 
         hits = await self.chunk_service.search(
             query=search_text,
@@ -359,6 +373,7 @@ class KnowledgeAgentService:
             "query_language": language,
             "translated_query": translated,
             "unsupported": False,
+            "translation_degraded": translation_degraded,
         }
 
         # --- Gate 1: deterministic, no LLM call ---
@@ -367,9 +382,18 @@ class KnowledgeAgentService:
         # threshold auditable and tunable, and it means the common "we simply don't have
         # this" case costs nothing in generation tokens.
         if not hits or top_similarity < decline_similarity:
-            reason = (
-                DeclineReason.NO_HITS if not hits else DeclineReason.BELOW_THRESHOLD
-            )
+            if translation_degraded:
+                # Retrieval ran on untranslated/original-language text because query
+                # translation failed — a weak or empty result here says nothing about
+                # whether the corpus covers the topic, so it must not be reported (or
+                # answered for) as NO_HITS/BELOW_THRESHOLD.
+                reason = DeclineReason.TRANSLATION_FAILED
+            else:
+                reason = (
+                    DeclineReason.NO_HITS
+                    if not hits
+                    else DeclineReason.BELOW_THRESHOLD
+                )
             logger.info(
                 "Declining before generation: reason=%s hits=%d top=%.4f",
                 reason.value,

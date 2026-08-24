@@ -62,11 +62,11 @@ async def judge(req: GroundednessRequest) -> GroundednessResponse:
             req.language,
             rubric=req.rubric,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - surface as 500, keep caller decoupled
         logger.exception("[groundedness] judge failed")
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"groundedness judge failed: {exc}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="groundedness judge failed",
         ) from exc
 
     return GroundednessResponse(
