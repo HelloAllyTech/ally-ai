@@ -283,7 +283,13 @@ class OpenAITranscriptionService:
             try:
                 _emit_stt_usage("whisper-1", await get_audio_duration(wav_file_path))
             except Exception:
-                pass
+                # _emit_stt_usage already swallows and logs its own failures;
+                # this catches get_audio_duration failing before it's even
+                # called, which would otherwise vanish with zero trace.
+                logger.debug(
+                    "batch STT usage emit skipped (best-effort, duration lookup "
+                    "failed)"
+                )
 
             logger.info("Single file transcription completed successfully")
             await phi_logger.log(

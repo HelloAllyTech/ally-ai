@@ -557,7 +557,12 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         scenario_id=kwargs.get("scenario_id"),
                     )
             except Exception:
-                pass
+                # Never affects the result, but logged so a bug in this
+                # extraction (as opposed to the emitter's own send failures,
+                # which it logs itself) doesn't vanish with zero trace.
+                logger.debug(
+                    "LLM usage emit skipped (best-effort)", exc_info=True
+                )
 
             return response if output_class else response.content
 
@@ -738,7 +743,10 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 usage=extract_usage_from_aimessage(response),
             )
         except Exception:
-            pass
+            # Never affects the result, but logged so a bug in this
+            # extraction (as opposed to the emitter's own send failures,
+            # which it logs itself) doesn't vanish with zero trace.
+            logger.debug("LLM usage emit skipped (best-effort)", exc_info=True)
 
         tool_fields = self._extract_tool_fields(response)
         merged = {**tool_fields, **precomputed}

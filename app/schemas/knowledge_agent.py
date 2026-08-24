@@ -134,6 +134,17 @@ class RetrievalMeta(BaseModel):
             "counted so the dashboard can show whether grounding is holding."
         ),
     )
+    translation_degraded: bool = Field(
+        False,
+        description=(
+            "True when query translation was attempted and failed, so retrieval ran "
+            "on the original-language text instead. Surfaced independently of "
+            "decline_reason because a degraded search can still clear the decline "
+            "threshold and reach the model — this stays True even then, so an "
+            "admin auditing a weak or wrong answer isn't misled into treating it as "
+            "a normal-quality retrieval."
+        ),
+    )
 
 
 class KnowledgeAnswerResponse(BaseModel):
