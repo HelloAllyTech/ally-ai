@@ -441,6 +441,9 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             # Use the per-prompt override client when provided, else the
             # process-default model from the base class.
             llm = llm_override if llm_override is not None else self.model
+            # Captured before with_structured_output wraps it, so usage below
+            # is attributed to the model actually invoked, not self.model.
+            _invoked_llm = llm
 
             # Bind structured output class with the llm if passed by user
             if output_class:
@@ -547,7 +550,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     ) or extract_usage_from_aimessage(response)
                     emit_llm_usage(
                         provider="openai",
-                        model=resolve_model_name(self.model),
+                        model=resolve_model_name(_invoked_llm),
                         task=_task,
                         usage=_usage,
                         room_id=kwargs.get("room_id"),
@@ -718,9 +721,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         )
         # Honor the summary prompt's per-prompt model/temperature override
         # (falls back to the default client when none is set).
-        model = self._client_for("summary/dynamic_summary", prompts).bind_tools(
-            [generate_dynamic_summary]
-        )
+        dynamic_summary_client = self._client_for("summary/dynamic_summary", prompts)
+        model = dynamic_summary_client.bind_tools([generate_dynamic_summary])
         response = await model.ainvoke(prompt)
 
         # Best-effort token-usage emission (bind_tools returns an AIMessage).
@@ -731,7 +733,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             emit_llm_usage(
                 provider="openai",
-                model=resolve_model_name(self.model),
+                model=resolve_model_name(dynamic_summary_client),
                 task=LLMTask.DYNAMIC_SUMMARY.value,
                 usage=extract_usage_from_aimessage(response),
             )
