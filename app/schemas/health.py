@@ -1,13 +1,12 @@
 from typing import Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HealthCheckResponse(BaseModel):
     status: str = Field(..., description="Indicates the health status of the service.")
 
-    class ConfigDict:
-        json_schema_extra = {"example": {"status": "ok"}}
+    model_config = ConfigDict(json_schema_extra={"example": {"status": "ok"}})
 
 
 class ReadinessCheckResponse(BaseModel):
@@ -31,7 +30,8 @@ class ReadinessCheckResponse(BaseModel):
         ),
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"status": "ok", "dependencies": {"weaviate": "ok"}}
         }
+    )
