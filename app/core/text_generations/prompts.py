@@ -45,14 +45,12 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
 SCENARIO_EVALUATION_PROMPT = PromptTemplate(
     input_variables=["chat_history"],
     template=load_template("scenario/scenario_evaluation")
-    .replace("{MESSAGE_TAG_PROMPT_TEXT}", load_template("shared/message_tags"))
     .replace("{SKILL_COVERAGE_DESCRIPTIONS}", load_template("shared/skill_coverage")),
 )
 
 SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
     input_variables=["chat_history", "previous_summary", "custom_prompt_section"],
     template=load_template("scenario/scenario_evaluation_with_memory")
-    .replace("{MESSAGE_TAG_PROMPT_TEXT}", load_template("shared/message_tags"))
     .replace("{SKILL_COVERAGE_DESCRIPTIONS}", load_template("shared/skill_coverage")),
 )
 

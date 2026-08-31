@@ -5,7 +5,7 @@ Conversation Transcript:
 {chat_history}
 
 Evaluate the counselor's performance and return ONLY a JSON object with
-exactly seven fields.
+exactly six fields.
 
 {SUPERVISOR_NOTE_SECTION}
 
@@ -31,18 +31,6 @@ Important rules:
   and how to improve it.
 - If the conversation is very short or the counselor barely participated,
   acknowledge this in your evaluation rather than inventing feedback.
-- For message_tags: Tag ONLY the counselor's messages (not the
-  client's messages). For each counselor message, assign applicable
-  tags. Use the exact message ID from the transcript. Only include tags
-  that are clearly relevant to that message.
-  IMPORTANT: Prioritize providing BOTH helpful and unhelpful tags to give
-  balanced feedback. Don't only focus on positives - identify areas for
-  improvement as well.
-  Each tag must use a "label" from the list below (provide only
-  the label; category is derived automatically).
-
-  {MESSAGE_TAG_PROMPT_TEXT}
-
 - For emotional_movement: Analyze ONLY the client's messages (not the
   counselor's messages). Rate each client message's emotional state on
   a scale from -5 (very negative/distressed) to +5 (very
@@ -62,8 +50,6 @@ Return only valid JSON with these fields:
   needing development with conversation examples) and "recommendation" (concrete
   guidance on how to improve). Focus on what could be better or was missing.
   Use quotes or describe the moment without message IDs.
-- "message_tags": Array of objects, one per counselor message, each with "id"
-  (the message ID) and "tags" (array of objects with "label" only).
 - "emotional_movement": Array of objects, one per client message, each with
   "message_id" (the message ID) and "level" (integer from -5 to +5).
 - "skill_coverage": Array of exactly 3 objects, each with "category" (one of
@@ -74,7 +60,11 @@ Return only valid JSON with these fields:
   down because of who the learner is — the note's voice adapts to them, the
   scores never do.
 - "supervisor_note": The markdown debrief note to the learner, written as
-  described above. This is the only field where [[msg:ID]] markers are allowed.
+  described above, with its sections marked by the exact machine keys
+  `## [what_worked]`, `## [what_it_cost]`, `## [try_next]` and `## [closing]` —
+  never translated, reworded or reordered, and omitted entirely where the
+  transcript does not support the section. This is the only field where
+  [[msg:ID]] markers are allowed.
 - "memory_update": Object with "focus_areas" (array of 1-3 short strings),
   "trajectory" (1-2 sentences), and "next_time" (one sentence). About the
   LEARNER's development across sessions — never about the client.

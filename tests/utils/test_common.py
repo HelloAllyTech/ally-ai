@@ -4,13 +4,11 @@ Unit tests for common utility functions.
 
 from types import SimpleNamespace
 
-from app.core.text_generations.structured_output_models import MessageTagLabelEnum
 from app.schemas.common import ChatMessage
 from app.utils.common import (
     build_id_mapping,
     convert_chat_messages_to_string,
     filter_emotional_movement,
-    filter_message_tags,
     remap_note_references,
 )
 
@@ -128,139 +126,6 @@ class TestBuildIdMapping:
 
         for uuid_val, key_val in uuid_to_key.items():
             assert key_to_uuid[key_val] == uuid_val
-
-
-def _tag(label: MessageTagLabelEnum):
-    """
-    Helper to build a tag-like object with .label.
-
-    Category is derived from label.
-    """
-    return SimpleNamespace(label=label)
-
-
-def _tag_item(id_: str, tags):
-    """Helper to build a MessageTagItemOutput-like object."""
-    return SimpleNamespace(id=id_, tags=tags)
-
-
-class TestFilterMessageTags:
-    """Test cases for filter_message_tags utility."""
-
-    def test_keeps_only_valid_ids(self):
-        """Entries with IDs not in the valid set are dropped."""
-        key_to_uuid = {"m1": "uuid-1", "m2": "uuid-2", "m3": "uuid-3"}
-        items = [
-            _tag_item("m1", [_tag(MessageTagLabelEnum.STEADY_PACING)]),
-            _tag_item("m2", [_tag(MessageTagLabelEnum.PARAPHRASING)]),
-            _tag_item("m3", [_tag(MessageTagLabelEnum.STEADY_PACING)]),
-        ]
-        result = filter_message_tags(items, {"m1", "m3"}, key_to_uuid)
-
-        assert len(result) == 2
-        assert result[0]["id"] == "uuid-1"
-        assert result[1]["id"] == "uuid-3"
-
-    def test_serialises_tags_correctly(self):
-        """
-        Tags are serialised to dicts with label and category.
-
-        Category is derived from label.
-        """
-        key_to_uuid = {"m1": "uuid-1"}
-        items = [
-            _tag_item(
-                "m1",
-                [
-                    _tag(MessageTagLabelEnum.STEADY_PACING),
-                    _tag(MessageTagLabelEnum.REINFORCE_AUTONOMY),
-                ],
-            ),
-        ]
-        result = filter_message_tags(items, {"m1"}, key_to_uuid)
-
-        assert result == [
-            {
-                "id": "uuid-1",
-                "tags": [
-                    {"label": "Steady pacing", "category": "POSITIVE"},
-                    {"label": "Reinforce autonomy", "category": "NEGATIVE"},
-                ],
-            }
-        ]
-
-    def test_empty_tags_list(self):
-        """Message with no tags produces an empty tags array."""
-        key_to_uuid = {"m1": "uuid-1"}
-        items = [_tag_item("m1", [])]
-        result = filter_message_tags(items, {"m1"}, key_to_uuid)
-
-        assert result == [{"id": "uuid-1", "tags": []}]
-
-    def test_empty_input(self):
-        """No items in, no items out."""
-        assert filter_message_tags([], {"m1"}, {"m1": "uuid-1"}) == []
-
-    def test_all_filtered_out(self):
-        """All items filtered when none match valid set."""
-        key_to_uuid = {"m1": "uuid-1"}
-        items = [_tag_item("m99", [_tag(MessageTagLabelEnum.STEADY_PACING)])]
-        assert filter_message_tags(items, {"m1"}, key_to_uuid) == []
-
-    def test_remaps_keys_to_uuids(self):
-        """Output IDs are remapped from keys to original UUIDs."""
-        items = [
-            _tag_item("m1", [_tag(MessageTagLabelEnum.STEADY_PACING)]),
-            _tag_item("m3", [_tag(MessageTagLabelEnum.PARAPHRASING)]),
-        ]
-        key_to_uuid = {"m1": "aaa-111", "m2": "bbb-222", "m3": "ccc-333"}
-
-        result = filter_message_tags(items, {"m1", "m3"}, key_to_uuid)
-
-        assert len(result) == 2
-        assert result[0]["id"] == "aaa-111"
-        assert result[1]["id"] == "ccc-333"
-
-    def test_hallucinated_key_filtered(self):
-        """Keys not in the valid set are filtered out (hallucination guard)."""
-        items = [
-            _tag_item("m1", [_tag(MessageTagLabelEnum.STEADY_PACING)]),
-            _tag_item("m99", [_tag(MessageTagLabelEnum.STEADY_PACING)]),
-        ]
-        key_to_uuid = {"m1": "aaa-111"}
-
-        result = filter_message_tags(items, {"m1"}, key_to_uuid)
-
-        assert len(result) == 1
-        assert result[0]["id"] == "aaa-111"
-
-    def test_filters_invalid_tag_labels(self):
-        """Tags with labels not in MessageTagLabelEnum are filtered out."""
-        from types import SimpleNamespace
-
-        # Create a mock tag with an invalid label (not in the enum)
-        class FakeLabel:
-            value = "Invalid Tag Label"
-
-        key_to_uuid = {"m1": "uuid-1"}
-        items = [
-            _tag_item(
-                "m1",
-                [
-                    _tag(MessageTagLabelEnum.STEADY_PACING),  # Valid
-                    SimpleNamespace(label=FakeLabel()),  # Invalid - not in enum
-                    _tag(MessageTagLabelEnum.PARAPHRASING),  # Valid
-                ],
-            ),
-        ]
-        result = filter_message_tags(items, {"m1"}, key_to_uuid)
-
-        # Only the two valid tags should remain
-        assert len(result) == 1
-        assert result[0]["id"] == "uuid-1"
-        assert len(result[0]["tags"]) == 2
-        assert result[0]["tags"][0]["label"] == "Steady pacing"
-        assert result[0]["tags"][1]["label"] == "Paraphrasing"
 
 
 def _emotional_item(message_id: str, level: int):

@@ -45,7 +45,6 @@ from app.utils.client_positivity_lift_calculator import calculate_client_positiv
 from app.utils.common import (
     build_id_mapping,
     filter_emotional_movement,
-    filter_message_tags,
     remap_note_references,
 )
 from app.utils.counselor_interruption_calculator import (
@@ -79,6 +78,15 @@ _LANGUAGE_NAMES = {
 }
 
 
+# The supervisor note carries its sections as machine keys (`## [what_worked]`)
+# rather than as written headings, so the app can render each heading in the
+# learner's own language. They are therefore the one part of the note that must
+# survive the output-language directive untranslated — see supervisor_note.txt.
+# `closing` is a structural marker with no visible heading: it keeps the
+# invitation to reply out of the "try this next" section.
+_DEBRIEF_SECTION_KEYS = ("what_worked", "what_it_cost", "try_next", "closing")
+
+
 def _wants_translated_feedback(language_code: Optional[str]) -> bool:
     """Return True when feedback text should be written in a non-English language.
 
@@ -104,7 +112,15 @@ def _language_directive(language_code: str) -> str:
         "the learner can read their debrief and their strengths directly. Keep the "
         "JSON keys and structure exactly as specified (in English). Preserve any "
         "direct quotes pulled from the conversation verbatim in their original "
-        "language, and leave [[msg:ID]] anchors exactly as they are."
+        "language, and leave [[msg:ID]] anchors exactly as they are.\n"
+        'The section markers inside "supervisor_note" are machine keys, not '
+        "text for the learner: write "
+        + ", ".join(f"`## [{key}]`" for key in _DEBRIEF_SECTION_KEYS)
+        + " exactly as they are, in English, with the brackets. The app "
+        "replaces each one with a heading already translated into the "
+        "learner's language, so a translated key cannot be matched and its "
+        "section is lost. Everything BELOW each marker is prose and must be "
+        "translated."
     )
 
 
@@ -168,7 +184,7 @@ def _build_scenario_behaviours_section(
     """Build the scenario-specific helpful/unhelpful behaviour guidance block.
 
     Empty when the scenario carries neither list — the evaluation then falls
-    back to the fixed skill_coverage/message_tags rubric alone, as before.
+    back to the fixed skill_coverage rubric alone, as before.
     """
     if not helpful_behaviours and not unhelpful_behaviours:
         return ""
@@ -1397,7 +1413,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         """
         Generate scenario evaluation.
 
-        Uses a single LLM call. Returns improvements, positives, message_tags,
+        Uses a single LLM call. Returns improvements, positives,
         emotional_movement, skill_coverage, supervisor_note and memory_update.
         When need_memory is True, also returns session_glimpse and cumulative_memory.
 
@@ -1425,8 +1441,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         Returns:
             Dict[str, Any]: Dictionary with improvements, positives,
-                message_tags, emotional_movement, skill_coverage,
-                supervisor_note and memory_update.
+                emotional_movement, skill_coverage, supervisor_note and
+                memory_update.
                 When need_memory=True, also includes session_glimpse and
                 cumulative_memory.
 
@@ -1468,16 +1484,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             ]
         )
 
-        # Track valid keys per role for post-processing validation
-        counselor_keys: set[str] = set()
-        client_keys: list[str] = []
-
-        for msg in chat_history:
-            key = uuid_to_key[msg.id]
-            if msg.role and msg.role.lower() in ("client", "assistant"):
-                client_keys.append(key)
-            else:
-                counselor_keys.add(key)
+        # Track the client's keys so emotional_movement can be validated against
+        # them. The counselor's used to be tracked too, for message tags; those
+        # were deprecated with the annotated transcript.
+        client_keys: list[str] = [
+            uuid_to_key[msg.id]
+            for msg in chat_history
+            if msg.role and msg.role.lower() in ("client", "assistant")
+        ]
 
         try:
             supervisor_note_section = _build_supervisor_note_section(
@@ -1510,9 +1524,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     custom_prompt_section=custom_prompt_section,
                     SUPERVISOR_NOTE_SECTION=supervisor_note_section,
                     SCENARIO_BEHAVIOUR_GUIDANCE=scenario_behaviours_section,
-                    MESSAGE_TAG_PROMPT_TEXT=load_template(
-                        "shared/message_tags", prompts=prompts
-                    ),
                     SKILL_COVERAGE_DESCRIPTIONS=load_template(
                         "shared/skill_coverage", prompts=prompts
                     ),
@@ -1531,9 +1542,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     chat_history=chat_history_str,
                     SUPERVISOR_NOTE_SECTION=supervisor_note_section,
                     SCENARIO_BEHAVIOUR_GUIDANCE=scenario_behaviours_section,
-                    MESSAGE_TAG_PROMPT_TEXT=load_template(
-                        "shared/message_tags", prompts=prompts
-                    ),
                     SKILL_COVERAGE_DESCRIPTIONS=load_template(
                         "shared/skill_coverage", prompts=prompts
                     ),
@@ -1611,11 +1619,6 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Deprecated, for backward compatibility
                 "improvements": improvements_list,
                 "positives": response.positives,
-                "message_tags": filter_message_tags(
-                    response.message_tags,
-                    counselor_keys,
-                    key_to_uuid,
-                ),
                 "emotional_movement": filter_emotional_movement(
                     response.emotional_movement,
                     client_keys,
@@ -1646,12 +1649,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
             logger.info(
                 "OpenAI.generate_scenario_evaluation: post-processing complete "
-                "(areas_of_growth=%d, positives=%d, message_tags=%d, "
+                "(areas_of_growth=%d, positives=%d, "
                 "emotional_movement=%d, skill_coverage=%d, has_memory=%s, "
                 "supervisor_note_chars=%d, focus_areas=%d)",
                 len(result.get("areas_of_growth", [])),
                 len(result.get("positives", [])),
-                len(result.get("message_tags", [])),
                 len(result.get("emotional_movement", [])),
                 len(result.get("skill_coverage", [])),
                 need_memory,

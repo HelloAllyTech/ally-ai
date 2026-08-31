@@ -235,12 +235,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test improvement"],
             "positives": ["Test positive"],
-            "message_tags": [
-                {
-                    "id": "msg-1",
-                    "tags": [{"label": "Steady pacing", "category": "POSITIVE"}],
-                }
-            ],
             "emotional_movement": [{"message_id": "msg-2", "level": -2}],
             "skill_coverage": [
                 {"category": "Listening Engagement", "percentage": 60},
@@ -256,7 +250,6 @@ class TestSummaryService:
         assert set(result.keys()) == {
             "improvements",
             "positives",
-            "message_tags",
             "emotional_movement",
             "skill_coverage",
         }
@@ -277,7 +270,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test improvement"],
             "positives": ["Test positive"],
-            "message_tags": [],
             "emotional_movement": [],
             "skill_coverage": [
                 {"category": "Listening Engagement", "percentage": 70},
@@ -297,7 +289,6 @@ class TestSummaryService:
         assert set(result.keys()) == {
             "improvements",
             "positives",
-            "message_tags",
             "emotional_movement",
             "skill_coverage",
             "session_glimpse",
@@ -318,7 +309,6 @@ class TestSummaryService:
         mock_text_generation_service.generate_scenario_evaluation.return_value = {
             "improvements": ["Test"],
             "positives": ["Test"],
-            "message_tags": [],
             "emotional_movement": [],
             "skill_coverage": [
                 {"category": "Listening Engagement", "percentage": 0},
@@ -329,7 +319,7 @@ class TestSummaryService:
 
         result = await summary_service.generate_scenario_evaluation([])
 
-        assert result["message_tags"] == []
+        assert result["emotional_movement"] == []
 
     @pytest.mark.asyncio
     async def test_generate_scenario_evaluation_failed(

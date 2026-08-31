@@ -20,9 +20,6 @@ from app.core.text_generations.structured_output_models import (
     AreasOfGrowth,
     CounselorMessageAnalysis,
     EmotionalMovementItemOutput,
-    MessageTagItemOutput,
-    MessageTagLabelEnum,
-    MessageTagOutput,
     ScenarioEvaluation,
     ScenarioEvaluationWithMemory,
     SkillCategoryEnum,
@@ -825,16 +822,6 @@ class TestOpenAITextGenerationService:
                 )
             ],
             positives=["Good rapport building"],
-            message_tags=[
-                MessageTagItemOutput(
-                    id="m1",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.STEADY_PACING)],
-                ),
-                MessageTagItemOutput(
-                    id="m3",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASING)],
-                ),
-            ],
             emotional_movement=[
                 EmotionalMovementItemOutput(message_id="m2", level=-2),
             ],
@@ -884,9 +871,6 @@ class TestOpenAITextGenerationService:
             assert result["improvements"] == ["Ask more open-ended questions"]
             assert result["positives"] == ["Good rapport building"]
             # IDs should be remapped back to original UUIDs
-            assert len(result["message_tags"]) == 2
-            assert result["message_tags"][0]["id"] == "msg-1"
-            assert result["message_tags"][1]["id"] == "msg-3"
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert result["emotional_movement"][0]["level"] == -2
@@ -925,12 +909,6 @@ class TestOpenAITextGenerationService:
                 )
             ],
             positives=["Strong empathy demonstration"],
-            message_tags=[
-                MessageTagItemOutput(
-                    id="m1",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.USE_OF_SILENCE)],
-                ),
-            ],
             emotional_movement=[
                 EmotionalMovementItemOutput(message_id="m2", level=-1),
             ],
@@ -982,8 +960,6 @@ class TestOpenAITextGenerationService:
             )
             assert result["improvements"] == ["Improve reflective listening"]
             assert result["positives"] == ["Strong empathy demonstration"]
-            assert len(result["message_tags"]) == 1
-            assert result["message_tags"][0]["id"] == "msg-1"
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
             assert len(result["skill_coverage"]) == 3
@@ -1020,7 +996,6 @@ class TestOpenAITextGenerationService:
                 ),
             ],
             positives=["Good rapport building"],
-            message_tags=[],
             emotional_movement=[],
             skill_coverage=[],
             supervisor_note=(
@@ -1089,30 +1064,6 @@ class TestOpenAITextGenerationService:
                 )
             ],
             positives=["Good Y"],
-            message_tags=[
-                # m1 = counselor → should be kept and remapped to msg-1
-                MessageTagItemOutput(
-                    id="m1",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.STEADY_PACING)],
-                ),
-                # m2 = client → should be filtered out (tags are for counselor only)
-                MessageTagItemOutput(
-                    id="m2",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.PARAPHRASING)],
-                ),
-                # m3 = counselor → should be kept and remapped to msg-3
-                MessageTagItemOutput(
-                    id="m3",
-                    tags=[
-                        MessageTagOutput(label=MessageTagLabelEnum.REINFORCE_AUTONOMY)
-                    ],
-                ),
-                # m99 = hallucinated → should be filtered out
-                MessageTagItemOutput(
-                    id="m99",
-                    tags=[MessageTagOutput(label=MessageTagLabelEnum.STEADY_PACING)],
-                ),
-            ],
             emotional_movement=[
                 # m1 = counselor → should be filtered out
                 EmotionalMovementItemOutput(message_id="m1", level=0),
@@ -1157,14 +1108,6 @@ class TestOpenAITextGenerationService:
                 sample_chat_messages
             )
 
-            # Only counselor messages should remain, remapped to original UUIDs
-            assert len(result["message_tags"]) == 2
-            tag_ids = [t["id"] for t in result["message_tags"]]
-            assert "msg-1" in tag_ids
-            assert "msg-3" in tag_ids
-            assert "msg-2" not in tag_ids
-            assert "m99" not in tag_ids
-
             # Only client message should remain, remapped to original UUID
             assert len(result["emotional_movement"]) == 1
             assert result["emotional_movement"][0]["message_id"] == "msg-2"
@@ -1201,7 +1144,6 @@ def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
             )
         ],
         positives=["Good rapport building"],
-        message_tags=[],
         emotional_movement=[],
         skill_coverage=[
             SkillCoverageItemOutput(
@@ -1273,9 +1215,38 @@ class TestLanguageDirective:
         directive = _language_directive("hi")
         assert "supervisor_note" in directive
 
+    def test_directive_exempts_section_keys_from_translation(self):
+        """The note's section markers are machine keys the app matches on, so
+        the translation directive has to carve them out. A translated marker
+        cannot be found, and the learner loses that whole section.
+        """
+        directive = _language_directive("ta")
+        for key in ("what_worked", "what_it_cost", "try_next", "closing"):
+            assert f"`## [{key}]`" in directive
+        assert "in English" in directive
+
 
 class TestBuildSupervisorNoteSection:
     """Unit tests for the _build_supervisor_note_section helper."""
+
+    def test_section_contract_names_every_marker(self):
+        """The keyed markers are the whole contract with the frontend parser —
+        if one drops out of the prompt, that section silently stops rendering.
+        """
+        section = _build_supervisor_note_section()
+        for key in ("what_worked", "what_it_cost", "try_next", "closing"):
+            assert f"## [{key}]" in section
+
+    def test_section_contract_forbids_translating_headings(self):
+        section = _build_supervisor_note_section()
+        assert "NEVER translate" in section
+
+    def test_section_contract_prefers_omission_over_filler(self):
+        """A heading over "nothing to note here" reads as a broken UI, and the
+        honesty rules already forbid padding a thin session.
+        """
+        section = _build_supervisor_note_section()
+        assert "Omit a section rather than padding it" in section
 
     def test_lay_worker_type_pulls_lay_register(self):
         section = _build_supervisor_note_section(worker_type="LAY")

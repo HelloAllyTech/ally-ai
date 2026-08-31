@@ -1,92 +1,9 @@
-from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.constants import AgeRange, Language
 from app.schemas.common import ChatMessage
-
-
-class TagCategory(str, Enum):
-    """Enum for message tag category."""
-
-    POSITIVE = "POSITIVE"
-    NEGATIVE = "NEGATIVE"
-
-
-class MessageTagLabel(str, Enum):
-    """
-    Static set of allowed message tag labels.
-
-    Must match MessageTagLabelEnum in structured_output_models.
-    """
-
-    # Helpful Skill Tags (POSITIVE)
-    ATTUNEMENT = "Attunement"
-    GENUINE_WARMTH = "Genuine warmth"
-    USE_OF_SILENCE = "Use of Silence"
-    STEADY_PACING = "Steady pacing"
-    ACTIVE_LISTENING = "Active listening"
-    REFLECTION_OF_FEELINGS = "Reflection of Feelings"
-    PARAPHRASING = "Paraphrasing"
-    INSIGHT_GENERATION = "Insight Generation"
-    SUMMARIZING = "Summarizing"
-    REFLECTION_OF_EMOTIONS = "Reflection of Emotions"
-    ACKNOWLEDGING = "Acknowledging"
-    NORMALISATION = "Normalisation"
-    VALIDATION = "Validation"
-    NON_JUDGMENTAL_RESPONSE = "Non-judgmental response"
-    OPEN_ENDED_QUESTION = "Open ended question"
-    CLARIFYING_RESPONSE = "Clarifying Response"
-    DEEPER_EXPLORATION = "Deeper Exploration"
-    IDENTIFYING_STRENGTHS = "Identifying Strengths"
-    AMBIVALENCE_REFLECTION = "Ambivalence reflection"
-    EMOTIONAL_CONTAINMENT = "Emotional containment"
-    GROUNDING_SUPPORT = "Grounding support"
-    AFFIRMATION = "Affirmation"
-    ADAPTIVE_COPING_EXPLORATION = "Adaptive coping exploration"
-    CURIOUS_APPROACH = "Curious Approach"
-    COLLABORATIVE_GOAL_SETTING = "Collaborative goal setting"
-    REALISTIC_HOPE_BUILDING = "Realistic Hope Building"
-
-    # Unhelpful Skill Tags (NEGATIVE)
-    MISSED_OPPORTUNITY_TO_DEEPEN = "Missed opportunity to deepen"
-    NEED_FOR_SLOWER_PACE = "Need for slower pace"
-    REDUCED_PACING_NEEDED = "Reduced pacing needed"
-    EXPAND_EMOTIONAL_VALIDATION = "Expand emotional validation"
-    AVOID_COMPARISON_OR_REASSURANCE = "Avoid comparison or reassurance"
-    AVOID_CLOSE_ENDED_QUESTIONS = "Avoid close ended questions"
-    PACE_QUESTIONS = "Pace questions"
-    ENHANCE_NON_DIRECTIVE_APPROACH = "Enhance Non-directive approach"
-    DELAY_PROBLEM_SOLVING = "Delay problem-solving"
-    INCREASE_USE_OF_SILENCE = "Increase use of silence"
-    ALIGN_WITH_CLIENT_READINESS = "Align with client readiness"
-    FACILITATE_COPING_EXPLORATION = "Facilitate Coping exploration"
-    COLLABORATIVE_DIRECTION_NEEDED = "Collaborative direction needed"
-    ALIGN_GOALS_WITH_READINESS = "Align goals with readiness"
-    ANCHOR_HOPE_IN_REALITY = "Anchor hope in reality"
-    AVOID_GENERAL_REASSURANCE = "Avoid general reassurance"
-    STRENGTHEN_VALUES_LINK = "Strengthen values link"
-    REINFORCE_AUTONOMY = "Reinforce autonomy"
-
-
-class MessageTag(BaseModel):
-    """A single tag with a label and category."""
-
-    label: MessageTagLabel = Field(..., description="The tag label")
-    category: TagCategory = Field(
-        ..., description="Whether the tag is POSITIVE or NEGATIVE"
-    )
-
-
-class MessageTagItem(BaseModel):
-    """Tags associated with a specific message in the transcript."""
-
-    id: str = Field(..., description="The message ID from the transcript")
-    tags: List[MessageTag] = Field(
-        default_factory=list,
-        description="List of tags for this message",
-    )
 
 
 class EmotionalMovementItem(BaseModel):
@@ -562,7 +479,7 @@ class ScenarioEvaluationRequest(BaseModel):
         description=(
             "Behaviours this specific scenario is configured to reward (e.g. "
             "'Reflects feelings before offering advice'). Used as additional "
-            "scenario-specific context for message_tags and the supervisor_note — "
+            "scenario-specific context for the supervisor_note — "
             "never for skill_coverage, which stays on one fixed standard."
         ),
     )
@@ -571,7 +488,7 @@ class ScenarioEvaluationRequest(BaseModel):
         description=(
             "Behaviours this specific scenario is configured to flag (e.g. "
             "'Interrupts before the client finishes a thought'). Used as "
-            "additional scenario-specific context for message_tags and the "
+            "additional scenario-specific context for the "
             "supervisor_note — never for skill_coverage, which stays on one "
             "fixed standard."
         ),
@@ -623,10 +540,6 @@ class ScenarioEvaluationResponse(BaseModel):
     )
     positives: List[str] = Field(
         ..., description="Things that went well and positive aspects demonstrated"
-    )
-    message_tags: List[MessageTagItem] = Field(
-        default_factory=list,
-        description="Per-message tags for counselor messages in the transcript",
     )
     emotional_movement: List[EmotionalMovementItem] = Field(
         default_factory=list,
