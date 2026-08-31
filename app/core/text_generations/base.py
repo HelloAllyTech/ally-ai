@@ -180,7 +180,7 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
         """
         Generate scenario evaluation.
 
-        Uses a single LLM call. Returns improvements, positives, message_tags,
+        Uses a single LLM call. Returns improvements, positives,
         emotional_movement, skill_coverage, supervisor_note and memory_update.
         When need_memory is True, also returns session_glimpse and cumulative_memory.
 
@@ -206,19 +206,19 @@ class BaseTextGenerationService(Generic[ModelT], ABC):
                 previous_memory, which is about the client and the case.
             helpful_behaviours (Optional[List[str]]): Behaviours this specific
                 scenario is configured to reward. Additional scenario-specific
-                context for message_tags and the supervisor note; never affects
+                context for the supervisor note; never affects
                 skill_coverage scoring.
             unhelpful_behaviours (Optional[List[str]]): Behaviours this
                 specific scenario is configured to flag. Additional
-                scenario-specific context for message_tags and the supervisor
-                note; never affects skill_coverage scoring.
+                scenario-specific context for the supervisor note; never
+                affects skill_coverage scoring.
             live_notes (Optional[List[str]]): Coaching hints the supervisor
                 already sent this learner DURING the session, in order. Empty
                 for most sessions — live notes are opt-in per scenario.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
-            Dict[str, Any]: Dictionary with 'improvements', 'positives', 'message_tags',
+            Dict[str, Any]: Dictionary with 'improvements', 'positives',
                 'emotional_movement', 'skill_coverage', 'supervisor_note' and
                 'memory_update'. When need_memory=True, also includes
                 'session_glimpse' and 'cumulative_memory'.

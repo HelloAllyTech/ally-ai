@@ -1,10 +1,6 @@
 import re
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
-from app.core.text_generations.structured_output_models import (
-    MessageTagLabelEnum,
-    get_message_tag_category,
-)
 from app.schemas.common import ChatMessage
 
 
@@ -50,48 +46,6 @@ def build_id_mapping(
             uuid_to_key[msg.id] = key
             key_to_uuid[key] = msg.id
     return uuid_to_key, key_to_uuid
-
-
-def filter_message_tags(
-    message_tags: List[Any],
-    valid_keys: Set[str],
-    key_to_uuid: Dict[str, str],
-) -> List[Dict[str, Any]]:
-    """
-    Filter and serialise message tags, keeping only entries whose key
-    is in the valid set.
-
-    Useful for post-processing LLM output to strip tags for messages
-    that shouldn't have been tagged (e.g. client messages).
-
-    Also validates that tag labels are in the allowed enum set, filtering out
-    any hallucinated or invalid labels.
-
-    Parameters:
-        message_tags: List of MessageTagItemOutput objects from LLM response.
-        valid_keys: Set of message keys that are allowed to have tags.
-        key_to_uuid: Mapping of keys back to original UUIDs.
-
-    Returns:
-        List of dicts with "id" (original UUID) and "tags" ready for the API response.
-    """
-    valid_labels = set(MessageTagLabelEnum)
-
-    return [
-        {
-            "id": key_to_uuid[item.id],
-            "tags": [
-                {
-                    "label": t.label.value,
-                    "category": get_message_tag_category(t.label).value,
-                }
-                for t in item.tags
-                if t.label in valid_labels
-            ],
-        }
-        for item in message_tags
-        if item.id in valid_keys
-    ]
 
 
 def filter_emotional_movement(

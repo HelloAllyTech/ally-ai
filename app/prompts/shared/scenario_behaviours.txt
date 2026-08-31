@@ -1,6 +1,6 @@
 This specific roleplay scenario has been configured with its own expected
 behaviours, in addition to the fixed skill_coverage standard above. Weigh
-these when writing "positives", "areas_of_growth", "message_tags" and the
+these when writing "positives", "areas_of_growth" and the
 supervisor_note — never when scoring "skill_coverage", which always stays on
 the fixed, comparable standard.
 

@@ -323,7 +323,6 @@ class SummaryService:
             Dict[str, Any]: Dictionary containing:
                 - "improvements": Array of areas needing development
                 - "positives": Array of demonstrated strengths
-                - "message_tags": Per-message tags for counselor messages
                 - "emotional_movement": Emotional trajectory of client messages
                 - "skill_coverage": Skill coverage percentages across categories
                 - "session_glimpse": Brief session overview (only if need_memory=True)
