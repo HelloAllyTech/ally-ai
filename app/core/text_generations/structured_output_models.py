@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.constants import AgeRange, UserRole
 
@@ -525,8 +525,8 @@ class StructuredSummaryNote(BaseModel):
         ..., description="Quality rating of the call from 0 to 100."
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "call_id": "CALL123",
                 "call_date": "2025-02-11",
@@ -617,6 +617,7 @@ class StructuredSummaryNote(BaseModel):
                 "call_quality": 90,
             }
         }
+    )
 
 
 UserIdentityLiteral = Literal["client", "counselor", "unknown"]
@@ -655,8 +656,8 @@ class StructuredDiarizedMessage(BaseModel):
     start_time: float = Field(..., description="Start time of the message in seconds")
     end_time: float = Field(..., description="End time of the message in seconds")
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "role": UserRole.COUNSELOR,
                 "content": "Hello, how are you doing today?",
@@ -664,6 +665,7 @@ class StructuredDiarizedMessage(BaseModel):
                 "end_time": 0.0,
             }
         }
+    )
 
 
 class StructuredDiarization(BaseModel):
@@ -677,8 +679,8 @@ class StructuredDiarization(BaseModel):
         "(translated to English), start_time and end_time",
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "messages": [
                     {
@@ -696,6 +698,7 @@ class StructuredDiarization(BaseModel):
                 ]
             }
         }
+    )
 
 
 class CounselorMessageAnalysis(BaseModel):

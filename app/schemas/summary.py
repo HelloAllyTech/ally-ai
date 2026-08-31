@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.constants import AgeRange, Language
 from app.schemas.common import ChatMessage
@@ -145,8 +145,8 @@ class SummaryNoteAndTagsRequest(BaseModel):
         None, description="Optional prompt overrides"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "chat_history": [
                     {"role": "counselor", "content": "How are you feeling?"},
@@ -155,6 +155,7 @@ class SummaryNoteAndTagsRequest(BaseModel):
                 "keys": ["key_concerns", "dominant_feelings", "tags", "custom_field"],
             }
         }
+    )
 
 
 class Tag(BaseModel):
@@ -165,8 +166,9 @@ class Tag(BaseModel):
     tag: str = Field(..., description="A tag to summarize the chat messages")
     positivity_rating: int = Field(..., description="Positivity rating of the tag")
 
-    class ConfigDict:
-        json_schema_extra = {"example": {"tag": "Stress", "positivity_rating": 2}}
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"tag": "Stress", "positivity_rating": 2}}
+    )
 
 
 class SummaryNoteAndTagsResponse(BaseModel):
@@ -298,8 +300,8 @@ class SummaryNoteAndTagsResponse(BaseModel):
         ..., description="Quality of the call from a client perspective"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "call_id": None,
                 "call_duration": None,
@@ -362,6 +364,7 @@ class SummaryNoteAndTagsResponse(BaseModel):
                 "call_quality": 85,
             }
         }
+    )
 
 
 class DynamicSummaryNoteResponse(BaseModel):
@@ -374,8 +377,8 @@ class DynamicSummaryNoteResponse(BaseModel):
         description="A dictionary of dynamic fields in the summary",
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "fields": {
                     "work_life_balance_score": 3,
@@ -390,6 +393,7 @@ class DynamicSummaryNoteResponse(BaseModel):
                 }
             }
         }
+    )
 
 
 class ContentEnhanceRequest(BaseModel):
@@ -402,10 +406,11 @@ class ContentEnhanceRequest(BaseModel):
         None, description="Optional prompt overrides"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"content": "Exam stress - pressure from parents."}
         }
+    )
 
 
 class ContentEnhanceResponse(BaseModel):
@@ -415,13 +420,14 @@ class ContentEnhanceResponse(BaseModel):
 
     enhanced_content: str = Field(..., description="Enhanced content")
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "enhanced_content": "The student is experiencing stress due to "
                 "parental pressure."
             }
         }
+    )
 
 
 class ContentEnhance(BaseModel):
@@ -433,13 +439,14 @@ class ContentEnhance(BaseModel):
         ..., description="Enhanced content as bulletin points using '-'"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "enhanced_content": "The student is experiencing stress due to "
                 "parental pressure."
             }
         }
+    )
 
 
 class TagPositivityRatingRequest(BaseModel):
@@ -454,10 +461,11 @@ class TagPositivityRatingRequest(BaseModel):
         None, description="Optional prompt overrides"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"tags": ["Stress", "Anxiety", "Work-life balance"]}
         }
+    )
 
 
 class TagPositivityRatingResponse(BaseModel):
@@ -469,8 +477,8 @@ class TagPositivityRatingResponse(BaseModel):
         ..., description="List of tags with their positivity ratings"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "tags": [
                     {"tag": "Stress", "positivity_rating": 2},
@@ -479,6 +487,7 @@ class TagPositivityRatingResponse(BaseModel):
                 ]
             }
         }
+    )
 
 
 class AreasOfGrowth(BaseModel):
