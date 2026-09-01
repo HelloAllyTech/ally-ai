@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import ChatMessage
 
@@ -10,10 +10,11 @@ class Nudge(BaseModel):
 
     nudge: str = Field(..., description="The generated nudge in markdown format.")
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"nudge": "### Be empathetic and ask open-ended questions"}
         }
+    )
 
 
 class AnalyzeRequest(BaseModel):
@@ -26,8 +27,8 @@ class AnalyzeRequest(BaseModel):
         None, description="Optional prompt overrides"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "latest_message": "Can you share what happened?",
                 "chat_history": [
@@ -38,6 +39,7 @@ class AnalyzeRequest(BaseModel):
                 "prompts": {"nudge_nudge": "New nudge prompt content"},
             }
         }
+    )
 
 
 class AnalyzeResponse(BaseModel):
@@ -50,13 +52,14 @@ class AnalyzeResponse(BaseModel):
         ..., description="The current stage of the conversation (always present)"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "nudge": "### Be empathetic and ask open-ended questions",
                 "stage": "Rapport Building",
             }
         }
+    )
 
 
 class IdentifyRequest(BaseModel):
@@ -65,8 +68,8 @@ class IdentifyRequest(BaseModel):
         None, description="Optional prompt overrides"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "chat_history": [
                     {"role": "speaker1", "content": "Hi, how are you doing today?"},
@@ -83,6 +86,7 @@ class IdentifyRequest(BaseModel):
                 ]
             }
         }
+    )
 
 
 class IdentifyResponse(BaseModel):
@@ -93,5 +97,6 @@ class IdentifyResponse(BaseModel):
         ..., description="The role of speaker1 (client, counselor, or unknown)"
     )
 
-    class ConfigDict:
-        json_schema_extra = {"example": {"speaker0": "client", "speaker1": "counselor"}}
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"speaker0": "client", "speaker1": "counselor"}}
+    )
