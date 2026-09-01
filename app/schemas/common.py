@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Shared schema for a chat message
@@ -18,8 +18,8 @@ class ChatMessage(BaseModel):
         None, description="End time of the message in seconds (relative position)"
     )
 
-    class ConfigDict:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "msg-1",
                 "role": "counselor",
@@ -28,3 +28,4 @@ class ChatMessage(BaseModel):
                 "end_time": 5.7,
             }
         }
+    )
