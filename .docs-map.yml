@@ -30,6 +30,15 @@ rules:
     requires: wiki:repos/ally-ai.md
     why: The HTTP surface is what ally-be integrates against; the repo page documents it.
 
+  - id: filler-eval-schema
+    watch:
+      - "app/core/filler_quality/**"
+    requires: docs/filler-eval-judge-schema.md
+    why: >
+      The finding typology is a contract with ally-be, which persists these rows and
+      computes the rates from them. A category added or renamed without the doc moving
+      leaves the consumer guessing at what it means.
+
   - id: agent-entrypoints-in-sync
     watch:
       - "AGENTS.md"

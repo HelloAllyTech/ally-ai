@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     conversation,
     drift,
     feedback_groundedness,
+    filler_quality,
     knowledge_agent,
     knowledge_chunk,
     language_quality,
@@ -49,6 +50,9 @@ api_router.include_router(
 )
 api_router.include_router(
     language_quality.router, prefix="/language-quality", tags=["language_quality"]
+)
+api_router.include_router(
+    filler_quality.router, prefix="/filler-quality", tags=["filler_quality"]
 )
 api_router.include_router(
     round_trip.router, prefix="/round-trip-wer", tags=["language_quality"]

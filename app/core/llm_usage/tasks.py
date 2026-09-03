@@ -21,6 +21,11 @@ class LLMTask(str, Enum):
     # rather than asserted.
     DRIFT_JUDGE_LABELS = "drift_judge_labels"
     LANGUAGE_JUDGE = "language_judge"
+    # Thinking-filler judge. Deliberately its own label rather than folded into
+    # LANGUAGE_JUDGE: it runs on a different cadence over a different slice, so
+    # sharing a label would make both lines unreadable. Needs the matching value
+    # in ally-be's LlmTask enum, or these rows arrive unlabelled.
+    FILLER_JUDGE = "filler_judge"
     FEEDBACK_GROUNDEDNESS_JUDGE = "feedback_groundedness_judge"
     # Analytics Agent: one planning call (question -> SQL) and one narration
     # call (rows -> answer) per question, priced separately because the

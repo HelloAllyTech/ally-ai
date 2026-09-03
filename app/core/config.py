@@ -142,6 +142,23 @@ class LanguageJudgeSettings(BaseModel):
     PROMPT_VERSION: str = Field("v2")
 
 
+class FillerJudgeSettings(BaseModel):
+    """Thinking-filler judge — the quality half of the filler's evaluation.
+
+    The filler is latency masking, so its speed is trivially measurable and its
+    quality is not: a filler that arrives instantly but sounds nothing like the
+    character, or answers the previous turn, is a regression that every latency
+    dashboard reports as an improvement. This judge is what makes that visible.
+
+    Separate model and rubric version from the language judge: it runs over a
+    different slice on a different cadence, and comparisons are only valid
+    within one (MODEL, PROMPT_VERSION) pair.
+    """
+
+    MODEL: str = Field("gemini-2.5-flash")
+    PROMPT_VERSION: str = Field("v1")
+
+
 class FeedbackGroundednessJudgeSettings(BaseModel):
     """Feedback-groundedness judge — is post-session feedback true of the
     transcript? Sibling of the drift and language judges: separate call,
@@ -295,6 +312,7 @@ class AppSettings(BaseSettings):
     )
     DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
     LANGUAGE_JUDGE: LanguageJudgeSettings = Field(default_factory=LanguageJudgeSettings)
+    FILLER_JUDGE: FillerJudgeSettings = Field(default_factory=FillerJudgeSettings)
     ANALYTICS_AGENT: AnalyticsAgentSettings = Field(
         default_factory=AnalyticsAgentSettings
     )
