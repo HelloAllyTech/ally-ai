@@ -44,6 +44,8 @@ from app.core.knowledge_agent.schemas import (
 from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkService
 from app.core.llm.dispatch import generate_structured
 from app.core.llm_usage.tasks import LLMTask
+from app.core.phi_events import PHIEvents
+from app.core.phi_logger import PHILogEvent, phi_logger
 from app.exceptions.custom_exceptions import LLMInvocationFailedException
 from app.prompts.resolver import get_backend_llm_overrides
 from app.utils.logger import get_logger
@@ -186,13 +188,22 @@ class KnowledgeAgentService:
             }
 
         if parsed.is_crisis:
-            # Info, not debug, and without the message body: a positive verdict is an
-            # operationally significant event, and the signal phrase is enough to review
-            # calibration without writing a worker's disclosure to the application log.
-            logger.info(
-                "Crisis classifier fired: confidence=%.2f signal=%r",
-                parsed.confidence,
-                parsed.signal[:120],
+            # Info, not debug: a positive verdict is an operationally significant event.
+            # The signal phrase itself is a worker's verbatim disclosure, so it goes to
+            # the PHI audit log, never the application log — only the confidence does.
+            logger.info("Crisis classifier fired: confidence=%.2f", parsed.confidence)
+            await phi_logger.log(
+                PHILogEvent(
+                    event_type=PHIEvents.DATA_ACCESSED,
+                    chat_id=None,
+                    audit_id=None,
+                    details={
+                        "message": "Crisis classifier fired",
+                        "component": "KnowledgeAgentService.classify_crisis",
+                        "confidence": parsed.confidence,
+                        "signal": parsed.signal[:120],
+                    },
+                )
             )
 
         return {
