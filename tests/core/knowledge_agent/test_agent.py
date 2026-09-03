@@ -589,3 +589,27 @@ class TestCrisisClassifier:
             "confidence": 0.0,
             "failed": True,
         }
+
+    @pytest.mark.asyncio
+    async def test_a_positive_signal_goes_to_the_phi_log_not_the_app_log(self, agent):
+        """The signal phrase is a worker's verbatim disclosure — PHI. It must go to
+        the PHI audit log, never the general application logger, no matter how
+        operationally useful a positive verdict is to see in the app log."""
+        gen = stub_generate(
+            CrisisVerdict(
+                is_crisis=True, signal="I want to end my life", confidence=0.9
+            )
+        )
+        with patch(f"{AGENT}.generate_structured", gen), patch(
+            f"{AGENT}.logger"
+        ) as mock_logger, patch(f"{AGENT}.phi_logger") as mock_phi_logger:
+            mock_phi_logger.log = AsyncMock()
+            await agent.classify_crisis("I want to end my life")
+
+        for call in mock_logger.info.call_args_list:
+            rendered = " ".join(str(a) for a in call.args)
+            assert "I want to end my life" not in rendered
+
+        mock_phi_logger.log.assert_awaited_once()
+        logged_event = mock_phi_logger.log.call_args.args[0]
+        assert logged_event.details["signal"] == "I want to end my life"
