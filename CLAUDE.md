@@ -45,7 +45,8 @@ something Ally-specific.
 
 | Task | Read first |
 |---|---|
-| Adding an AI capability | Prompt in `app/prompts/`, logic in `app/core/`, endpoint in `app/api/v1/endpoints/` |
+| Adding an AI capability | Prompt in `app/prompts/`, logic in `app/core/`, endpoint in `app/api/v1/endpoints/` — **then register the call**, see the next row |
+| **Adding, removing or re-pointing an AI/LLM call** | Add its row to ally-be's AI task registry (`ally-be/src/llm/constants/ai-task-registry.constants.ts`) in the same change — it is the platform-wide map of what calls a model and which model serves it, and it feeds the admin **AI Tasks** tab. Recipe: [`ally-be/docs/ai-task-registry.md`](https://github.com/HelloAllyTech/ally-be/blob/master/docs/ai-task-registry.md) |
 | Changing a Weaviate collection | `app/core/vector_db/constants.py`, then add `app/migrations/NNN-description.py` |
 | Anything touching stored data | [`ally-be/DATA_SCHEMA.md`](https://github.com/HelloAllyTech/ally-be/blob/main/DATA_SCHEMA.md) — the cross-store map; this repo owns its vector half |
 | Editing prompts | `app/prompts/` — but see the prompt-override gotcha below before assuming your edit takes effect |
