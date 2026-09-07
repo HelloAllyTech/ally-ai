@@ -1,12 +1,16 @@
-"""The conversation drift judge — one Gemini call per session.
+"""The conversation drift judge — one LLM call per session.
 
 Whole transcript in → per-turn structured array out (see drift-metrics-spec.md).
 The session rollup (drifted / first-drift turn / attribution mix) is derived in
 ``compute_session_rollup`` deterministically from the per-turn rows.
 
-The Gemini SDK and client are imported/constructed lazily so this module (and
-``schemas``) can be imported without the ``google-genai`` dependency installed
-or a key configured — only ``judge_session`` requires them.
+Gemini is the selected model (``DRIFT_JUDGE__MODEL``) and stays so. What changed
+is that this module no longer holds a Gemini client: the call goes through
+``app.core.llm.dispatch.generate_structured``, which picks the SDK from the
+resolved model and falls back to OpenAI when the selected provider cannot run.
+The dispatch module is imported inside the functions rather than at module
+scope, so this module and ``schemas`` can still be imported without any
+provider SDK installed or key configured.
 """
 
 from __future__ import annotations
@@ -24,11 +28,11 @@ from app.core.drift.schemas import (
     COHERENCE_RANK,
     AttributionMix,
     DriftJudgmentResult,
+    LeanJudgeOutput,
+    LeanTurnLabels,
     LiveJudgeOutput,
     PerTurnJudgment,
     SessionRollup,
-    LeanJudgeOutput,
-    LeanTurnLabels,
 )
 from app.utils.logger import get_logger
 
@@ -36,22 +40,6 @@ logger = get_logger(__name__)
 
 # Min consecutive drift turns to count the session as drifted (spec: K=2).
 DRIFT_RUN_K = 2
-
-_client = None
-
-
-def _get_client():
-    """Lazily build the Gemini client; clear error if the key is missing."""
-    global _client
-    if _client is None:
-        if not settings.GEMINI.API_KEY:
-            raise RuntimeError(
-                "GEMINI__API_KEY is not configured — cannot run the drift judge."
-            )
-        from google import genai  # imported lazily; optional dependency
-
-        _client = genai.Client(api_key=settings.GEMINI.API_KEY)
-    return _client
 
 
 def _is_drift_turn(t: PerTurnJudgment) -> bool:
@@ -108,7 +96,7 @@ def compute_session_rollup(per_turn: List[PerTurnJudgment]) -> SessionRollup:
     )
 
 
-def judge_session(
+async def judge_session(
     transcript: List[TranscriptTurn],
     persona: str,
     language: str,
@@ -123,51 +111,55 @@ def judge_session(
     per session. Falls back to the inline DEFAULT_JUDGE_RUBRIC when None.
 
     Returns the per-turn judgments plus the code-derived session rollup.
-    """
-    from google.genai import types  # imported lazily; optional dependency
 
+    Runs through ``generate_structured`` rather than holding its own Gemini
+    client. Two things come with that, neither of which changes what a judgment
+    says:
+
+    * An OpenAI fallback if Gemini is unreachable. Safe here specifically
+      because `judgeModel` is stored on every row and is part of the row's
+      uniqueness key, so a judgment produced by a different model lands as its
+      own series instead of contaminating the pinned one — the same mechanism a
+      deliberate re-judge already relies on.
+    * The call stops blocking the event loop. It was a synchronous SDK call
+      inside an ``async def`` endpoint, so one judge held the whole worker for
+      the duration.
+
+    Gemini remains the SELECTED model (`DRIFT_JUDGE__MODEL`), and `max_tokens`
+    stays uncapped as it was: this output is one element per turn, so a cap
+    sized for a reply truncates a long session's array.
+    """
     prompt = build_judge_prompt(
         transcript, persona, language, scenario_goal, rubric=rubric
     )
-    client = _get_client()
-    response = client.models.generate_content(
+
+    from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
+    from app.core.llm_usage.tasks import LLMTask
+
+    # Strict schema: the v2 labels are required, so the model answers them on
+    # every turn instead of only where they fired.
+    output, meta = await generate_structured(
+        schema=LiveJudgeOutput,
+        prompt=prompt,
+        task=LLMTask.DRIFT_JUDGE.value,
+        provider=PROVIDER_GEMINI,
         model=settings.DRIFT_JUDGE.MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            # Strict: the v2 labels are required here, so Gemini answers them
-            # on every turn instead of only where they fired.
-            response_schema=LiveJudgeOutput,
-        ),
+        temperature=0,
+        max_tokens=None,
     )
-    # Best-effort token-usage emission for the cost-by-model/task dashboard.
-    try:
-        from app.core.llm_usage.emitter import emit_llm_usage_blocking
-        from app.core.llm_usage.tasks import LLMTask
+    if meta.get("fell_back_from"):
+        # Worth a warning rather than silence: the rows about to be written
+        # carry a different judgeModel, so a trend that looks like a behaviour
+        # change may just be this.
+        logger.warning(
+            "drift judge fell back from %s to %s/%s",
+            meta["fell_back_from"],
+            meta["provider"],
+            meta["model"],
+        )
 
-        um = getattr(response, "usage_metadata", None)
-        if um is not None:
-            prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
-            completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
-            total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
-                prompt_tokens + completion_tokens
-            )
-            emit_llm_usage_blocking(
-                provider="gemini",
-                model=settings.DRIFT_JUDGE.MODEL,
-                task=LLMTask.DRIFT_JUDGE.value,
-                usage=(prompt_tokens, completion_tokens, total_tokens),
-            )
-    except Exception:
-        # Never fails the judge over cost telemetry, but a bug in this block
-        # (as opposed to the emitter's own send failures, which it logs itself)
-        # would otherwise vanish with zero trace.
-        logger.debug("drift judge usage emit skipped (best-effort)", exc_info=True)
-
-    output: Optional[LiveJudgeOutput] = response.parsed
     if output is None or not output.per_turn:
-        # Gemini occasionally returns no parsable content despite the schema;
+        # A model occasionally returns no parsable content despite the schema;
         # fail this session loudly so the backfill loop logs + skips it rather
         # than crashing on a None deref.
         raise RuntimeError("drift judge returned no parsable output")
@@ -175,7 +167,7 @@ def judge_session(
     return DriftJudgmentResult(per_turn=output.per_turn, session=rollup)
 
 
-def judge_session_labels_only(
+async def judge_session_labels_only(
     transcript: List[TranscriptTurn],
     persona: str,
     language: str,
@@ -196,49 +188,32 @@ def judge_session_labels_only(
     being topped up already carry them. Recomputing a rollup from a partial
     label set would overwrite a real answer with a blind one.
     """
-    from google.genai import types  # imported lazily; optional dependency
-
     prompt = build_lean_labels_prompt(
         transcript, persona, language, scenario_goal, rubric=rubric
     )
-    client = _get_client()
-    response = client.models.generate_content(
-        model=settings.DRIFT_JUDGE.MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            response_schema=LeanJudgeOutput,
-        ),
-    )
-    try:
-        from app.core.llm_usage.emitter import emit_llm_usage_blocking
-        from app.core.llm_usage.tasks import LLMTask
 
-        um = getattr(response, "usage_metadata", None)
-        if um is not None:
-            prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
-            completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
-            total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
-                prompt_tokens + completion_tokens
-            )
-            # Its own task name: the whole point is to compare its cost against
-            # DRIFT_JUDGE, which is impossible if both land in one bucket.
-            emit_llm_usage_blocking(
-                provider="gemini",
-                model=settings.DRIFT_JUDGE.MODEL,
-                task=LLMTask.DRIFT_JUDGE_LABELS.value,
-                usage=(prompt_tokens, completion_tokens, total_tokens),
-            )
-    except Exception:
-        # Never fails the judge over cost telemetry; logged so a bug here
-        # (as opposed to the emitter's own send failures, which it logs
-        # itself) doesn't vanish with zero trace.
-        logger.debug(
-            "lean drift judge usage emit skipped (best-effort)", exc_info=True
+    from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
+    from app.core.llm_usage.tasks import LLMTask
+
+    # Its own task label: the whole point is to compare its cost against
+    # DRIFT_JUDGE, which is impossible if both land in one bucket.
+    output, meta = await generate_structured(
+        schema=LeanJudgeOutput,
+        prompt=prompt,
+        task=LLMTask.DRIFT_JUDGE_LABELS.value,
+        provider=PROVIDER_GEMINI,
+        model=settings.DRIFT_JUDGE.MODEL,
+        temperature=0,
+        max_tokens=None,
+    )
+    if meta.get("fell_back_from"):
+        logger.warning(
+            "lean drift judge fell back from %s to %s/%s",
+            meta["fell_back_from"],
+            meta["provider"],
+            meta["model"],
         )
 
-    output: Optional[LeanJudgeOutput] = response.parsed
     if output is None or not output.per_turn:
         raise RuntimeError("lean drift judge returned no parsable output")
     return output.per_turn

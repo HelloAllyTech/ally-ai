@@ -1,3 +1,5 @@
+import pytest
+
 """The lean backfill judge: same rubric, smaller response.
 
 What these guard is not the model's answers — it is the two properties that
@@ -180,20 +182,27 @@ def test_lean_schema_does_not_require_the_v1_fields():
     assert "ai_reply_failure_mode" not in fields
 
 
-class _FakeUsage:
-    prompt_token_count = 2400
-    candidates_token_count = 700
-    total_token_count = 3100
+def _fake_dispatch(monkeypatch, captured, result):
+    """Stand in for generate_structured, capturing how it was called.
+
+    The judge imports dispatch INSIDE the function, so patching the attribute
+    on the dispatch module is what the call actually resolves to.
+    """
+    from app.core.llm import dispatch as dispatch_mod
+
+    async def _fake(**kwargs):
+        captured.update(kwargs)
+        return result, {
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "fell_back_from": None,
+        }
+
+    monkeypatch.setattr(dispatch_mod, "generate_structured", _fake)
 
 
-class _FakeResponse:
-    usage_metadata = _FakeUsage()
-
-    def __init__(self, parsed):
-        self.parsed = parsed
-
-
-def test_judge_session_labels_only_actually_runs(monkeypatch):
+@pytest.mark.asyncio
+async def test_judge_session_labels_only_actually_runs(monkeypatch):
     """Exercise the function, not just the pieces it uses.
 
     This exists because the first deployed version of this path raised
@@ -205,41 +214,33 @@ def test_judge_session_labels_only_actually_runs(monkeypatch):
     from app.core.drift import judge as judge_mod
 
     captured = {}
+    _fake_dispatch(
+        monkeypatch,
+        captured,
+        LeanJudgeOutput(
+            per_turn=[
+                LeanTurnLabels(
+                    turn_index=0,
+                    role_inversion=False,
+                    offered_solution=False,
+                    solutions_offered=0,
+                    resistance_briefed=True,
+                    introduced_new_information=True,
+                ),
+                LeanTurnLabels(
+                    turn_index=1,
+                    role_inversion=False,
+                    offered_solution=True,
+                    solutions_offered=2,
+                    resistance_briefed=True,
+                    introduced_new_information=False,
+                    stuck_is_appropriate=False,
+                ),
+            ]
+        ),
+    )
 
-    class _FakeModels:
-        def generate_content(self, model, contents, config):
-            captured["prompt"] = contents
-            captured["schema"] = config.response_schema
-            return _FakeResponse(
-                LeanJudgeOutput(
-                    per_turn=[
-                        LeanTurnLabels(
-                            turn_index=0,
-                            role_inversion=False,
-                            offered_solution=False,
-                            solutions_offered=0,
-                            resistance_briefed=True,
-                            introduced_new_information=True,
-                        ),
-                        LeanTurnLabels(
-                            turn_index=1,
-                            role_inversion=False,
-                            offered_solution=True,
-                            solutions_offered=2,
-                            resistance_briefed=True,
-                            introduced_new_information=False,
-                            stuck_is_appropriate=False,
-                        ),
-                    ]
-                )
-            )
-
-    class _FakeClient:
-        models = _FakeModels()
-
-    monkeypatch.setattr(judge_mod, "_get_client", lambda: _FakeClient())
-
-    per_turn = judge_mod.judge_session_labels_only(
+    per_turn = await judge_mod.judge_session_labels_only(
         TRANSCRIPT, persona="a tired client", language="en"
     )
 
@@ -248,23 +249,25 @@ def test_judge_session_labels_only_actually_runs(monkeypatch):
     # The response schema must be the LEAN one, or the saving evaporates.
     assert captured["schema"] is LeanJudgeOutput
     assert "LABELS ONLY" in captured["prompt"]
+    # Gemini stays the SELECTED model — routing through dispatch buys a
+    # fallback, it does not move the judge off Gemini.
+    assert captured["provider"] == "gemini"
+    # Uncapped: one element per turn, so a reply-sized cap truncates the array
+    # on a long session and surfaces as a schema failure.
+    assert captured["max_tokens"] is None
 
 
-def test_judge_session_labels_only_raises_on_unparsable_output(monkeypatch):
+@pytest.mark.asyncio
+async def test_judge_session_labels_only_raises_on_unparsable_output(monkeypatch):
     from app.core.drift import judge as judge_mod
 
-    class _FakeModels:
-        def generate_content(self, model, contents, config):
-            return _FakeResponse(None)
-
-    class _FakeClient:
-        models = _FakeModels()
-
-    monkeypatch.setattr(judge_mod, "_get_client", lambda: _FakeClient())
+    _fake_dispatch(monkeypatch, {}, None)
 
     # Must fail loudly so the backfill logs and counts it, rather than merging
     # an empty label set over a session and calling it judged.
     import pytest
 
     with pytest.raises(RuntimeError, match="no parsable output"):
-        judge_mod.judge_session_labels_only(TRANSCRIPT, persona="p", language="en")
+        await judge_mod.judge_session_labels_only(
+            TRANSCRIPT, persona="p", language="en"
+        )

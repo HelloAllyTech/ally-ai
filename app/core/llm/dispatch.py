@@ -75,6 +75,14 @@ FALLBACK_PROVIDER = PROVIDER_OPENAI
 # than a limit the model will hit.
 DEFAULT_MAX_TOKENS = 2048
 
+# Used when a caller passes `max_tokens=None` — "no explicit cap" — and the
+# provider will not accept that. Anthropic REQUIRES max_tokens on every request,
+# so there is no way to express "as long as it needs"; Gemini and OpenAI simply
+# have the field omitted. Sized for a long structured judgment rather than a
+# chat reply, because the callers that pass None are the judges, whose output is
+# a per-turn array over a whole session.
+UNCAPPED_ANTHROPIC_MAX_TOKENS = 16384
+
 # The forced-tool name for Anthropic structured output. Arbitrary but stable — it
 # appears in the request and in the returned tool_use block, and the response parser
 # looks for it.
@@ -160,9 +168,7 @@ def resolve_target(
         FALLBACK_PROVIDER,
         *(p for p in SUPPORTED_PROVIDERS if p != FALLBACK_PROVIDER),
     )
-    alternative = next(
-        (p for p in ordered if p != target and _is_configured(p)), None
-    )
+    alternative = next((p for p in ordered if p != target and _is_configured(p)), None)
     if alternative is None:
         raise LLMInvocationFailedException(
             "No LLM provider is configured — set OPENAI__API_KEY, "
@@ -270,7 +276,7 @@ async def _generate_anthropic(
     model: str,
     temperature: float,
     system: Optional[str],
-    max_tokens: int,
+    max_tokens: Optional[int],
     task: Optional[str],
 ) -> TSchema:
     """
@@ -287,7 +293,7 @@ async def _generate_anthropic(
 
     kwargs: Dict[str, Any] = {
         "model": model,
-        "max_tokens": max_tokens,
+        "max_tokens": max_tokens or UNCAPPED_ANTHROPIC_MAX_TOKENS,
         "temperature": temperature,
         "tools": [
             {
@@ -344,7 +350,7 @@ async def _generate_gemini(
     model: str,
     temperature: float,
     system: Optional[str],
-    max_tokens: int,
+    max_tokens: Optional[int],
     task: Optional[str],
 ) -> TSchema:
     """
@@ -358,8 +364,13 @@ async def _generate_gemini(
         "temperature": temperature,
         "response_mime_type": "application/json",
         "response_schema": schema,
-        "max_output_tokens": max_tokens,
     }
+    # Omitted entirely when the caller passes None, rather than substituted with
+    # a default. A judge emits one element per conversational turn, so a cap
+    # sized for a chat reply truncates the array mid-object on a long session —
+    # which surfaces as a schema validation failure, not as "too long".
+    if max_tokens:
+        config_kwargs["max_output_tokens"] = max_tokens
     if system:
         config_kwargs["system_instruction"] = system
 
@@ -402,7 +413,7 @@ async def _generate_openai(
     model: str,
     temperature: float,
     system: Optional[str],
-    max_tokens: int,
+    max_tokens: Optional[int],
     task: Optional[str],
 ) -> TSchema:
     """
@@ -430,9 +441,6 @@ async def _generate_openai(
     kwargs: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        # max_completion_tokens, not max_tokens: the reasoning family rejects
-        # the older name outright.
-        "max_completion_tokens": max_tokens,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
@@ -441,6 +449,10 @@ async def _generate_openai(
             },
         },
     }
+    if max_tokens:
+        # max_completion_tokens, not max_tokens: the reasoning family rejects
+        # the older name outright.
+        kwargs["max_completion_tokens"] = max_tokens
     # The reasoning family accepts only the default temperature, and passing one
     # is a 400 rather than something it ignores.
     if temperature and not re.match(r"^(o\d|gpt-5)", model.strip().lower()):
@@ -491,7 +503,7 @@ async def generate_structured(
     model: Optional[str] = None,
     temperature: float = 0.0,
     system: Optional[str] = None,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
+    max_tokens: Optional[int] = DEFAULT_MAX_TOKENS,
 ) -> Tuple[TSchema, Dict[str, Any]]:
     """
     Generate a validated instance of `schema` from whichever provider is selected.
@@ -510,9 +522,12 @@ async def generate_structured(
             conversation-log entries cannot tell a corpus change from a sampling
             wobble.
         system: Optional system instruction.
-        max_tokens: Output cap. Required by Anthropic; applied to Gemini too so
-            both providers truncate at the same point rather than differing
-            invisibly.
+        max_tokens: Output cap, or None for no explicit cap. None is for output
+            whose length is a property of the input rather than a choice — a
+            judge emits one element per conversational turn, so a cap sized for
+            a chat reply truncates the array mid-object and surfaces as a schema
+            validation failure rather than as "too long". Anthropic has no way
+            to express it and gets UNCAPPED_ANTHROPIC_MAX_TOKENS instead.
 
     Returns:
         (parsed, meta) where meta is {"provider", "model", "fell_back_from"}

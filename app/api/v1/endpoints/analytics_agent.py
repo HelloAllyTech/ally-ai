@@ -78,7 +78,7 @@ async def plan(req: PlanRequest) -> PlanResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty schema catalog"
         )
     try:
-        result = plan_query(
+        result = await plan_query(
             req.question,
             schema_catalog=req.schema_catalog,
             today=req.today,
@@ -108,7 +108,7 @@ async def answer(req: AnswerRequest) -> AnswerResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty question"
         )
     try:
-        result = compose_answer(
+        result = await compose_answer(
             req.question,
             sql=req.sql,
             columns=req.columns,

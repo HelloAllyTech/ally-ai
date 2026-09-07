@@ -31,10 +31,11 @@ def reset_clients():
 
 @pytest.fixture
 def both_keys():
-    """Both providers configured."""
+    """Every provider configured, so resolution is about intent, not availability."""
     with (
         patch.object(dispatch.settings.ANTHROPIC, "API_KEY", "anthropic-key"),
         patch.object(dispatch.settings.GEMINI, "API_KEY", "gemini-key"),
+        patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
     ):
         yield
 
@@ -52,7 +53,8 @@ class TestProviderNaming:
             # the default provider instead.
             ("google", "gemini"),
             ("google-genai", "gemini"),
-            ("openai", None),
+            ("openai", "openai"),
+            ("gpt", "openai"),
             ("", None),
             (None, None),
         ],
@@ -67,7 +69,13 @@ class TestProviderNaming:
             ("claude-haiku-4-5-20251001", "anthropic"),
             ("gemini-2.5-pro", "gemini"),
             ("models/gemini-2.5-flash", "gemini"),
-            ("gpt-4o-mini", None),
+            ("gpt-4o-mini", "openai"),
+            ("gpt-5-mini", "openai"),
+            # The reasoning family carries no gpt prefix; without this an
+            # o-series id resolves to the DEFAULT provider rather than the one
+            # whose name is on it.
+            ("o3-mini", "openai"),
+            ("llama-3-70b", None),
             (None, None),
         ],
     )
@@ -95,7 +103,7 @@ class TestResolveTarget:
         assert model != "claude-sonnet-4-6"
 
     def test_falls_back_and_reports_when_key_missing(self):
-        """A missing key degrades to the other provider rather than failing outright.
+        """A missing key degrades rather than failing outright.
 
         For a worker waiting on WhatsApp a different model beats no answer — but the
         substitution must be reported, never silent.
@@ -103,21 +111,37 @@ class TestResolveTarget:
         with (
             patch.object(dispatch.settings.ANTHROPIC, "API_KEY", None),
             patch.object(dispatch.settings.GEMINI, "API_KEY", "gemini-key"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
         ):
             provider, model, fell_back = dispatch.resolve_target(
                 "anthropic", "claude-sonnet-4-6"
             )
 
-        assert provider == "gemini"
+        # OpenAI specifically, not "whichever other provider has a key" — that
+        # made the substitute depend on iteration order of a tuple, so which
+        # model answered could change with an unrelated edit.
+        assert provider == "openai"
         assert fell_back == "anthropic"
         # The requested model belonged to the unavailable provider, so it must not carry
         # over.
         assert model != "claude-sonnet-4-6"
 
+    def test_falls_back_past_openai_when_openai_is_the_one_thats_down(self):
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", None),
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "gemini-key"),
+            patch.object(dispatch.settings.ANTHROPIC, "API_KEY", None),
+        ):
+            provider, _, fell_back = dispatch.resolve_target("openai")
+
+        assert provider == "gemini"
+        assert fell_back == "openai"
+
     def test_raises_when_no_provider_configured(self):
         with (
             patch.object(dispatch.settings.ANTHROPIC, "API_KEY", None),
             patch.object(dispatch.settings.GEMINI, "API_KEY", None),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", None),
         ):
             with pytest.raises(LLMInvocationFailedException) as exc:
                 dispatch.resolve_target("anthropic")
@@ -337,6 +361,108 @@ class TestGeminiPath:
                 )
 
 
+def openai_client(content='{"answer": "a"}'):
+    """A stand-in for the async OpenAI client's one call shape."""
+    response = SimpleNamespace(
+        usage=None,
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content=content), finish_reason="stop"
+            )
+        ],
+    )
+    return SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=AsyncMock(return_value=response))
+        )
+    )
+
+
+def gemini_client():
+    response = SimpleNamespace(parsed=Answer(answer="a"), usage_metadata=None)
+    return SimpleNamespace(
+        aio=SimpleNamespace(
+            models=SimpleNamespace(generate_content=AsyncMock(return_value=response))
+        )
+    )
+
+
+class TestOpenAiPath:
+    """The third structured-output mechanism in this module.
+
+    Gemini takes a response_schema, Anthropic needs a forced tool, OpenAI takes
+    a JSON Schema on response_format. None translates to the others, which is
+    the reason the dispatch module exists at all.
+    """
+
+    @pytest.mark.asyncio
+    async def test_sends_a_json_schema_and_parses_the_content(self):
+        client = openai_client('{"answer": "grounded"}')
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+        ):
+            parsed, meta = await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="openai", model="gpt-4o-mini"
+            )
+
+        kwargs = client.chat.completions.create.await_args.kwargs
+        assert kwargs["response_format"]["type"] == "json_schema"
+        assert parsed.answer == "grounded"
+        assert meta["fell_back_from"] is None
+
+    @pytest.mark.asyncio
+    async def test_omits_temperature_for_the_reasoning_family(self):
+        """gpt-5 and the o-series 400 on a custom temperature rather than
+        ignoring it, so a judge passing temperature=0 must not break them."""
+        client = openai_client()
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="openai",
+                model="gpt-5-mini",
+                temperature=0.7,
+            )
+
+        assert "temperature" not in client.chat.completions.create.await_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_omits_the_token_cap_when_uncapped(self):
+        """max_tokens=None means "no explicit cap" — the judges rely on it,
+        because their output length is one element per conversational turn."""
+        client = openai_client()
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="openai",
+                model="gpt-4o-mini",
+                max_tokens=None,
+            )
+
+        kwargs = client.chat.completions.create.await_args.kwargs
+        assert "max_completion_tokens" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_truncated_content_is_a_failure_not_a_partial_object(self):
+        client = openai_client(content="")
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer, prompt="q", provider="openai", model="gpt-4o-mini"
+                )
+
+
 class TestFallbackIsVisible:
     @pytest.mark.asyncio
     async def test_metadata_names_the_model_that_actually_ran(self):
@@ -345,19 +471,32 @@ class TestFallbackIsVisible:
         ally-be stores this on wa_messages.retrieval_meta and the admin log displays it,
         so an answer that changed because a fallback kicked in stays explainable.
         """
-        response = SimpleNamespace(parsed=Answer(answer="a"), usage_metadata=None)
-        client = SimpleNamespace(
-            aio=SimpleNamespace(
-                models=SimpleNamespace(
-                    generate_content=AsyncMock(return_value=response)
-                )
-            )
-        )
-
         with (
             patch.object(dispatch.settings.ANTHROPIC, "API_KEY", None),
             patch.object(dispatch.settings.GEMINI, "API_KEY", "gemini-key"),
-            patch.object(dispatch, "_get_gemini_client", return_value=client),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=openai_client()),
+        ):
+            _, meta = await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="anthropic",
+                model="claude-sonnet-4-6",
+            )
+
+        # OpenAI, not Gemini: the fallback targets it deliberately because it is
+        # the one provider whose key is a required setting in this service.
+        assert meta["provider"] == "openai"
+        assert meta["fell_back_from"] == "anthropic"
+
+    @pytest.mark.asyncio
+    async def test_falls_through_to_gemini_when_openai_is_also_down(self):
+        """The fallback is a preference order, not a single hard-coded target."""
+        with (
+            patch.object(dispatch.settings.ANTHROPIC, "API_KEY", None),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", None),
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "gemini-key"),
+            patch.object(dispatch, "_get_gemini_client", return_value=gemini_client()),
         ):
             _, meta = await dispatch.generate_structured(
                 schema=Answer,

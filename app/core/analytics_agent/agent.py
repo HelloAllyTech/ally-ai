@@ -35,48 +35,10 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_client = None
 
 # Result rows are stringified into the narration prompt; cap the per-cell length
 # so one long text column cannot crowd out the rest of the sample.
 MAX_CELL_CHARS = 200
-
-
-def _get_client():
-    """Lazily build the Gemini client; clear error if the key is missing."""
-    global _client
-    if _client is None:
-        if not settings.GEMINI.API_KEY:
-            raise RuntimeError(
-                "GEMINI__API_KEY is not configured — cannot run the analytics agent."
-            )
-        from google import genai  # imported lazily; optional dependency
-
-        _client = genai.Client(api_key=settings.GEMINI.API_KEY)
-    return _client
-
-
-def _emit_usage(response: Any, model: str, task: str) -> None:
-    """Best-effort token-usage emission for the cost-by-model/task dashboard."""
-    try:
-        from app.core.llm_usage.emitter import emit_llm_usage_blocking
-
-        um = getattr(response, "usage_metadata", None)
-        if um is None:
-            return
-        prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
-        completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
-        total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
-            prompt_tokens + completion_tokens
-        )
-        emit_llm_usage_blocking(
-            provider="gemini",
-            model=model,
-            task=task,
-            usage=(prompt_tokens, completion_tokens, total_tokens),
-        )
-    except Exception:  # noqa: BLE001 — usage accounting never fails a request
-        pass
 
 
 def rows_to_csv(columns: List[str], rows: List[Dict[str, Any]]) -> str:
@@ -106,7 +68,7 @@ def _format_cell(value: Any) -> str:
     return text if len(text) <= MAX_CELL_CHARS else text[:MAX_CELL_CHARS] + "…"
 
 
-def plan_query(
+async def plan_query(
     question: str,
     schema_catalog: str,
     today: str,
@@ -114,8 +76,6 @@ def plan_query(
     history: Optional[List[AgentTurn]] = None,
 ) -> QueryPlan:
     """Step 1: turn the question into one read-only SELECT (or ask/refuse)."""
-    from google.genai import types  # imported lazily; optional dependency
-
     prompt = build_plan_prompt(
         question,
         schema_catalog=schema_catalog,
@@ -123,22 +83,28 @@ def plan_query(
         row_limit=row_limit,
         history=history,
     )
-    client = _get_client()
-    model = settings.ANALYTICS_AGENT.PLANNER_MODEL
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            # Zero temperature: the same question over the same schema should
-            # produce the same query, or a reader comparing two answers a minute
-            # apart cannot tell a data change from a sampling wobble.
-            temperature=0,
-            response_mime_type="application/json",
-            response_schema=QueryPlan,
-        ),
+
+    from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
+
+    # Zero temperature: the same question over the same schema should produce
+    # the same query, or a reader comparing two answers a minute apart cannot
+    # tell a data change from a sampling wobble.
+    plan, meta = await generate_structured(
+        schema=QueryPlan,
+        prompt=prompt,
+        task=LLMTask.ANALYTICS_AGENT_PLAN.value,
+        provider=PROVIDER_GEMINI,
+        model=settings.ANALYTICS_AGENT.PLANNER_MODEL,
+        temperature=0,
+        max_tokens=None,
     )
-    _emit_usage(response, model, LLMTask.ANALYTICS_AGENT_PLAN.value)
-    plan: Optional[QueryPlan] = response.parsed
+    if meta.get("fell_back_from"):
+        logger.warning(
+            "analytics planner fell back from %s to %s/%s",
+            meta["fell_back_from"],
+            meta["provider"],
+            meta["model"],
+        )
     if plan is None:
         raise RuntimeError("analytics agent planner returned no parsable output")
     if plan.intent == PlanIntent.SQL and not plan.sql.strip():
@@ -155,7 +121,7 @@ def plan_query(
     return plan
 
 
-def compose_answer(
+async def compose_answer(
     question: str,
     sql: str,
     columns: List[str],
@@ -165,8 +131,6 @@ def compose_answer(
     history: Optional[List[AgentTurn]] = None,
 ) -> AnswerOutput:
     """Step 2: turn the result set into prose, caveats and a chart spec."""
-    from google.genai import types  # imported lazily; optional dependency
-
     prompt = build_answer_prompt(
         question,
         sql=sql,
@@ -176,19 +140,25 @@ def compose_answer(
         truncated=truncated,
         history=history,
     )
-    client = _get_client()
-    model = settings.ANALYTICS_AGENT.ANSWER_MODEL
-    response = client.models.generate_content(
-        model=model,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            response_schema=AnswerOutput,
-        ),
+
+    from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
+
+    output, meta = await generate_structured(
+        schema=AnswerOutput,
+        prompt=prompt,
+        task=LLMTask.ANALYTICS_AGENT_ANSWER.value,
+        provider=PROVIDER_GEMINI,
+        model=settings.ANALYTICS_AGENT.ANSWER_MODEL,
+        temperature=0,
+        max_tokens=None,
     )
-    _emit_usage(response, model, LLMTask.ANALYTICS_AGENT_ANSWER.value)
-    output: Optional[AnswerOutput] = response.parsed
+    if meta.get("fell_back_from"):
+        logger.warning(
+            "analytics narrator fell back from %s to %s/%s",
+            meta["fell_back_from"],
+            meta["provider"],
+            meta["model"],
+        )
     if output is None or not output.answer.strip():
         raise RuntimeError("analytics agent narrator returned no parsable output")
     return validate_chart(output, columns, row_count, truncated)

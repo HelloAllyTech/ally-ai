@@ -15,27 +15,13 @@ from app.core.feedback_groundedness.prompt import (
     TranscriptTurn,
     build_judge_prompt,
 )
-from app.core.feedback_groundedness.schemas import (
-    ClaimJudgment,
-    GroundednessOutput,
-)
+from app.core.feedback_groundedness.schemas import ClaimJudgment, GroundednessOutput
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_client = None
 
-
-def _get_client():
-    global _client
-    if _client is None:
-        from google import genai  # lazily imported; optional dependency
-
-        _client = genai.Client(api_key=settings.GEMINI.API_KEY)
-    return _client
-
-
-def judge_feedback(
+async def judge_feedback(
     transcript: List[TranscriptTurn],
     claims: List[FeedbackClaim],
     language: str,
@@ -51,43 +37,31 @@ def judge_feedback(
     if not claims or not transcript:
         return []
 
-    from google.genai import types  # lazily imported; optional dependency
-
     prompt = build_judge_prompt(transcript, claims, language, rubric=rubric)
-    client = _get_client()
-    response = client.models.generate_content(
+
+    from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
+    from app.core.llm_usage.tasks import LLMTask
+
+    output, meta = await generate_structured(
+        schema=GroundednessOutput,
+        prompt=prompt,
+        task=LLMTask.FEEDBACK_GROUNDEDNESS_JUDGE.value,
+        provider=PROVIDER_GEMINI,
         model=settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            response_schema=GroundednessOutput,
-        ),
+        temperature=0,
+        # Uncapped, as this call always was: the output length is a
+        # property of the input, not a choice.
+        max_tokens=None,
     )
-
-    # Best-effort token-usage emission, so a backfill over a year of feedback
-    # shows up on the cost dashboard while it runs rather than afterwards.
-    try:
-        from app.core.llm_usage.emitter import emit_llm_usage_blocking
-        from app.core.llm_usage.tasks import LLMTask
-
-        um = getattr(response, "usage_metadata", None)
-        if um is not None:
-            prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
-            completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
-            total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
-                prompt_tokens + completion_tokens
-            )
-            emit_llm_usage_blocking(
-                provider="gemini",
-                model=settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL,
-                task=LLMTask.FEEDBACK_GROUNDEDNESS_JUDGE.value,
-                usage=(prompt_tokens, completion_tokens, total_tokens),
-            )
-    except Exception:  # noqa: BLE001 — usage must never fail a judge run
-        pass
-
-    output: Optional[GroundednessOutput] = response.parsed
+    if meta.get("fell_back_from"):
+        # These rows will carry a different judgeModel, so a trend that
+        # looks like a behaviour change may just be this.
+        logger.warning(
+            "feedback groundedness judge fell back from %s to %s/%s",
+            meta["fell_back_from"],
+            meta["provider"],
+            meta["model"],
+        )
     if output is None or not output.claims:
         logger.warning(
             "[groundedness] judge returned no claims for %d submitted", len(claims)

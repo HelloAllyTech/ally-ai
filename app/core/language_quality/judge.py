@@ -6,9 +6,14 @@ category↔dimension validation (invalid annotations dropped, counted), layer
 derivation from dimension, and STT conditioning (``conditioned_out``). The LLM
 is never asked for layers, rates, or session verdicts.
 
-The Gemini SDK and client are imported/constructed lazily so this module (and
-``schemas``) can be imported without the ``google-genai`` dependency installed
-or a key configured — only ``judge_session`` requires them.
+Gemini stays the selected model; this module no longer holds a Gemini client.
+The call goes through ``app.core.llm.dispatch.generate_structured``, which picks
+the SDK from the resolved model and falls back to OpenAI when the selected
+provider cannot run — safe for a judge because ``judgeModel`` is stored per row
+and is part of the row's uniqueness key, so a judgment from a different model
+lands as its own series rather than contaminating the pinned one. Dispatch is
+imported inside the function, so this module and ``schemas`` still import with
+no provider SDK installed and no key configured.
 """
 
 from __future__ import annotations
@@ -37,22 +42,6 @@ from app.core.language_quality.schemas import (
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-_client = None
-
-
-def _get_client():
-    """Lazily build the Gemini client; clear error if the key is missing."""
-    global _client
-    if _client is None:
-        if not settings.GEMINI.API_KEY:
-            raise RuntimeError(
-                "GEMINI__API_KEY is not configured — cannot run the language judge."
-            )
-        from google import genai  # imported lazily; optional dependency
-
-        _client = genai.Client(api_key=settings.GEMINI.API_KEY)
-    return _client
 
 
 def _interrupted_turns(transcript: List[TranscriptTurn]) -> Set[int]:
@@ -145,7 +134,7 @@ def process_output(
     )
 
 
-def judge_session(
+async def judge_session(
     transcript: List[TranscriptTurn],
     persona: str,
     language: str,
@@ -159,7 +148,6 @@ def judge_session(
     (LANGUAGE_JUDGE_PROMPT_CODE); callers should fetch it once and pass it in.
     Falls back to the inline DEFAULT_JUDGE_RUBRIC when None.
     """
-    from google.genai import types  # imported lazily; optional dependency
 
     prompt = build_judge_prompt(
         transcript,
@@ -169,41 +157,30 @@ def judge_session(
         style_params=style_params,
         rubric=rubric,
     )
-    client = _get_client()
-    response = client.models.generate_content(
+
+    from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
+    from app.core.llm_usage.tasks import LLMTask
+
+    output, meta = await generate_structured(
+        schema=JudgeOutput,
+        prompt=prompt,
+        task=LLMTask.LANGUAGE_JUDGE.value,
+        provider=PROVIDER_GEMINI,
         model=settings.LANGUAGE_JUDGE.MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            response_schema=JudgeOutput,
-        ),
+        temperature=0,
+        # Uncapped, as this call always was: the output length is a
+        # property of the input, not a choice.
+        max_tokens=None,
     )
-    # Best-effort token-usage emission for the cost-by-model/task dashboard.
-    try:
-        from app.core.llm_usage.emitter import emit_llm_usage_blocking
-        from app.core.llm_usage.tasks import LLMTask
-
-        um = getattr(response, "usage_metadata", None)
-        if um is not None:
-            prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
-            completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
-            total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
-                prompt_tokens + completion_tokens
-            )
-            emit_llm_usage_blocking(
-                provider="gemini",
-                model=settings.LANGUAGE_JUDGE.MODEL,
-                task=LLMTask.LANGUAGE_JUDGE.value,
-                usage=(prompt_tokens, completion_tokens, total_tokens),
-            )
-    except Exception:
-        # Never fails the judge over cost telemetry; logged so a bug here
-        # (as opposed to the emitter's own send failures, which it logs
-        # itself) doesn't vanish with zero trace.
-        logger.debug("language judge usage emit skipped (best-effort)", exc_info=True)
-
-    output: Optional[JudgeOutput] = response.parsed
+    if meta.get("fell_back_from"):
+        # These rows will carry a different judgeModel, so a trend that
+        # looks like a behaviour change may just be this.
+        logger.warning(
+            "language judge fell back from %s to %s/%s",
+            meta["fell_back_from"],
+            meta["provider"],
+            meta["model"],
+        )
     if output is None or not output.per_turn:
         # Fail loudly so the backfill loop logs + skips this session rather
         # than persisting an empty judgment as "no errors".

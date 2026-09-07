@@ -69,7 +69,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
     not retry it forever as a failure.
     """
     try:
-        result = judge_session(
+        result = await judge_session(
             req.observations,
             req.persona,
             req.language,

@@ -83,8 +83,7 @@ def test_no_scalar_score_fields_exist():
     banned = ("score", "rating", "rate", "severity_weight", "quality")
     for field in PerTurnJudgment.model_fields:
         assert not any(b in field.lower() for b in banned), (
-            f"{field} looks like a scalar judgement — the judge labels, "
-            "SQL computes"
+            f"{field} looks like a scalar judgement — the judge labels, " "SQL computes"
         )
 
 
@@ -192,24 +191,13 @@ def test_rubric_compels_an_answer_on_every_turn():
     assert "never a missing field" in DEFAULT_JUDGE_RUBRIC
 
 
-class _FakeUsage:
-    prompt_token_count = 2400
-    candidates_token_count = 3800
-    total_token_count = 6200
-
-
-class _FakeResponse:
-    usage_metadata = _FakeUsage()
-
-    def __init__(self, parsed):
-        self.parsed = parsed
-
-
-def test_judge_session_hands_gemini_the_strict_schema(monkeypatch):
-    """The enforcement point. Gemini marks a field required only when the
-    response_schema does, so the live call has to pass the strict model — a
-    lenient one lets the labels come back only where they fired."""
+@pytest.mark.asyncio
+async def test_judge_session_hands_the_model_the_strict_schema(monkeypatch):
+    """The enforcement point. A provider marks a field required only when the
+    schema does, so the live call has to pass the strict model — a lenient one
+    lets the labels come back only where they fired."""
     from app.core.drift import judge as judge_mod
+    from app.core.llm import dispatch as dispatch_mod
 
     captured = {}
 
@@ -222,25 +210,25 @@ def test_judge_session_hands_gemini_the_strict_schema(monkeypatch):
         introduced_new_information=True,
     )
 
-    class _FakeModels:
-        def generate_content(self, model, contents, config):
-            captured["schema"] = config.response_schema
-            return _FakeResponse(
-                LiveJudgeOutput(per_turn=[LiveTurnJudgment(**fully_answered)])
-            )
+    async def _fake(**kwargs):
+        captured.update(kwargs)
+        return (
+            LiveJudgeOutput(per_turn=[LiveTurnJudgment(**fully_answered)]),
+            {"provider": "gemini", "model": "gemini-2.5-pro", "fell_back_from": None},
+        )
 
-    class _FakeClient:
-        models = _FakeModels()
+    monkeypatch.setattr(dispatch_mod, "generate_structured", _fake)
 
-    monkeypatch.setattr(judge_mod, "_get_client", lambda: _FakeClient())
-
-    result = judge_mod.judge_session(
+    result = await judge_mod.judge_session(
         [{"role": "client", "turn_index": 0, "text": "hi"}],
         persona="a tired client",
         language="en",
     )
 
     assert captured["schema"] is LiveJudgeOutput
+    # Gemini is still the selected model; dispatch buys a fallback, it does not
+    # move the judge.
+    assert captured["provider"] == "gemini"
     # The rollup still comes out of the same per-turn rows.
     assert result.session.drifted is False
     assert result.per_turn[0].role_inversion is False

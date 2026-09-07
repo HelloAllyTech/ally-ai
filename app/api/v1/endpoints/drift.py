@@ -50,7 +50,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty transcript"
         )
     try:
-        result = judge_session(
+        result = await judge_session(
             req.transcript,
             persona=req.persona or "",
             language=req.language or "en",
@@ -94,7 +94,7 @@ async def judge_labels(req: JudgeRequest) -> LeanJudgeResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty transcript"
         )
     try:
-        per_turn = judge_session_labels_only(
+        per_turn = await judge_session_labels_only(
             req.transcript,
             persona=req.persona or "",
             language=req.language or "en",

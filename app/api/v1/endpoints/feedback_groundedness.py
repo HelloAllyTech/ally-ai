@@ -56,7 +56,7 @@ async def judge(req: GroundednessRequest) -> GroundednessResponse:
         )
 
     try:
-        claims = judge_feedback(
+        claims = await judge_feedback(
             req.transcript,
             req.claims,  # type: ignore[arg-type]
             req.language,
