@@ -28,6 +28,7 @@ An answer that changed because a fallback kicked in must be explainable after th
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel
@@ -42,6 +43,7 @@ TSchema = TypeVar("TSchema", bound=BaseModel)
 
 PROVIDER_GEMINI = "gemini"
 PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_OPENAI = "openai"
 
 # Alternative spellings accepted for a provider, mapped to the canonical name.
 #
@@ -53,9 +55,19 @@ _PROVIDER_ALIASES: Dict[str, str] = {
     "google": PROVIDER_GEMINI,
     "google-genai": PROVIDER_GEMINI,
     "claude": PROVIDER_ANTHROPIC,
+    "gpt": PROVIDER_OPENAI,
 }
 
-SUPPORTED_PROVIDERS = (PROVIDER_GEMINI, PROVIDER_ANTHROPIC)
+SUPPORTED_PROVIDERS = (PROVIDER_GEMINI, PROVIDER_ANTHROPIC, PROVIDER_OPENAI)
+
+# The provider every fallback lands on.
+#
+# Not a preference between vendors: OpenAI is the only one whose key is a
+# REQUIRED setting in this service (`OpenAISettings.API_KEY`), while the other
+# two are Optional so the service can boot without them. A fallback pointing at
+# a provider whose credentials can be absent — or present and expired, which is
+# what actually happened — is not a fallback.
+FALLBACK_PROVIDER = PROVIDER_OPENAI
 
 # Anthropic REQUIRES max_tokens on every request — there is no "as long as it needs"
 # default, and omitting it is a 400. Sized for a WhatsApp-length answer plus its JSON
@@ -70,6 +82,7 @@ _STRUCTURED_TOOL_NAME = "emit_result"
 
 _anthropic_client = None
 _gemini_client = None
+_openai_client = None
 
 
 def canonical_provider(provider: Optional[str]) -> Optional[str]:
@@ -92,6 +105,11 @@ def infer_provider_from_model(model: Optional[str]) -> Optional[str]:
         return PROVIDER_ANTHROPIC
     if name.startswith(("gemini", "models/gemini")):
         return PROVIDER_GEMINI
+    # `o1`/`o3`/`o4` alongside `gpt-`: the reasoning family does not carry the
+    # gpt prefix, and an unrecognised model id silently resolves to the default
+    # provider instead of the one whose name is on it.
+    if name.startswith("gpt") or re.match(r"^o\d", name):
+        return PROVIDER_OPENAI
     return None
 
 
@@ -101,6 +119,8 @@ def _is_configured(provider: str) -> bool:
         return bool(settings.ANTHROPIC.API_KEY)
     if provider == PROVIDER_GEMINI:
         return bool(settings.GEMINI.API_KEY)
+    if provider == PROVIDER_OPENAI:
+        return bool(settings.OPENAI.API_KEY)
     return False
 
 
@@ -115,27 +135,38 @@ def resolve_target(
     exists so a fallback is reportable rather than invisible.
 
     Resolution order: explicit provider, then inferred from the model id, then the
-    configured default. A requested provider with no API key falls back to the other
-    supported provider rather than failing the question outright, because for a worker
-    waiting on WhatsApp a slightly different model is a much better outcome than no
-    answer. It is logged at WARNING and surfaced in the metadata, never swallowed.
+    configured default. A requested provider with no API key falls back rather than
+    failing the question outright, because for a worker waiting on WhatsApp a slightly
+    different model is a much better outcome than no answer. It is logged at WARNING
+    and surfaced in the metadata, never swallowed.
+
+    The fallback prefers OpenAI specifically, rather than "whichever other provider
+    has a key". Picking arbitrarily made the substitute depend on iteration order of
+    a tuple, so which model answered a question could change with an unrelated edit
+    to that tuple — and the whole point of reporting `fell_back_from` is that the
+    substitution is explainable afterwards.
     """
     requested = canonical_provider(provider) or infer_provider_from_model(model)
     default_provider = (
         canonical_provider(settings.KNOWLEDGE_AGENT.DEFAULT_PROVIDER)
-        or PROVIDER_ANTHROPIC
+        or FALLBACK_PROVIDER
     )
     target = requested or default_provider
 
     if _is_configured(target):
         return target, _resolve_model(target, model), None
 
+    ordered = (
+        FALLBACK_PROVIDER,
+        *(p for p in SUPPORTED_PROVIDERS if p != FALLBACK_PROVIDER),
+    )
     alternative = next(
-        (p for p in SUPPORTED_PROVIDERS if p != target and _is_configured(p)), None
+        (p for p in ordered if p != target and _is_configured(p)), None
     )
     if alternative is None:
         raise LLMInvocationFailedException(
-            "No LLM provider is configured — set ANTHROPIC__API_KEY or GEMINI__API_KEY."
+            "No LLM provider is configured — set OPENAI__API_KEY, "
+            "ANTHROPIC__API_KEY or GEMINI__API_KEY."
         )
 
     logger.warning(
@@ -153,12 +184,17 @@ def _resolve_model(provider: str, model: Optional[str]) -> str:
     """The model to use, honouring an override only when it belongs to this provider."""
     if model and infer_provider_from_model(model) in (provider, None):
         return model.strip()
-    if provider == PROVIDER_ANTHROPIC:
+    # The knowledge agent's own default belongs to whichever provider it names,
+    # so it is only the right answer for that provider.
+    if provider == canonical_provider(settings.KNOWLEDGE_AGENT.DEFAULT_PROVIDER):
         return settings.KNOWLEDGE_AGENT.DEFAULT_MODEL
-    # Gemini has no dedicated default in KnowledgeAgentSettings; reuse the analytics
-    # agent's answer model, which is the cheap-and-fast tier rather than the reasoning
-    # tier.
-    return settings.ANALYTICS_AGENT.ANSWER_MODEL
+    if provider == PROVIDER_GEMINI:
+        # Reuse the analytics agent's answer model — the cheap-and-fast tier
+        # rather than the reasoning tier.
+        return settings.ANALYTICS_AGENT.ANSWER_MODEL
+    if provider == PROVIDER_OPENAI:
+        return settings.KNOWLEDGE_AGENT.FALLBACK_MODEL
+    return settings.KNOWLEDGE_AGENT.ANTHROPIC_MODEL
 
 
 def _get_anthropic_client():
@@ -195,6 +231,24 @@ def _get_gemini_client():
             ) from e
         _gemini_client = genai.Client(api_key=settings.GEMINI.API_KEY)
     return _gemini_client
+
+
+def _get_openai_client():
+    """Lazily build the async OpenAI client; clear error when unusable."""
+    global _openai_client
+    if _openai_client is None:
+        if not settings.OPENAI.API_KEY:
+            raise LLMInvocationFailedException(
+                "OPENAI__API_KEY is not configured — cannot run an OpenAI model."
+            )
+        try:
+            from openai import AsyncOpenAI  # imported lazily; optional dependency
+        except Exception as e:  # pragma: no cover - optional dependency
+            raise LLMInvocationFailedException(
+                "The openai package is not installed — cannot run an OpenAI model."
+            ) from e
+        _openai_client = AsyncOpenAI(api_key=settings.OPENAI.API_KEY)
+    return _openai_client
 
 
 def _emit_usage(
@@ -341,6 +395,93 @@ async def _generate_gemini(
     )
 
 
+async def _generate_openai(
+    *,
+    schema: Type[TSchema],
+    prompt: str,
+    model: str,
+    temperature: float,
+    system: Optional[str],
+    max_tokens: int,
+    task: Optional[str],
+) -> TSchema:
+    """
+    Structured output from OpenAI via a json_schema response format.
+
+    The third distinct mechanism in this module, which is the reason the module
+    exists: Gemini takes a `response_schema`, Anthropic needs a forced tool, and
+    OpenAI takes a JSON Schema on `response_format`. None of the three
+    translates to the others, and a caller should not have to know which one ran.
+
+    `strict` is deliberately NOT set. Strict mode requires every property to be
+    required and `additionalProperties: false` throughout, which a Pydantic
+    schema with any optional field does not satisfy — and the failure is a 400
+    on the whole call rather than a laxer match, so opting in would break the
+    schemas most likely to use it. Validation still happens on our side, the
+    same `schema.model_validate` every provider goes through.
+    """
+    client = _get_openai_client()
+
+    messages: list[Dict[str, Any]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    kwargs: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        # max_completion_tokens, not max_tokens: the reasoning family rejects
+        # the older name outright.
+        "max_completion_tokens": max_tokens,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": _STRUCTURED_TOOL_NAME,
+                "schema": schema.model_json_schema(),
+            },
+        },
+    }
+    # The reasoning family accepts only the default temperature, and passing one
+    # is a 400 rather than something it ignores.
+    if temperature and not re.match(r"^(o\d|gpt-5)", model.strip().lower()):
+        kwargs["temperature"] = temperature
+
+    response = await client.chat.completions.create(**kwargs)
+
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        total_tokens = int(getattr(usage, "total_tokens", 0) or 0) or (
+            prompt_tokens + completion_tokens
+        )
+        _emit_usage(
+            PROVIDER_OPENAI,
+            model,
+            task,
+            (prompt_tokens, completion_tokens, total_tokens),
+        )
+
+    choices = getattr(response, "choices", None) or []
+    content = (
+        getattr(getattr(choices[0], "message", None), "content", None)
+        if choices
+        else None
+    )
+    if not content:
+        # Reachable when the completion hits its token cap mid-object, which
+        # returns a truncated string rather than an error.
+        finish_reason = getattr(choices[0], "finish_reason", None) if choices else None
+        logger.error(
+            "OpenAI returned no usable content (finish_reason=%s)", finish_reason
+        )
+        raise LLMInvocationFailedException(
+            f"OpenAI returned no structured output (finish_reason={finish_reason})."
+        )
+
+    return schema.model_validate_json(content)
+
+
 async def generate_structured(
     *,
     schema: Type[TSchema],
@@ -390,11 +531,7 @@ async def generate_structured(
         "fell_back_from": fell_back_from,
     }
 
-    generator = (
-        _generate_anthropic
-        if resolved_provider == PROVIDER_ANTHROPIC
-        else _generate_gemini
-    )
+    generator = _GENERATORS[resolved_provider]
 
     try:
         parsed = await generator(
@@ -425,8 +562,16 @@ async def generate_structured(
     return parsed, meta
 
 
+_GENERATORS = {
+    PROVIDER_ANTHROPIC: _generate_anthropic,
+    PROVIDER_GEMINI: _generate_gemini,
+    PROVIDER_OPENAI: _generate_openai,
+}
+
+
 def reset_clients() -> None:
     """Drop the cached SDK clients. For tests; not used on the request path."""
-    global _anthropic_client, _gemini_client
+    global _anthropic_client, _gemini_client, _openai_client
     _anthropic_client = None
     _gemini_client = None
+    _openai_client = None

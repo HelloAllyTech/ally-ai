@@ -76,20 +76,31 @@ class KnowledgeAgentSettings(BaseModel):
     it is actually good at.
     """
 
-    # Default provider/model for the answer call. Claude is the default because this
-    # prompt's hardest requirement is refusing to answer from outside the retrieved
-    # passages, which is an instruction-following problem. Overridable per prompt from
-    # ally-be's prompt management.
-    DEFAULT_PROVIDER: str = Field("anthropic")
-    DEFAULT_MODEL: str = Field("claude-sonnet-4-6")
+    # Default provider/model for the answer call. Overridable per prompt from ally-be's
+    # prompt management.
+    #
+    # OpenAI rather than Claude, which this used to be. The reasoning for Claude was
+    # sound — this prompt's hardest requirement is refusing to answer from outside the
+    # retrieved passages, which is instruction-following — but it made a worker's
+    # question depend on a credential that is Optional in this service, and when that
+    # credential expired the bot answered nothing at all. A slightly weaker refusal is a
+    # better failure than silence, and the reasoning tier is chosen for the same reason
+    # Claude was.
+    DEFAULT_PROVIDER: str = Field("openai")
+    DEFAULT_MODEL: str = Field("gpt-5-mini")
+    # Per-provider defaults for a call that resolves somewhere other than the default
+    # provider — an admin's per-prompt override, or a fallback. Without these, a
+    # provider switch silently reused a model id belonging to the old vendor.
+    FALLBACK_MODEL: str = Field("gpt-5-mini")
+    ANTHROPIC_MODEL: str = Field("claude-sonnet-4-6")
     # The translate step is a mechanical transform, so it runs on a cheaper model by
     # default.
-    TRANSLATE_MODEL: str = Field("claude-haiku-4-5-20251001")
+    TRANSLATE_MODEL: str = Field("gpt-4o-mini")
     # The crisis classifier also runs on the cheap model, but for a different reason: it
     # runs CONCURRENTLY with the answer call on every question, so its latency is hidden
     # but its cost is not. A small model is adequate — the prompt asks for one binary
     # judgement with an explicit instruction to prefer the false positive.
-    CRISIS_MODEL: str = Field("claude-haiku-4-5-20251001")
+    CRISIS_MODEL: str = Field("gpt-4o-mini")
     TOP_K: int = Field(8)
     MIN_SIMILARITY: float = Field(0.35)
     DECLINE_SIMILARITY: float = Field(0.42)
