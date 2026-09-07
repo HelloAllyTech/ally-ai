@@ -17,7 +17,7 @@ no provider SDK installed and no key configured.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from app.core.config import settings
 from app.core.filler_quality.prompt import FillerStyleParams, build_judge_prompt
@@ -177,7 +177,7 @@ async def judge_session(
     style_params: Optional[FillerStyleParams] = None,
     rubric: Optional[str] = None,
     window_plays: int = DEFAULT_REPEAT_WINDOW_PLAYS,
-) -> FillerJudgmentResult:
+) -> Tuple[FillerJudgmentResult, str]:
     """Judge every filler played in one session.
 
     ``rubric`` is the static instruction block sourced from prompt management
@@ -189,7 +189,13 @@ async def judge_session(
     tell it apart from a session the judge failed on.
     """
     if not observations:
-        return FillerJudgmentResult(repeat_window_plays=window_plays)
+        # No LLM call on this path, so no model ran. The configured one is the
+        # honest answer to "what would have judged this" — the row still counts
+        # as the denominator with fillersJudged=0.
+        return (
+            FillerJudgmentResult(repeat_window_plays=window_plays),
+            settings.FILLER_JUDGE.MODEL,
+        )
 
     prompt = build_judge_prompt(
         observations,
@@ -226,9 +232,12 @@ async def judge_session(
         # Fail loudly so the backfill loop logs + skips this session rather than
         # persisting an empty judgment as "every filler was fine".
         raise RuntimeError("filler judge returned no parsable output")
-    return process_output(
-        output.per_filler,
-        observations,
-        window_plays,
-        style_configured=bool(style_params and style_params.style_exemplars),
+    return (
+        process_output(
+            output.per_filler,
+            observations,
+            window_plays,
+            style_configured=bool(style_params and style_params.style_exemplars),
+        ),
+        meta["model"],
     )

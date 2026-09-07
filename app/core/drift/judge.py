@@ -15,7 +15,7 @@ provider SDK installed or key configured.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from app.core.config import settings
 from app.core.drift.prompt import (
@@ -102,7 +102,7 @@ async def judge_session(
     language: str,
     scenario_goal: Optional[str] = None,
     rubric: Optional[str] = None,
-) -> DriftJudgmentResult:
+) -> Tuple[DriftJudgmentResult, str]:
     """Run the drift judge over one whole session transcript.
 
     `rubric` is the static instruction block sourced from prompt management
@@ -110,7 +110,11 @@ async def judge_session(
     AllyCoreService.get_prompts_by_codes) and pass it in to avoid re-fetching
     per session. Falls back to the inline DEFAULT_JUDGE_RUBRIC when None.
 
-    Returns the per-turn judgments plus the code-derived session rollup.
+    Returns the per-turn judgments, the code-derived session rollup, and THE
+    MODEL THAT ACTUALLY RAN. The caller must store that second value as
+    `judgeModel` rather than its own setting: `judgeModel` is part of a judgment
+    row's uniqueness key, so a fallback recorded under the configured model
+    would silently pollute a pinned series instead of forming its own.
 
     Runs through ``generate_structured`` rather than holding its own Gemini
     client. Two things come with that, neither of which changes what a judgment
@@ -164,7 +168,10 @@ async def judge_session(
         # than crashing on a None deref.
         raise RuntimeError("drift judge returned no parsable output")
     rollup = compute_session_rollup(output.per_turn)
-    return DriftJudgmentResult(per_turn=output.per_turn, session=rollup)
+    return (
+        DriftJudgmentResult(per_turn=output.per_turn, session=rollup),
+        meta["model"],
+    )
 
 
 async def judge_session_labels_only(
@@ -173,7 +180,7 @@ async def judge_session_labels_only(
     language: str,
     scenario_goal: Optional[str] = None,
     rubric: Optional[str] = None,
-) -> List[LeanTurnLabels]:
+) -> Tuple[List[LeanTurnLabels], str]:
     """Judge ONLY the v2 labels, for turns already judged under the old rubric.
 
     Same model, same rubric text, same temperature as :func:`judge_session` —
@@ -216,4 +223,4 @@ async def judge_session_labels_only(
 
     if output is None or not output.per_turn:
         raise RuntimeError("lean drift judge returned no parsable output")
-    return output.per_turn
+    return output.per_turn, meta["model"]

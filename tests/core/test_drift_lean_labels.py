@@ -240,9 +240,14 @@ async def test_judge_session_labels_only_actually_runs(monkeypatch):
         ),
     )
 
-    per_turn = await judge_mod.judge_session_labels_only(
+    per_turn, judge_model = await judge_mod.judge_session_labels_only(
         TRANSCRIPT, persona="a tired client", language="en"
     )
+
+    # The model that ACTUALLY ran, not the configured one. The caller files rows
+    # under it as `judgeModel`, so a fallback recorded under the setting would
+    # pollute a pinned series.
+    assert judge_model == "gemini-2.5-pro"
 
     assert [t.turn_index for t in per_turn] == [0, 1]
     assert per_turn[0].role_inversion is False

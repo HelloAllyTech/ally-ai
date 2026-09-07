@@ -463,6 +463,111 @@ class TestOpenAiPath:
                 )
 
 
+class TestRetryAfterFailure:
+    """
+    A fallback after a RUNTIME failure, not just a missing key.
+
+    `resolve_target` only falls back when a key is absent, and an expired key is
+    present — it passes that check and fails at call time instead. That is the
+    exact shape of the incident this module was changed for, so a dead
+    credential has to be survivable here and not only detectable.
+
+    The classification is deliberately narrow, because these callers include the
+    judges: a fallback changes the model a judgment row is filed under, so it
+    must only happen when the PROVIDER is unusable, never because one response
+    failed to parse.
+    """
+
+    @staticmethod
+    def _err(status=None, cls_name="APIStatusError"):
+        return (
+            type(cls_name, (Exception,), {})(f"boom {status}")
+            if status is None
+            else type(cls_name, (Exception,), {"status_code": status})(f"boom {status}")
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [401, 403, 404, 408, 429, 500, 503])
+    async def test_retries_on_an_unusable_provider(self, status):
+        failing = AsyncMock(side_effect=self._err(status))
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+            patch.object(dispatch, "_get_openai_client", return_value=openai_client()),
+        ):
+            _, meta = await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="gemini", model="gemini-2.5-pro"
+            )
+
+        assert meta["provider"] == "openai"
+        assert meta["fell_back_from"] == "gemini"
+
+    @pytest.mark.asyncio
+    async def test_does_not_retry_a_rejected_request(self):
+        # A 400 means the request was wrong. Retrying it elsewhere fails twice.
+        failing = AsyncMock(side_effect=self._err(400))
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer, prompt="q", provider="gemini", model="gemini-2.5-pro"
+                )
+
+    @pytest.mark.asyncio
+    async def test_does_not_retry_an_unusable_RESPONSE(self):
+        """The provider answered; the answer was junk. Switching models for that
+        would mix a content failure into a judge's series as if it were an
+        outage — and it carries an internal 500, so it has to be excluded by
+        type rather than by status."""
+        failing = AsyncMock(
+            side_effect=LLMInvocationFailedException("returned no structured output")
+        )
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer, prompt="q", provider="gemini", model="gemini-2.5-pro"
+                )
+
+    @pytest.mark.asyncio
+    async def test_never_fallback_refuses_the_retry(self):
+        failing = AsyncMock(side_effect=self._err(503))
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer,
+                    prompt="q",
+                    provider="gemini",
+                    model="gemini-2.5-pro",
+                    never_fallback=True,
+                )
+
+    @pytest.mark.asyncio
+    async def test_does_not_retry_the_provider_that_just_failed(self):
+        # OpenAI IS the fallback; retrying it would fail for the same reason.
+        failing = AsyncMock(side_effect=self._err(500))
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"openai": failing}),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer, prompt="q", provider="openai", model="gpt-4o-mini"
+                )
+        assert failing.await_count == 1
+
+
 class TestFallbackIsVisible:
     @pytest.mark.asyncio
     async def test_metadata_names_the_model_that_actually_ran(self):

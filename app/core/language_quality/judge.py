@@ -18,7 +18,7 @@ no provider SDK installed and no key configured.
 
 from __future__ import annotations
 
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 
 from app.core.config import settings
 from app.core.language_quality.prompt import (
@@ -141,7 +141,7 @@ async def judge_session(
     language_params: Optional[LanguageEvalParams] = None,
     style_params: Optional[ScenarioStyleParams] = None,
     rubric: Optional[str] = None,
-) -> LanguageJudgmentResult:
+) -> Tuple[LanguageJudgmentResult, str]:
     """Run the language-quality judge over one whole session transcript.
 
     `rubric` is the static instruction block sourced from prompt management
@@ -185,4 +185,7 @@ async def judge_session(
         # Fail loudly so the backfill loop logs + skips this session rather
         # than persisting an empty judgment as "no errors".
         raise RuntimeError("language judge returned no parsable output")
-    return process_output(output.per_turn, _interrupted_turns(transcript))
+    return (
+        process_output(output.per_turn, _interrupted_turns(transcript)),
+        meta["model"],
+    )

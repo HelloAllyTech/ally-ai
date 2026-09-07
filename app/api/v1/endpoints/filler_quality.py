@@ -69,7 +69,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
     not retry it forever as a failure.
     """
     try:
-        result = await judge_session(
+        result, judge_model = await judge_session(
             req.observations,
             req.persona,
             req.language,
@@ -87,7 +87,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
         ) from exc
 
     return JudgeResponse(
-        judge_model=settings.FILLER_JUDGE.MODEL,
+        judge_model=judge_model,
         judge_prompt_version=settings.FILLER_JUDGE.PROMPT_VERSION,
         result=result,
     )

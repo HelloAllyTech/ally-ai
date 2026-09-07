@@ -50,7 +50,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty transcript"
         )
     try:
-        result = await judge_session(
+        result, judge_model = await judge_session(
             req.transcript,
             persona=req.persona or "",
             language=req.language or "en",
@@ -64,7 +64,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             detail="drift judge failed",
         )
     return JudgeResponse(
-        judge_model=settings.DRIFT_JUDGE.MODEL,
+        judge_model=judge_model,
         judge_prompt_version=settings.DRIFT_JUDGE.PROMPT_VERSION,
         result=result,
     )
@@ -94,7 +94,7 @@ async def judge_labels(req: JudgeRequest) -> LeanJudgeResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty transcript"
         )
     try:
-        per_turn = await judge_session_labels_only(
+        per_turn, judge_model = await judge_session_labels_only(
             req.transcript,
             persona=req.persona or "",
             language=req.language or "en",
@@ -108,7 +108,7 @@ async def judge_labels(req: JudgeRequest) -> LeanJudgeResponse:
             detail="lean drift judge failed",
         )
     return LeanJudgeResponse(
-        judge_model=settings.DRIFT_JUDGE.MODEL,
+        judge_model=judge_model,
         judge_prompt_version=settings.DRIFT_JUDGE.PROMPT_VERSION,
         per_turn=per_turn,
     )

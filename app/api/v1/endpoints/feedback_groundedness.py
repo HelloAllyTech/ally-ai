@@ -49,6 +49,9 @@ async def judge(req: GroundednessRequest) -> GroundednessResponse:
         # Not an error: a session can legitimately have feedback with no
         # checkable claims. Returning an empty list lets the caller record
         # "judged, nothing to check" rather than retrying forever.
+        # No judge ran, so report the configured model — the honest answer to
+        # "what would have judged this". `judge_model` from the call below is
+        # not in scope here.
         return GroundednessResponse(
             judge_model=settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL,
             judge_prompt_version=settings.FEEDBACK_GROUNDEDNESS_JUDGE.PROMPT_VERSION,
@@ -56,7 +59,7 @@ async def judge(req: GroundednessRequest) -> GroundednessResponse:
         )
 
     try:
-        claims = await judge_feedback(
+        claims, judge_model = await judge_feedback(
             req.transcript,
             req.claims,  # type: ignore[arg-type]
             req.language,
@@ -70,7 +73,7 @@ async def judge(req: GroundednessRequest) -> GroundednessResponse:
         ) from exc
 
     return GroundednessResponse(
-        judge_model=settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL,
+        judge_model=judge_model,
         judge_prompt_version=settings.FEEDBACK_GROUNDEDNESS_JUDGE.PROMPT_VERSION,
         claims=claims,
     )

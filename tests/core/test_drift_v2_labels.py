@@ -219,11 +219,13 @@ async def test_judge_session_hands_the_model_the_strict_schema(monkeypatch):
 
     monkeypatch.setattr(dispatch_mod, "generate_structured", _fake)
 
-    result = await judge_mod.judge_session(
+    result, judge_model = await judge_mod.judge_session(
         [{"role": "client", "turn_index": 0, "text": "hi"}],
         persona="a tired client",
         language="en",
     )
+
+    assert judge_model == "gemini-2.5-pro"
 
     assert captured["schema"] is LiveJudgeOutput
     # Gemini is still the selected model; dispatch buys a fallback, it does not

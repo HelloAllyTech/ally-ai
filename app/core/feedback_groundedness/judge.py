@@ -7,7 +7,7 @@ backfill's cost is visible rather than arriving as an invoice.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from app.core.config import settings
 from app.core.feedback_groundedness.prompt import (
@@ -26,16 +26,22 @@ async def judge_feedback(
     claims: List[FeedbackClaim],
     language: str,
     rubric: Optional[str] = None,
-) -> List[ClaimJudgment]:
+) -> Tuple[List[ClaimJudgment], str]:
     """Judge one session's feedback claims against its transcript.
 
     Returns [] when there is nothing to judge — no claims, or no transcript to
     judge them against. An empty result is meaningfully different from a
     session where every claim was supported, and the caller stores neither as a
     zero.
+
+    The second return value is THE MODEL THAT ACTUALLY RAN, which the caller
+    must store rather than its own setting: a fallback recorded under the
+    configured model would pollute a pinned series. On the paths where no call
+    is made it is the configured model — the honest answer to "what would have
+    judged this".
     """
     if not claims or not transcript:
-        return []
+        return [], settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL
 
     prompt = build_judge_prompt(transcript, claims, language, rubric=rubric)
 
@@ -66,7 +72,7 @@ async def judge_feedback(
         logger.warning(
             "[groundedness] judge returned no claims for %d submitted", len(claims)
         )
-        return []
+        return [], meta["model"]
 
     # Drop anything pointing at a claim we did not send. A hallucinated index
     # would otherwise be stored against a real claim's row and silently
@@ -81,4 +87,4 @@ async def judge_feedback(
                 "[groundedness] dropping judgment for unknown claim_index=%s",
                 judged.claim_index,
             )
-    return kept
+    return kept, meta["model"]

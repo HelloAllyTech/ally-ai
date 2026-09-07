@@ -78,7 +78,7 @@ async def plan(req: PlanRequest) -> PlanResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty schema catalog"
         )
     try:
-        result = await plan_query(
+        result, planner_model = await plan_query(
             req.question,
             schema_catalog=req.schema_catalog,
             today=req.today,
@@ -92,7 +92,7 @@ async def plan(req: PlanRequest) -> PlanResponse:
             detail="analytics agent planning failed",
         )
     return PlanResponse(
-        planner_model=settings.ANALYTICS_AGENT.PLANNER_MODEL,
+        planner_model=planner_model,
         prompt_version=settings.ANALYTICS_AGENT.PROMPT_VERSION,
         plan=result,
     )
@@ -108,7 +108,7 @@ async def answer(req: AnswerRequest) -> AnswerResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty question"
         )
     try:
-        result = await compose_answer(
+        result, answer_model = await compose_answer(
             req.question,
             sql=req.sql,
             columns=req.columns,
@@ -124,7 +124,7 @@ async def answer(req: AnswerRequest) -> AnswerResponse:
             detail="analytics agent narration failed",
         )
     return AnswerResponse(
-        answer_model=settings.ANALYTICS_AGENT.ANSWER_MODEL,
+        answer_model=answer_model,
         prompt_version=settings.ANALYTICS_AGENT.PROMPT_VERSION,
         result=result,
     )

@@ -88,6 +88,61 @@ UNCAPPED_ANTHROPIC_MAX_TOKENS = 16384
 # looks for it.
 _STRUCTURED_TOOL_NAME = "emit_result"
 
+# HTTP statuses that mean the PROVIDER is unusable rather than the request being
+# wrong, so the same call is worth one attempt somewhere else.
+#
+#   401/403 — the credential is dead or revoked. This is the case that started
+#             the whole migration: a key that is PRESENT, so `_is_configured`
+#             passes, and invalid, so every call fails. A missing-key fallback
+#             cannot catch it, which is why this classification exists.
+#   404     — the model id was retired under us.
+#   408/429/5xx — transient or capacity.
+#
+# 400 is deliberately absent: the request was rejected, and retrying a malformed
+# request elsewhere just fails twice, slower.
+_RETRYABLE_STATUSES = frozenset({401, 403, 404, 408, 429})
+
+
+def _is_retryable_provider_failure(error: BaseException) -> bool:
+    """
+    Whether `error` says the PROVIDER is unusable, as opposed to the response
+    being unusable.
+
+    Deliberately conservative: anything unrecognised is NOT retried. The first
+    version of this defaulted to True for an error with no HTTP status, which
+    swept up two content failures — a Pydantic ValidationError, and our own
+    "returned no structured output" — and retried them on another provider. For
+    a judge that is the worst possible behaviour: it changes the model
+    (and therefore the `judgeModel` a row is filed under) because one response
+    did not parse, mixing a content problem into a series as if it were an
+    infrastructure one.
+
+    So a fallback fires only for a dead credential, a retired model, capacity,
+    or a request that never arrived.
+    """
+    # Our own exception, raised by the generators above when a provider ANSWERED
+    # but the answer was unusable — no tool block, nothing parsable. It carries
+    # an internal 500 for the API layer, which would otherwise read as a server
+    # error here. The provider is fine; the response is not.
+    if isinstance(error, LLMInvocationFailedException):
+        return False
+
+    status = (
+        getattr(error, "status_code", None)
+        or getattr(error, "status", None)
+        or getattr(getattr(error, "response", None), "status_code", None)
+    )
+    if isinstance(status, int):
+        return status in _RETRYABLE_STATUSES or status >= 500
+
+    # No status: retry only for the transport-level failures, matched by class
+    # name so this module needs no SDK imports. `APIConnectionError`,
+    # `ConnectError`, `ReadTimeout`, `TimeoutException` and friends all qualify;
+    # ValidationError and LLMInvocationFailedException deliberately do not.
+    name = type(error).__name__
+    return "Connection" in name or "Timeout" in name or isinstance(error, TimeoutError)
+
+
 _anthropic_client = None
 _gemini_client = None
 _openai_client = None
@@ -494,6 +549,26 @@ async def _generate_openai(
     return schema.model_validate_json(content)
 
 
+def _fallback_after_failure(
+    failed_provider: str, *, never_fallback: bool
+) -> Optional[Tuple[str, str]]:
+    """
+    Where to retry after a provider failed, or None when retrying is wrong.
+
+    None means: the caller opted out, the provider that failed IS the fallback
+    (retrying it would fail again for the same reason), or the fallback holds no
+    key here — in which case a second attempt fails for a second, more
+    confusing reason.
+    """
+    if never_fallback:
+        return None
+    if failed_provider == FALLBACK_PROVIDER:
+        return None
+    if not _is_configured(FALLBACK_PROVIDER):
+        return None
+    return FALLBACK_PROVIDER, _resolve_model(FALLBACK_PROVIDER, None)
+
+
 async def generate_structured(
     *,
     schema: Type[TSchema],
@@ -504,6 +579,7 @@ async def generate_structured(
     temperature: float = 0.0,
     system: Optional[str] = None,
     max_tokens: Optional[int] = DEFAULT_MAX_TOKENS,
+    never_fallback: bool = False,
 ) -> Tuple[TSchema, Dict[str, Any]]:
     """
     Generate a validated instance of `schema` from whichever provider is selected.
@@ -529,10 +605,18 @@ async def generate_structured(
             validation failure rather than as "too long". Anthropic has no way
             to express it and gets UNCAPPED_ANTHROPIC_MAX_TOKENS instead.
 
+        never_fallback: Refuse to retry elsewhere when the selected provider
+            fails. For a call whose whole point is exercising ONE named model,
+            where a substitute would make the result a lie rather than a
+            degradation.
+
     Returns:
         (parsed, meta) where meta is {"provider", "model", "fell_back_from"}
         describing what ACTUALLY ran, so a fallback or an admin model change stays
-        traceable.
+        traceable. Callers that STORE the model — the judges write it to
+        `judgeModel`, which is part of a judgment row's uniqueness key — must
+        record `meta["model"]` and not their own setting, or a fallback lands
+        mislabelled and silently pollutes a pinned series.
 
     Raises:
         LLMInvocationFailedException: If no provider is configured, the SDK is
@@ -546,33 +630,56 @@ async def generate_structured(
         "fell_back_from": fell_back_from,
     }
 
-    generator = _GENERATORS[resolved_provider]
-
-    try:
-        parsed = await generator(
+    async def attempt(prov: str, mdl: str) -> TSchema:
+        return await _GENERATORS[prov](
             schema=schema,
             prompt=prompt,
-            model=resolved_model,
+            model=mdl,
             temperature=temperature,
             system=system,
             max_tokens=max_tokens,
             task=task,
         )
-    except LLMInvocationFailedException:
-        raise
+
+    try:
+        parsed = await attempt(resolved_provider, resolved_model)
     except Exception as e:
-        # Includes schema validation failures: a response that does not fit the schema
-        # is a failed call, not something to coerce into a half-populated object and
-        # pass downstream.
-        logger.exception(
-            "Structured generation failed on %s/%s: %s",
+        # `resolve_target` only falls back when a key is ABSENT. An expired key
+        # is present, so it passes that check and fails here instead — which is
+        # exactly the incident this module was changed for. One retry on the
+        # fallback provider turns a dead credential into degraded quality.
+        retry = _fallback_after_failure(
+            resolved_provider, never_fallback=never_fallback
+        )
+        if retry is None or not _is_retryable_provider_failure(e):
+            # Includes schema validation failures: a response that does not fit the
+            # schema is a failed call, not something to coerce into a
+            # half-populated object and pass downstream.
+            logger.exception(
+                "Structured generation failed on %s/%s: %s",
+                resolved_provider,
+                resolved_model,
+                type(e).__name__,
+            )
+            if isinstance(e, LLMInvocationFailedException):
+                raise
+            raise LLMInvocationFailedException(
+                f"{resolved_provider} failed to produce a valid response."
+            ) from e
+
+        logger.warning(
+            "%s/%s failed (%s: %s); retrying on %s/%s. The answer will be "
+            "generated by a different model than requested.",
             resolved_provider,
             resolved_model,
             type(e).__name__,
+            e,
+            retry[0],
+            retry[1],
         )
-        raise LLMInvocationFailedException(
-            f"{resolved_provider} failed to produce a valid response."
-        ) from e
+        parsed = await attempt(*retry)
+        meta["provider"], meta["model"] = retry
+        meta["fell_back_from"] = resolved_provider
 
     return parsed, meta
 

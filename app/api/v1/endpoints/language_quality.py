@@ -57,7 +57,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             status_code=status.HTTP_400_BAD_REQUEST, detail="empty transcript"
         )
     try:
-        result = await judge_session(
+        result, judge_model = await judge_session(
             req.transcript,
             persona=req.persona or "",
             language=req.language or "en",
@@ -72,7 +72,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             detail="language judge failed",
         )
     return JudgeResponse(
-        judge_model=settings.LANGUAGE_JUDGE.MODEL,
+        judge_model=judge_model,
         judge_prompt_version=settings.LANGUAGE_JUDGE.PROMPT_VERSION,
         result=result,
     )

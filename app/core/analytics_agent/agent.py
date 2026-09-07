@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.analytics_agent.prompt import (
     AgentTurn,
@@ -74,7 +74,7 @@ async def plan_query(
     today: str,
     row_limit: int,
     history: Optional[List[AgentTurn]] = None,
-) -> QueryPlan:
+) -> Tuple[QueryPlan, str]:
     """Step 1: turn the question into one read-only SELECT (or ask/refuse)."""
     prompt = build_plan_prompt(
         question,
@@ -111,14 +111,17 @@ async def plan_query(
         # An empty query with a "yes I can answer this" intent would surface to
         # the reader as a silent nothing; make it a clarification instead.
         logger.warning("analytics agent planner returned intent=sql with empty sql")
-        return QueryPlan(
-            intent=PlanIntent.CLARIFY,
-            message=(
-                "I could not turn that into a query. Could you rephrase it, "
-                "naming the metric and the period you want?"
+        return (
+            QueryPlan(
+                intent=PlanIntent.CLARIFY,
+                message=(
+                    "I could not turn that into a query. Could you rephrase it, "
+                    "naming the metric and the period you want?"
+                ),
             ),
+            meta["model"],
         )
-    return plan
+    return plan, meta["model"]
 
 
 async def compose_answer(
@@ -129,7 +132,7 @@ async def compose_answer(
     row_count: int,
     truncated: bool,
     history: Optional[List[AgentTurn]] = None,
-) -> AnswerOutput:
+) -> Tuple[AnswerOutput, str]:
     """Step 2: turn the result set into prose, caveats and a chart spec."""
     prompt = build_answer_prompt(
         question,
@@ -161,7 +164,7 @@ async def compose_answer(
         )
     if output is None or not output.answer.strip():
         raise RuntimeError("analytics agent narrator returned no parsable output")
-    return validate_chart(output, columns, row_count, truncated)
+    return validate_chart(output, columns, row_count, truncated), meta["model"]
 
 
 def validate_chart(
@@ -169,7 +172,7 @@ def validate_chart(
     columns: List[str],
     row_count: int,
     truncated: bool,
-) -> AnswerOutput:
+) -> Tuple[AnswerOutput, str]:
     """Drop a chart specification that the result cannot honestly support.
 
     Deterministic code, not a prompt instruction: a chart naming a column that
