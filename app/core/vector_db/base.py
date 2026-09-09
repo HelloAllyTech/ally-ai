@@ -178,6 +178,45 @@ class VectorDB(Generic[T], ABC):
         pass
 
     @abstractmethod
+    async def update_properties_by_filter(
+        self,
+        collection_name: str,
+        filters: Dict[str, Any],
+        properties: Dict[str, Any],
+    ) -> int:
+        """
+        Merge `properties` into every object matching property equality filters,
+        returning the count.
+
+        Distinct from update_document() in two ways that both matter. It is keyed by a
+        FILTER, because the caller that owns a document does not hold the ids of its
+        chunks; and it carries NO vector, because the fields it exists to change are
+        metadata about an object rather than anything the object's embedding is derived
+        from. Re-embedding to change a flag would spend an embedding call per passage to
+        rewrite a boolean.
+
+        Weaviate has no update-by-filter primitive, so an implementation is expected to
+        page ids in and update them one by one. Callers should treat this as a
+        housekeeping operation, not a request-path one.
+
+        Parameters:
+            collection_name (str): Collection to update.
+            filters (Dict[str, Any]): Property equality filters, ANDed together. Must be
+                non-empty — an empty filter would rewrite the entire collection.
+            properties (Dict[str, Any]): Fields to merge into each matched object. Must
+                be non-empty.
+
+        Returns:
+            int: Number of objects updated. Zero is a legitimate result (nothing
+                matched).
+
+        Raises:
+            ValueError: If `filters` or `properties` is empty.
+            VectorDBUpdateFailedException: If the update fails.
+        """
+        pass
+
+    @abstractmethod
     async def update_document(
         self,
         collection_name: str,
@@ -283,6 +322,7 @@ class VectorDB(Generic[T], ABC):
         limit: int = 10,
         min_similarity: float = 0.0,
         filters: Optional[Dict[str, Any]] = None,
+        any_of: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Similarity search from a CALLER-SUPPLIED vector, returning a cosine similarity
@@ -299,7 +339,20 @@ class VectorDB(Generic[T], ABC):
             vector (List[float]): The query embedding.
             limit (int): Maximum hits to return.
             min_similarity (float): Minimum cosine SIMILARITY (not distance), 0..1.
-            filters (Optional[Dict[str, Any]]): Simple property equality filters.
+            filters (Optional[Dict[str, Any]]): Simple property equality filters,
+                ANDed together.
+            any_of (Optional[List[Dict[str, Any]]]): A disjunction, ANDed onto
+                `filters`.
+                Each entry is one condition: ``{"property": name, "equal": value}`` or
+                ``{"property": name, "contains_any": [values]}``. Exists because an
+                access rule is naturally an OR — "available to everyone, OR to my
+                organisation" — and expressing that as a post-filter over a fixed top-k
+                starves recall rather than restricting it.
+
+                An EMPTY LIST means "match nothing" and must return no hits. That is the
+                fail-closed case and it is deliberately distinct from ``None``, which
+                means no disjunction was requested: a caller that computed an empty
+                audience must not be silently served the whole collection.
 
         Returns:
             List[Dict[str, Any]]: One dict per hit: {"id", "similarity", **properties}.

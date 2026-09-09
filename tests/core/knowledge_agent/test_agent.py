@@ -17,7 +17,13 @@ from app.core.knowledge_agent.schemas import (
     KnowledgeAnswer,
     TranslatedQuery,
 )
+from app.core.knowledge_base.knowledge_chunk_service import ChunkAudience
 from app.exceptions.custom_exceptions import LLMInvocationFailedException
+
+#: These tests are about answering behaviour, not access, so they pass an audience that
+#: does not narrow retrieval. `answer` has no default for it on purpose — see the
+#: audience test class for what the argument actually does.
+ANY_AUDIENCE = ChunkAudience.unrestricted()
 
 CHUNK_A = "11111111-1111-1111-1111-111111111111"
 CHUNK_B = "22222222-2222-2222-2222-222222222222"
@@ -76,7 +82,7 @@ class TestDeclineGate:
         chunk_service.search.return_value = []
 
         with patch(f"{AGENT}.generate_structured") as gen:
-            result = await agent.answer("anything", translate_query=False)
+            result = await agent.answer("anything", ANY_AUDIENCE, translate_query=False)
 
         gen.assert_not_called()
         assert result["intent"] == AnswerIntent.DECLINE
@@ -94,7 +100,11 @@ class TestDeclineGate:
 
         with patch(f"{AGENT}.generate_structured") as gen:
             result = await agent.answer(
-                "q", translate_query=False, min_similarity=0.2, decline_similarity=0.42
+                "q",
+                ANY_AUDIENCE,
+                translate_query=False,
+                min_similarity=0.2,
+                decline_similarity=0.42,
             )
 
         gen.assert_not_called()
@@ -122,7 +132,11 @@ class TestDeclineGate:
             ),
         ):
             result = await agent.answer(
-                "q", translate_query=False, min_similarity=0.35, decline_similarity=0.42
+                "q",
+                ANY_AUDIENCE,
+                translate_query=False,
+                min_similarity=0.35,
+                decline_similarity=0.42,
             )
 
         assert result["intent"] == AnswerIntent.ANSWER
@@ -146,7 +160,7 @@ class TestCitations:
                 )
             ),
         ):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         cites = result["citations"]
         # Order preserved as the model reasoned, not re-sorted.
@@ -177,7 +191,7 @@ class TestCitations:
                 )
             ),
         ):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         assert [c["passage_number"] for c in result["citations"]] == [1]
 
@@ -193,7 +207,7 @@ class TestCitations:
                 )
             ),
         ):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         assert len(result["citations"]) == 1
 
@@ -216,7 +230,7 @@ class TestCitations:
                 )
             ),
         ):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         assert result["intent"] == AnswerIntent.ANSWER
         assert result["answer"] == "Synthesised."
@@ -235,7 +249,7 @@ class TestPostValidation:
                 KnowledgeAnswer(intent=AnswerIntent.ANSWER, answer="   ", citations=[1])
             ),
         ):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         assert result["intent"] == AnswerIntent.DECLINE
         assert result["decline_reason"] == DeclineReason.MODEL_DECLINED
@@ -255,7 +269,7 @@ class TestPostValidation:
                 )
             ),
         ):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         # MODEL_DECLINED, not BELOW_THRESHOLD: the model saw the passages and judged
         # them insufficient, which is a different tuning signal from a threshold
@@ -280,7 +294,9 @@ class TestPostValidation:
                 )
             ),
         ):
-            result = await agent.answer("help with a client", translate_query=False)
+            result = await agent.answer(
+                "help with a client", ANY_AUDIENCE, translate_query=False
+            )
 
         assert result["intent"] == AnswerIntent.CLARIFY
         assert result["decline_reason"] == DeclineReason.NONE
@@ -296,7 +312,7 @@ class TestPostValidation:
             patch(f"{AGENT}.generate_structured") as gen,
         ):
             with pytest.raises(LLMInvocationFailedException):
-                await agent.answer("q", translate_query=False)
+                await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         gen.assert_not_called()
 
@@ -316,7 +332,7 @@ class TestPassageSelection:
         )
         with patch(f"{AGENT}.generate_structured", gen):
             result = await agent.answer(
-                "q", translate_query=False, similarity_band=0.08
+                "q", ANY_AUDIENCE, translate_query=False, similarity_band=0.08
             )
 
         # 0.80 and 0.78 are within the band; 0.50 is not.
@@ -334,7 +350,9 @@ class TestPassageSelection:
                 KnowledgeAnswer(intent=AnswerIntent.ANSWER, answer="x", citations=[1])
             ),
         ):
-            result = await agent.answer("q", translate_query=False, max_passages=3)
+            result = await agent.answer(
+                "q", ANY_AUDIENCE, translate_query=False, max_passages=3
+            )
 
         assert result["retrieval"]["passages_used"] == 3
 
@@ -358,7 +376,7 @@ class TestPassageSelection:
             ),
         ):
             result = await agent.answer(
-                "q", translate_query=False, max_context_tokens=900
+                "q", ANY_AUDIENCE, translate_query=False, max_context_tokens=900
             )
 
         # 400 + 400 fits in 900; the third would exceed it.
@@ -380,7 +398,7 @@ class TestPassageSelection:
             ),
         ):
             result = await agent.answer(
-                "q", translate_query=False, max_context_tokens=200
+                "q", ANY_AUDIENCE, translate_query=False, max_context_tokens=200
             )
 
         assert result["retrieval"]["passages_used"] == 1
@@ -412,7 +430,9 @@ class TestQueryTranslation:
             ),
         )
         with patch(f"{AGENT}.generate_structured", gen):
-            result = await agent.answer("आत्महत्या के बारे में कैसे पूछूं?")
+            result = await agent.answer(
+                "आत्महत्या के बारे में कैसे पूछूं?", ANY_AUDIENCE
+            )
 
         assert (
             chunk_service.search.call_args.kwargs["query"]
@@ -434,7 +454,7 @@ class TestQueryTranslation:
             KnowledgeAnswer(intent=AnswerIntent.ANSWER, answer="Ask.", citations=[1]),
         )
         with patch(f"{AGENT}.generate_structured", gen):
-            result = await agent.answer("How do I ask about intent?")
+            result = await agent.answer("How do I ask about intent?", ANY_AUDIENCE)
 
         assert (
             chunk_service.search.call_args.kwargs["query"]
@@ -463,7 +483,9 @@ class TestQueryTranslation:
             ]
         )
         with patch(f"{AGENT}.generate_structured", gen):
-            result = await agent.answer("आत्महत्या के बारे में कैसे पूछूं?")
+            result = await agent.answer(
+                "आत्महत्या के बारे में कैसे पूछूं?", ANY_AUDIENCE
+            )
 
         assert chunk_service.search.call_args.kwargs["query"] == (
             "आत्महत्या के बारे में कैसे पूछूं?"
@@ -478,7 +500,7 @@ class TestQueryTranslation:
             KnowledgeAnswer(intent=AnswerIntent.ANSWER, answer="Ask.", citations=[1])
         )
         with patch(f"{AGENT}.generate_structured", gen):
-            await agent.answer("q", translate_query=False)
+            await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         # Exactly one call: the answer. No translation round trip.
         assert gen.await_count == 1
@@ -503,7 +525,7 @@ class TestTraceability:
             )
         )
         with patch(f"{AGENT}.generate_structured", gen):
-            result = await agent.answer("q", translate_query=False)
+            result = await agent.answer("q", ANY_AUDIENCE, translate_query=False)
 
         assert result["provider"] == "gemini"
         assert result["model"] == "gemini-2.5-flash"
@@ -600,9 +622,11 @@ class TestCrisisClassifier:
                 is_crisis=True, signal="I want to end my life", confidence=0.9
             )
         )
-        with patch(f"{AGENT}.generate_structured", gen), patch(
-            f"{AGENT}.logger"
-        ) as mock_logger, patch(f"{AGENT}.phi_logger") as mock_phi_logger:
+        with (
+            patch(f"{AGENT}.generate_structured", gen),
+            patch(f"{AGENT}.logger") as mock_logger,
+            patch(f"{AGENT}.phi_logger") as mock_phi_logger,
+        ):
             mock_phi_logger.log = AsyncMock()
             await agent.classify_crisis("I want to end my life")
 
@@ -613,3 +637,51 @@ class TestCrisisClassifier:
         mock_phi_logger.log.assert_awaited_once()
         logged_event = mock_phi_logger.log.call_args.args[0]
         assert logged_event.details["signal"] == "I want to end my life"
+
+
+class TestRetrievalAudience:
+    """
+    The agent is a pass-through for the audience, and that is the whole point.
+
+    Deciding who is asking is ally-be's job — it holds the phone numbers and the user
+    records. What must be true here is that whatever it decided reaches the vector query
+    unmodified: an agent that quietly widened, narrowed or dropped the audience would
+    answer out of the wrong corpus while every log line looked normal.
+    """
+
+    @pytest.mark.asyncio
+    async def test_audience_is_forwarded_to_retrieval_verbatim(
+        self, agent, chunk_service
+    ):
+        audience = ChunkAudience.for_tenant("tenant-77")
+        chunk_service.search.return_value = []
+
+        await agent.answer("q", audience, translate_query=False)
+
+        assert chunk_service.search.call_args.kwargs["audience"] is audience
+
+    @pytest.mark.asyncio
+    async def test_an_empty_audience_declines_without_an_llm_call(
+        self, agent, chunk_service
+    ):
+        """
+        An audience that can match nothing retrieves nothing, and nothing retrieved is
+        already an honest decline decided in code.
+
+        Worth pinning: the alternative — treating "no hits because of the filter"
+        differently from "no hits because of coverage" — would need the agent to know
+        about access rules, and getting that wrong is how a filter turns into a
+        suggestion.
+        """
+        chunk_service.search.return_value = []
+
+        with patch(f"{AGENT}.generate_structured") as gen:
+            result = await agent.answer(
+                "q",
+                ChunkAudience(tenant_id=None, include_global=False),
+                translate_query=False,
+            )
+
+        gen.assert_not_called()
+        assert result["intent"] == AnswerIntent.DECLINE
+        assert result["decline_reason"] == DeclineReason.NO_HITS

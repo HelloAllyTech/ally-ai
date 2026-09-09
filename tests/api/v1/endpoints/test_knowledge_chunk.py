@@ -16,6 +16,7 @@ from app.exceptions.custom_exceptions import (
     EmbeddingFailedException,
     VectorDBDeleteFailedException,
     VectorDBSearchFailedException,
+    VectorDBUpdateFailedException,
 )
 from tests.api.v1.endpoints.base import BaseAPITest
 
@@ -236,6 +237,56 @@ class TestDeleteDocumentChunksEndpoint(_ResolvedKeyAPITest):
         with patch(f"{SERVICE}.delete_document_chunks") as mock_delete:
             mock_delete.side_effect = VectorDBDeleteFailedException("failed")
             response = client.delete(f"/api/v1/knowledge-chunks/document/{uuid4()}")
+
+        assert response.status_code == 503
+
+
+class TestSetDocumentAudienceEndpoint(_ResolvedKeyAPITest):
+    def test_retargeting_returns_the_updated_count(self, client: TestClient):
+        document_id = str(uuid4())
+        tenant_id = str(uuid4())
+
+        with patch(f"{SERVICE}.set_document_audience") as mock_set:
+            mock_set.return_value = 42
+            response = client.put(
+                f"/api/v1/knowledge-chunks/document/{document_id}/audience",
+                json={"is_global": False, "tenant_ids": [tenant_id]},
+            )
+
+        assert response.status_code == 200
+        assert response.json() == {"document_id": document_id, "updated": 42}
+        assert mock_set.call_args.kwargs["tenant_ids"] == [tenant_id]
+        assert mock_set.call_args.kwargs["is_global"] is False
+
+    def test_nothing_indexed_is_still_200(self, client: TestClient):
+        """
+        A document that is queued, mid-ingest or archived has no vectors to retarget.
+
+        ally-be sends the audience alongside the chunks on the next ingest, so the two
+        stores converge without this call having to find anything.
+        """
+        with patch(f"{SERVICE}.set_document_audience") as mock_set:
+            mock_set.return_value = 0
+            response = client.put(
+                f"/api/v1/knowledge-chunks/document/{uuid4()}/audience",
+                json={"is_global": True},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["updated"] == 0
+
+    def test_failure_is_503_not_reported_as_saved(self, client: TestClient):
+        """
+        A partial retarget is the dangerous state: some passages of one document still
+        answer for an organisation the admin just removed. ally-be surfaces the failure
+        rather than showing the change as saved.
+        """
+        with patch(f"{SERVICE}.set_document_audience") as mock_set:
+            mock_set.side_effect = VectorDBUpdateFailedException("failed")
+            response = client.put(
+                f"/api/v1/knowledge-chunks/document/{uuid4()}/audience",
+                json={"is_global": True},
+            )
 
         assert response.status_code == 503
 

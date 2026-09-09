@@ -755,3 +755,169 @@ class TestWeaviateDB:
             await weaviate_db.delete_by_filter(
                 "KnowledgeChunk", {"document_id": "doc-1"}
             )
+
+
+class TestWeaviateAudienceFiltering:
+    """
+    The `any_of` disjunction and the filtered property update that back per-organisation
+    document targeting.
+
+    The behaviour under test in every case is the fail-closed one. An access filter that
+    degrades into "no filter" does not raise, log or look wrong — it just answers from
+    material the caller was never entitled to, which is the one failure this layer must
+    make structurally impossible.
+    """
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.collections = MagicMock()
+        return client
+
+    @pytest.fixture
+    def weaviate_db(self, mock_client):
+        return WeaviateDB(mock_client, AsyncMock())
+
+    @pytest.fixture
+    def mock_collection(self, mock_client):
+        collection = MagicMock()
+        collection.query = MagicMock()
+        collection.query.near_vector = AsyncMock()
+        collection.query.fetch_objects = AsyncMock()
+        collection.data = MagicMock()
+        collection.data.update = AsyncMock()
+        mock_client.collections.get.return_value = collection
+        return collection
+
+    @pytest.mark.asyncio
+    async def test_empty_any_of_returns_nothing_without_querying(
+        self, weaviate_db, mock_collection
+    ):
+        """
+        An empty disjunction means "match nothing" and is answered before any I/O.
+
+        This is THE guard. A caller that computed an audience nothing can satisfy must
+        not fall through to an unfiltered search, and answering it here means no code
+        path exists in which an empty audience reaches Weaviate as an absent filter.
+        """
+        hits = await weaviate_db.near_vector_search(
+            collection_name="KnowledgeChunk", vector=[0.1], any_of=[]
+        )
+
+        assert hits == []
+        mock_collection.query.near_vector.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_none_any_of_still_searches_unfiltered(
+        self, weaviate_db, mock_collection
+    ):
+        """`None` is the distinct 'nothing requested' case and must still search."""
+        mock_collection.query.near_vector.return_value = MagicMock(objects=[])
+
+        await weaviate_db.near_vector_search(
+            collection_name="KnowledgeChunk", vector=[0.1], any_of=None
+        )
+
+        assert mock_collection.query.near_vector.await_count == 1
+        assert mock_collection.query.near_vector.call_args.kwargs["filters"] is None
+
+    @pytest.mark.asyncio
+    async def test_any_of_is_combined_with_equality_filters(
+        self, weaviate_db, mock_collection
+    ):
+        """A language filter and an audience must AND, not replace one another."""
+        mock_collection.query.near_vector.return_value = MagicMock(objects=[])
+
+        await weaviate_db.near_vector_search(
+            collection_name="KnowledgeChunk",
+            vector=[0.1],
+            filters={"language": "en"},
+            any_of=[
+                {"property": "is_global", "equal": True},
+                {"property": "tenant_ids", "contains_any": ["t-1"]},
+            ],
+        )
+
+        assert mock_collection.query.near_vector.call_args.kwargs["filters"] is not None
+
+    def test_unknown_condition_operator_raises_rather_than_matching_everything(
+        self, weaviate_db
+    ):
+        with pytest.raises(ValueError):
+            weaviate_db._build_condition({"property": "tenant_ids", "like": "t-%"})
+
+    def test_condition_without_a_property_raises(self, weaviate_db):
+        with pytest.raises(ValueError):
+            weaviate_db._build_condition({"equal": True})
+
+    def test_contains_any_with_no_values_raises(self, weaviate_db):
+        """
+        Refused at the condition level rather than passed through.
+
+        `contains_any([])` matches nothing, so it would behave correctly — but it
+        arrives here only from a caller that meant to name some organisations and
+        computed none, and the readable way to say "match nothing" is an empty `any_of`.
+        """
+        with pytest.raises(ValueError):
+            weaviate_db._build_condition({"property": "tenant_ids", "contains_any": []})
+
+    @pytest.mark.asyncio
+    async def test_update_properties_by_filter_pages_and_updates(
+        self, weaviate_db, mock_collection
+    ):
+        first, second = uuid4(), uuid4()
+        mock_collection.query.fetch_objects.side_effect = [
+            MagicMock(objects=[MagicMock(uuid=first), MagicMock(uuid=second)]),
+            MagicMock(objects=[]),
+        ]
+
+        updated = await weaviate_db.update_properties_by_filter(
+            "KnowledgeChunk",
+            {"document_id": "doc-1"},
+            {"is_global": True, "tenant_ids": []},
+        )
+
+        assert updated == 2
+        # No vector is passed: the audience is metadata about the object, not something
+        # its embedding is derived from.
+        for call in mock_collection.data.update.call_args_list:
+            assert "vector" not in call.kwargs
+            assert call.kwargs["properties"] == {"is_global": True, "tenant_ids": []}
+        # The second page continues from the last id rather than an offset — offset
+        # paging over a collection being written to can skip objects, and a skipped
+        # object here keeps the audience it used to have.
+        assert mock_collection.query.fetch_objects.call_args.kwargs["after"] == str(
+            second
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_properties_by_filter_refuses_an_empty_filter(
+        self, weaviate_db, mock_collection
+    ):
+        """An empty filter would rewrite the audience of every chunk in the corpus."""
+        with pytest.raises(ValueError):
+            await weaviate_db.update_properties_by_filter(
+                "KnowledgeChunk", {}, {"is_global": True}
+            )
+
+        mock_collection.data.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_properties_by_filter_refuses_an_empty_payload(
+        self, weaviate_db
+    ):
+        with pytest.raises(ValueError):
+            await weaviate_db.update_properties_by_filter(
+                "KnowledgeChunk", {"document_id": "doc-1"}, {}
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_properties_by_filter_wraps_failures(
+        self, weaviate_db, mock_collection
+    ):
+        mock_collection.query.fetch_objects.side_effect = RuntimeError("boom")
+
+        with pytest.raises(VectorDBUpdateFailedException):
+            await weaviate_db.update_properties_by_filter(
+                "KnowledgeChunk", {"document_id": "doc-1"}, {"is_global": True}
+            )

@@ -31,6 +31,11 @@ logger = get_logger(__name__)
 
 
 class WeaviateDB(VectorDB):
+    #: Objects fetched per page by `update_properties_by_filter`. Weaviate has no
+    #: update-by-filter, so that sweep is a paged read plus one update per object; a
+    #: failure costs one page of retries.
+    UPDATE_PAGE_SIZE = 200
+
     def __init__(
         self, client: WeaviateAsyncClient, embedding_service: BaseEmbeddingService
     ) -> None:
@@ -360,6 +365,83 @@ class WeaviateDB(VectorDB):
             logger.exception(f"Failed to get document: {type(e).__name__}")
             raise DocumentNotFoundException(f"Document with ID {document_id} not found")
 
+    async def update_properties_by_filter(
+        self,
+        collection_name: str,
+        filters: Dict[str, Any],
+        properties: Dict[str, Any],
+    ) -> int:
+        """
+        Merge properties into every object matching a filter. See
+        VectorDB.update_properties_by_filter.
+
+        Weaviate has no update-by-filter, so this pages matching ids in and updates them
+        one at a time. `data.update` is a MERGE — properties left out are untouched —
+        and
+        no vector is passed, so the embedding is preserved.
+
+        Paged with `after` rather than an offset for the same reason as
+        `list_document_ids`: offset paging over a collection being written to can skip
+        objects, and a skipped object here keeps the audience it used to have.
+
+        The page filter is re-applied on every round trip and the cursor always
+        advances,
+        so an object whose update makes it stop matching cannot cause the sweep to loop.
+        """
+        conditions = [
+            Filter.by_property(key).equal(value)
+            for key, value in (filters or {}).items()
+            if value is not None
+        ]
+        if not conditions:
+            raise ValueError(
+                "update_properties_by_filter requires at least one non-null filter; an "
+                "empty filter would rewrite every object in the collection"
+            )
+        if not properties:
+            raise ValueError(
+                "update_properties_by_filter requires at least one property to write"
+            )
+
+        where = conditions[0] if len(conditions) == 1 else Filter.all_of(conditions)
+        updated = 0
+        cursor: Optional[str] = None
+
+        try:
+            collection = self.client.collections.get(collection_name)
+
+            while True:
+                async with self._semaphore:
+                    page = await collection.query.fetch_objects(
+                        limit=self.UPDATE_PAGE_SIZE,
+                        after=cursor,
+                        filters=where,
+                        return_properties=[],
+                    )
+                if not page.objects:
+                    break
+
+                for obj in page.objects:
+                    async with self._semaphore:
+                        await collection.data.update(
+                            uuid=obj.uuid, properties=properties
+                        )
+                    updated += 1
+
+                cursor = str(page.objects[-1].uuid)
+
+            return updated
+
+        except Exception as e:
+            logger.exception(
+                f"update_properties_by_filter failed after {updated} update(s): "
+                f"{type(e).__name__}"
+            )
+            # The count is logged before raising: a partial update leaves the collection
+            # in a mixed state, and the caller needs to know a retry is a resume rather
+            # than a fresh start.
+            raise VectorDBUpdateFailedException("Failed to update documents by filter")
+
     async def update_document(
         self,
         collection_name: str,
@@ -599,6 +681,39 @@ class WeaviateDB(VectorDB):
             logger.exception(f"Failed to search documents: {type(e).__name__}")
             raise VectorDBSearchFailedException("Failed to search documents")
 
+    @staticmethod
+    def _build_condition(entry: Dict[str, Any]):
+        """
+        Turn one declarative condition from `any_of` into a Weaviate filter.
+
+        Deliberately a CLOSED set of two operators rather than a general expression
+        language. This is reached from the audience filter on the request path, and the
+        one failure that must be impossible is a condition that quietly evaluates to
+        "everything" — so an entry naming no property, or an operator this does not
+        implement, raises instead of degrading into a match-all.
+        """
+        prop = entry.get("property")
+        if not prop:
+            raise ValueError("an any_of condition must name a property")
+
+        if "equal" in entry:
+            return Filter.by_property(prop).equal(entry["equal"])
+        if "contains_any" in entry:
+            values = entry["contains_any"] or []
+            if not values:
+                # `contains_any([])` is accepted by the client and matches nothing, but
+                # spelling it out here keeps the intent readable at the call site.
+                raise ValueError(
+                    f"contains_any on '{prop}' was given no values; pass an empty "
+                    "any_of list to mean 'match nothing' instead"
+                )
+            return Filter.by_property(prop).contains_any(values)
+
+        raise ValueError(
+            f"unsupported any_of condition for '{prop}': expected 'equal' or "
+            "'contains_any'"
+        )
+
     async def near_vector_search(
         self,
         collection_name: str,
@@ -606,6 +721,7 @@ class WeaviateDB(VectorDB):
         limit: int = 10,
         min_similarity: float = 0.0,
         filters: Optional[Dict[str, Any]] = None,
+        any_of: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Similarity search from a caller-supplied vector. See
@@ -615,6 +731,14 @@ class WeaviateDB(VectorDB):
         The conversion happens here so callers only ever reason in similarity, which is
         what the standalone roadmap app's threshold (0.5) was expressed in.
         """
+        # An `any_of` that came in EMPTY is answered before any I/O. It means the caller
+        # computed a disjunction that nothing can satisfy — an audience matching no
+        # documents, say — and the one thing that must not happen is falling through to
+        # an unfiltered search. `None` (no disjunction asked for) is a different case
+        # continues below.
+        if any_of is not None and not any_of:
+            return []
+
         try:
             collection = self.client.collections.get(collection_name)
 
@@ -631,6 +755,16 @@ class WeaviateDB(VectorDB):
                         if len(conditions) == 1
                         else Filter.all_of(conditions)
                     )
+
+            if any_of:
+                disjunction = Filter.any_of(
+                    [self._build_condition(entry) for entry in any_of]
+                )
+                query_filters = (
+                    disjunction
+                    if query_filters is None
+                    else Filter.all_of([query_filters, disjunction])
+                )
 
             # A similarity floor is a distance ceiling.
             max_distance = 1.0 - min_similarity

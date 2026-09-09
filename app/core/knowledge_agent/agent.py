@@ -41,7 +41,10 @@ from app.core.knowledge_agent.schemas import (
     KnowledgeAnswer,
     TranslatedQuery,
 )
-from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkService
+from app.core.knowledge_base.knowledge_chunk_service import (
+    ChunkAudience,
+    KnowledgeChunkService,
+)
 from app.core.llm.dispatch import generate_structured
 from app.core.llm_usage.tasks import LLMTask
 from app.core.phi_events import PHIEvents
@@ -320,6 +323,7 @@ class KnowledgeAgentService:
     async def answer(
         self,
         question: str,
+        audience: ChunkAudience,
         *,
         history: Optional[List[Dict[str, str]]] = None,
         prompts: Optional[Dict[str, Any]] = None,
@@ -337,6 +341,12 @@ class KnowledgeAgentService:
         Answer one question. Every threshold is overridable per request by ally-be,
         which reads them from the `whatsapp_bot` settings row, so retrieval can be tuned
         without a deploy.
+
+        `audience` is positional and required for the same reason it is on
+        `KnowledgeChunkService.search`: documents are targetable at one, some or all
+        organisations, and an omitted audience would answer from material the asker may
+        not be entitled to. There is no default — a caller that cannot say who is asking
+        has to decide what to do about that itself.
         """
         cfg = settings.KNOWLEDGE_AGENT
         top_k = top_k or cfg.TOP_K
@@ -371,6 +381,7 @@ class KnowledgeAgentService:
             limit=top_k,
             min_similarity=min_similarity,
             document_ids=document_ids,
+            audience=audience,
         )
         top_similarity = float(hits[0].get("similarity") or 0.0) if hits else 0.0
 
@@ -401,9 +412,7 @@ class KnowledgeAgentService:
                 reason = DeclineReason.TRANSLATION_FAILED
             else:
                 reason = (
-                    DeclineReason.NO_HITS
-                    if not hits
-                    else DeclineReason.BELOW_THRESHOLD
+                    DeclineReason.NO_HITS if not hits else DeclineReason.BELOW_THRESHOLD
                 )
             logger.info(
                 "Declining before generation: reason=%s hits=%d top=%.4f",

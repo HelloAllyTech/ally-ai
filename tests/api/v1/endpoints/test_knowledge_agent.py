@@ -21,6 +21,10 @@ from tests.api.v1.endpoints.base import BaseAPITest
 
 SERVICE = "app.core.knowledge_agent.agent.KnowledgeAgentService"
 
+#: `audience` is a REQUIRED field on this endpoint, so every payload carries one. See
+#: TestAnswerAudience for why omitting it is a 422 rather than a default.
+AUDIENCE = {"tenant_id": str(uuid4()), "include_global": True}
+
 
 class _ResolvedKeyAPITest(BaseAPITest):
     """A client whose API key is read from settings rather than hardcoded.
@@ -87,7 +91,10 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
             mock_answer.return_value = agent_result()
             response = client.post(
                 "/api/v1/knowledge-agent/answer",
-                json={"question": "How do I ask about suicidal intent?"},
+                json={
+                    "question": "How do I ask about suicidal intent?",
+                    "audience": AUDIENCE,
+                },
             )
 
         assert response.status_code == 200
@@ -115,7 +122,8 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
                 model="",
             )
             response = client.post(
-                "/api/v1/knowledge-agent/answer", json={"question": "unrelated"}
+                "/api/v1/knowledge-agent/answer",
+                json={"question": "unrelated", "audience": AUDIENCE},
             )
 
         assert response.status_code == 200
@@ -132,7 +140,7 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
             )
             response = client.post(
                 "/api/v1/knowledge-agent/answer",
-                json={"question": "help with a client"},
+                json={"question": "help with a client", "audience": AUDIENCE},
             )
 
         assert response.status_code == 200
@@ -149,6 +157,7 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
                 "/api/v1/knowledge-agent/answer",
                 json={
                     "question": "q",
+                    "audience": AUDIENCE,
                     "top_k": 12,
                     "min_similarity": 0.3,
                     "decline_similarity": 0.5,
@@ -172,7 +181,10 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
         """
         with patch(f"{SERVICE}.answer") as mock_answer:
             mock_answer.return_value = agent_result()
-            client.post("/api/v1/knowledge-agent/answer", json={"question": "q"})
+            client.post(
+                "/api/v1/knowledge-agent/answer",
+                json={"question": "q", "audience": AUDIENCE},
+            )
 
         assert mock_answer.call_args.kwargs["translate_query"] is True
 
@@ -183,6 +195,7 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
                 "/api/v1/knowledge-agent/answer",
                 json={
                     "question": "what about for children?",
+                    "audience": AUDIENCE,
                     "history": [
                         {"role": "user", "content": "How do I ask about intent?"},
                         {"role": "assistant", "content": "Ask directly."},
@@ -213,7 +226,8 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
         with patch(f"{SERVICE}.answer") as mock_answer:
             mock_answer.side_effect = EmbeddingFailedException("nope")
             response = client.post(
-                "/api/v1/knowledge-agent/answer", json={"question": "q"}
+                "/api/v1/knowledge-agent/answer",
+                json={"question": "q", "audience": AUDIENCE},
             )
         assert response.status_code == 502
 
@@ -221,7 +235,8 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
         with patch(f"{SERVICE}.answer") as mock_answer:
             mock_answer.side_effect = VectorDBSearchFailedException("down")
             response = client.post(
-                "/api/v1/knowledge-agent/answer", json={"question": "q"}
+                "/api/v1/knowledge-agent/answer",
+                json={"question": "q", "audience": AUDIENCE},
             )
         assert response.status_code == 503
 
@@ -234,6 +249,67 @@ class TestAnswerEndpoint(_ResolvedKeyAPITest):
         with patch(f"{SERVICE}.answer") as mock_answer:
             mock_answer.side_effect = LLMInvocationFailedException("model down")
             response = client.post(
-                "/api/v1/knowledge-agent/answer", json={"question": "q"}
+                "/api/v1/knowledge-agent/answer",
+                json={"question": "q", "audience": AUDIENCE},
             )
         assert response.status_code == 502
+
+
+class TestAnswerAudience(_ResolvedKeyAPITest):
+    """
+    `audience` is the one required field besides the question.
+
+    Every plausible default is wrong in a way that is invisible in production:
+    "everything" answers one customer's worker out of another customer's documents, and
+    "global only" would quietly stop an organisation's own material from ever being
+    retrieved while the bot kept replying confidently. A 422 is the only outcome that
+    makes a caller which cannot resolve the asker's organisation deal with that itself.
+    """
+
+    def test_missing_audience_is_rejected(self, client: TestClient):
+        with patch(f"{SERVICE}.answer") as mock_answer:
+            response = client.post(
+                "/api/v1/knowledge-agent/answer", json={"question": "q"}
+            )
+
+        assert response.status_code == 422
+        mock_answer.assert_not_called()
+
+    def test_audience_matching_nothing_is_rejected(self, client: TestClient):
+        """
+        No organisation AND no global corpus is refused rather than answered empty.
+
+        It is nearly always a caller that failed to resolve the asker's organisation and
+        sent the default for the other half; replying "the corpus does not cover that"
+        would hide that bug behind a plausible answer.
+        """
+        with patch(f"{SERVICE}.answer") as mock_answer:
+            response = client.post(
+                "/api/v1/knowledge-agent/answer",
+                json={
+                    "question": "q",
+                    "audience": {"tenant_id": None, "include_global": False},
+                },
+            )
+
+        assert response.status_code == 422
+        mock_answer.assert_not_called()
+
+    def test_audience_reaches_the_agent_as_a_positional_argument(
+        self, client: TestClient
+    ):
+        tenant_id = str(uuid4())
+        with patch(f"{SERVICE}.answer") as mock_answer:
+            mock_answer.return_value = agent_result()
+            client.post(
+                "/api/v1/knowledge-agent/answer",
+                json={
+                    "question": "q",
+                    "audience": {"tenant_id": tenant_id, "include_global": True},
+                },
+            )
+
+        audience = mock_answer.call_args.args[1]
+        assert audience.tenant_id == tenant_id
+        assert audience.include_global is True
+        assert audience.ignore_targeting is False

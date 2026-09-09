@@ -16,8 +16,18 @@ Consequences worth knowing:
   * Nothing here decides what is stale. ally-be owns the system of record and therefore
     owns that
     decision; this service enumerates and deletes on instruction.
+  * AUDIENCE is the exception to in-place immutability. A document is targetable at one,
+    some or all organisations, and `set_document_audience` rewrites that on the existing
+    chunk objects rather than re-chunking: who may read a passage is not part of what it
+    says, and re-embedding a 300-page book to add an organisation would cost minutes and
+    real money to change a boolean.
+  * `search` REQUIRES an audience. The original design note against a per-tenant filter
+    was that "an un-set filter is the easiest thing in the world to forget", so there is
+    no default: searching the whole corpus means passing `ChunkAudience.unrestricted()`,
+    which a reviewer can see and grep for.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Dict, List, Optional
@@ -30,6 +40,68 @@ from app.exceptions.custom_exceptions import EmbeddingFailedException
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class ChunkAudience:
+    """
+    Who a retrieval is being performed FOR.
+
+    A value object rather than a pair of optional keyword arguments, for one reason: a
+    forgotten filter on this path does not fail, it over-shares. Making the audience a
+    required argument of `search` means the compiler-adjacent failure (a missing
+    argument) replaces the silent one, and making the unfiltered case a named
+    constructor — `ChunkAudience.unrestricted()` — means an unrestricted search is
+    something a caller says out loud.
+
+    `ignore_targeting` exists for the admin retrieval console, which is answering "what
+    is in the corpus" rather than "what may this worker see". It is never set on the
+    WhatsApp answering path.
+    """
+
+    tenant_id: Optional[str] = None
+    include_global: bool = True
+    ignore_targeting: bool = False
+
+    @classmethod
+    def for_tenant(cls, tenant_id: str, include_global: bool = True) -> "ChunkAudience":
+        """Documents targeted at one organisation, plus the global corpus by default."""
+        return cls(tenant_id=str(tenant_id), include_global=include_global)
+
+    @classmethod
+    def global_only(cls) -> "ChunkAudience":
+        """Only documents available to every organisation."""
+        return cls(tenant_id=None, include_global=True)
+
+    @classmethod
+    def unrestricted(cls) -> "ChunkAudience":
+        """
+        Every document regardless of targeting. ADMIN TOOLING ONLY — this is the one
+        value that can surface another organisation's material, so it is deliberately
+        verbose at the call site.
+        """
+        return cls(ignore_targeting=True)
+
+    def to_any_of(self) -> Optional[List[Dict[str, Any]]]:
+        """
+        The disjunction to hand `near_vector_search`, or None for no filtering.
+
+        Returns an EMPTY LIST when the audience can match nothing (no organisation and
+        no global corpus). That is a real state — an admin can save a document targeted
+        at nobody — and the vector layer treats an empty disjunction as "match nothing"
+        rather than falling through to an unfiltered search.
+        """
+        if self.ignore_targeting:
+            return None
+
+        conditions: List[Dict[str, Any]] = []
+        if self.include_global:
+            conditions.append({"property": "is_global", "equal": True})
+        if self.tenant_id:
+            conditions.append(
+                {"property": "tenant_ids", "contains_any": [str(self.tenant_id)]}
+            )
+        return conditions
 
 
 class KnowledgeChunkService:
@@ -160,6 +232,14 @@ class KnowledgeChunkService:
                         "source_url": item.get("source_url") or "",
                         "language": item.get("language") or "",
                         "tags": item.get("tags") or [],
+                        # Audience, mirrored from ally-be's kb_documents.is_global and
+                        # kb_document_tenants so retrieval can filter in Weaviate rather
+                        # than after the fact. Defaults are the CLOSED ones: a caller
+                        # that omits them indexes a passage nobody can retrieve, which
+                        # is a visible, fixable bug, where defaulting to global would be
+                        # an invisible leak.
+                        "is_global": bool(item.get("is_global") or False),
+                        "tenant_ids": [str(t) for t in (item.get("tenant_ids") or [])],
                         "token_count": int(item.get("token_count") or 0),
                         "text_hash": text_hash,
                         "embedding_model": EmbeddingConstants.MODEL,
@@ -211,9 +291,45 @@ class KnowledgeChunkService:
         logger.info(f"Deleted {deleted} chunk(s) for document {document_id}")
         return deleted
 
+    async def set_document_audience(
+        self,
+        document_id: str,
+        is_global: bool,
+        tenant_ids: Optional[List[str]] = None,
+    ) -> int:
+        """
+        Rewrite the audience on every indexed chunk of a document. Returns the count.
+
+        Called when an admin retargets a document in ally-be. An in-place property
+        update, NOT a re-chunk: the alternative would re-embed every passage to change
+        which organisations may read them, which costs an embedding call per passage and
+        — because a re-chunk bumps chunk_version — would break every citation already
+        recorded against the old generation in the conversation log.
+
+        Returning 0 is legitimate and NOT an error: a document still queued, mid-ingest,
+        or archived (archiving deletes its vectors) has nothing indexed to retarget. The
+        caller in ally-be re-sends the audience with the chunks on the next ingest, so
+        the two stores converge either way.
+        """
+        updated = await self.vector_db.update_properties_by_filter(
+            self.collection_name,
+            {"document_id": str(document_id)},
+            {
+                "is_global": bool(is_global),
+                "tenant_ids": [str(t) for t in (tenant_ids or [])],
+            },
+        )
+        logger.info(
+            f"Retargeted {updated} chunk(s) for document {document_id} "
+            f"(is_global={bool(is_global)}, "
+            f"organisations={len(tenant_ids or [])})"
+        )
+        return updated
+
     async def search(
         self,
         query: str,
+        audience: ChunkAudience,
         limit: int = 8,
         min_similarity: float = 0.35,
         document_ids: Optional[List[str]] = None,
@@ -232,6 +348,15 @@ class KnowledgeChunkService:
         not a preference: a query vector from a different model lands in a different
         space, which makes every similarity number meaningless rather than merely
         worse, and every threshold built on top of them arbitrary.
+
+        `audience` is POSITIONAL AND REQUIRED, and it is applied inside the vector
+        search rather than to its results. Both are deliberate. Required, because the
+        original argument against a per-tenant filter on a shared collection was that an
+        un-set filter is trivially easy to forget — so there is no way to call this
+        without stating who is asking. Applied in the query, because a post-filter over
+        a fixed top-k silently starves recall: an organisation with five documents among
+        ten thousand global chunks would come back empty and be told, wrongly, that the
+        corpus does not cover its question.
         """
         text = (query or "").strip()
         if not text:
@@ -243,9 +368,10 @@ class KnowledgeChunkService:
             logger.exception(f"Query embedding failed: {type(e).__name__}")
             raise EmbeddingFailedException("Failed to embed the query")
 
-        # near_vector_search supports property equality only, so a document_ids
-        # restriction is applied after the fact. Retrieval asks for more than `limit`
-        # when filtering so the filter cannot starve the result set down to nothing.
+        # `document_ids` remains a post-filter — it is an admin-tooling narrowing over
+        # a corpus the caller can already see, so overfetching covers it. The AUDIENCE
+        # is not: it decides what a caller may see at all, so it goes into the query as
+        # a disjunction ("global OR mine") and an empty disjunction returns nothing.
         overfetch = limit * 4 if document_ids else limit
 
         hits = await self.vector_db.near_vector_search(
@@ -254,6 +380,7 @@ class KnowledgeChunkService:
             limit=overfetch,
             min_similarity=min_similarity,
             filters={"language": language} if language else None,
+            any_of=audience.to_any_of(),
         )
 
         if document_ids:

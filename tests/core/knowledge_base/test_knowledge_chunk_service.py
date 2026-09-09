@@ -11,9 +11,16 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.constants import EmbeddingConstants
-from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkService
+from app.core.knowledge_base.knowledge_chunk_service import (
+    ChunkAudience,
+    KnowledgeChunkService,
+)
 from app.core.vector_db.constants import VectorDBCollectionNames
 from app.exceptions.custom_exceptions import EmbeddingFailedException
+
+#: Most of these tests are about indexing and staleness rather than access, so they
+#: search as the admin console does. The audience-specific behaviour has its own class.
+ANY_AUDIENCE = ChunkAudience.unrestricted()
 
 CHUNK_A = "11111111-1111-1111-1111-111111111111"
 CHUNK_B = "22222222-2222-2222-2222-222222222222"
@@ -240,7 +247,9 @@ class TestKnowledgeChunkService:
             }
         ]
 
-        passages = await service.search("how do I ask about intent", limit=5)
+        passages = await service.search(
+            "how do I ask about intent", ANY_AUDIENCE, limit=5
+        )
 
         vector_db.search_documents.assert_not_called()
         kwargs = vector_db.near_vector_search.call_args.kwargs
@@ -267,7 +276,9 @@ class TestKnowledgeChunkService:
             {"id": CHUNK_B, "similarity": 0.55, "document_id": DOC_ID},
         ]
 
-        passages = await service.search("q", limit=2, document_ids=[DOC_ID])
+        passages = await service.search(
+            "q", ANY_AUDIENCE, limit=2, document_ids=[DOC_ID]
+        )
 
         assert vector_db.near_vector_search.call_args.kwargs["limit"] == 8  # 2 * 4
         assert [p["chunk_id"] for p in passages] == [CHUNK_B]
@@ -276,7 +287,7 @@ class TestKnowledgeChunkService:
     async def test_search_blank_query_returns_nothing(
         self, service, vector_db, embedding_service
     ):
-        assert await service.search("   ") == []
+        assert await service.search("   ", ANY_AUDIENCE) == []
         embedding_service.embed.assert_not_called()
         vector_db.near_vector_search.assert_not_called()
 
@@ -287,4 +298,187 @@ class TestKnowledgeChunkService:
         embedding_service.embed.side_effect = RuntimeError("boom")
 
         with pytest.raises(EmbeddingFailedException):
-            await service.search("a question")
+            await service.search("a question", ANY_AUDIENCE)
+
+
+class TestChunkAudience:
+    """
+    The audience value object.
+
+    Every test here is about a failure that would be SILENT and in the wrong direction:
+    over-sharing. An audience that quietly widens to the whole corpus does not throw,
+    or look wrong in a dashboard — it answers one customer's worker out of another
+    customer's material.
+    """
+
+    def test_for_tenant_includes_global_by_default(self):
+        audience = ChunkAudience.for_tenant("t-1")
+
+        assert audience.to_any_of() == [
+            {"property": "is_global", "equal": True},
+            {"property": "tenant_ids", "contains_any": ["t-1"]},
+        ]
+
+    def test_for_tenant_can_exclude_the_global_corpus(self):
+        """Previews what is targeted AT an organisation, not what it can see."""
+        assert ChunkAudience.for_tenant("t-1", include_global=False).to_any_of() == [
+            {"property": "tenant_ids", "contains_any": ["t-1"]}
+        ]
+
+    def test_global_only_audience_omits_any_tenant_condition(self):
+        assert ChunkAudience.global_only().to_any_of() == [
+            {"property": "is_global", "equal": True}
+        ]
+
+    def test_unrestricted_disables_filtering_entirely(self):
+        """None, not []: one means 'do not filter', the other 'match nothing'."""
+        assert ChunkAudience.unrestricted().to_any_of() is None
+
+    def test_audience_matching_nothing_is_an_empty_list_not_none(self):
+        """
+        The load-bearing distinction in the whole feature.
+
+        An audience with no organisation and no global corpus can match nothing. It must
+        come out as `[]` so the vector layer returns no hits, NOT as `None`, which the
+        vector layer reads as 'no filter requested' and would answer from every document
+        in the corpus.
+        """
+        empty = ChunkAudience(tenant_id=None, include_global=False)
+
+        assert empty.to_any_of() == []
+
+
+class TestKnowledgeChunkAudience:
+    @pytest.fixture
+    def vector_db(self):
+        db = AsyncMock()
+        db.update_properties_by_filter.return_value = 3
+        return db
+
+    @pytest.fixture
+    def embedding_service(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def service(self, vector_db, embedding_service):
+        return KnowledgeChunkService(vector_db, embedding_service)
+
+    @pytest.mark.asyncio
+    async def test_bulk_upsert_mirrors_the_document_audience_onto_every_chunk(
+        self, service, vector_db, embedding_service
+    ):
+        embedding_service.embed_many.return_value = [[0.1]]
+        vector_db.create_documents_bulk.return_value = {
+            "succeeded": [CHUNK_A],
+            "failed": [],
+        }
+
+        await service.bulk_upsert(
+            [
+                make_item(
+                    CHUNK_A,
+                    "Ask directly about intent.",
+                    is_global=False,
+                    tenant_ids=["t-1", "t-2"],
+                )
+            ]
+        )
+
+        props = vector_db.create_documents_bulk.call_args[0][1][0]["properties"]
+        assert props["is_global"] is False
+        assert props["tenant_ids"] == ["t-1", "t-2"]
+
+    @pytest.mark.asyncio
+    async def test_bulk_upsert_defaults_to_the_closed_audience(
+        self, service, vector_db, embedding_service
+    ):
+        """
+        A caller that omits the audience must index a passage NOBODY retrieves.
+
+        Defaulting to global would make a forgotten field a silent leak; defaulting to
+        closed makes it a visible, reportable gap — the document shows as indexed and
+        answers nothing, which someone notices and can fix with a retarget.
+        """
+        embedding_service.embed_many.return_value = [[0.1]]
+        vector_db.create_documents_bulk.return_value = {
+            "succeeded": [CHUNK_A],
+            "failed": [],
+        }
+
+        await service.bulk_upsert([make_item(CHUNK_A, "text")])
+
+        props = vector_db.create_documents_bulk.call_args[0][1][0]["properties"]
+        assert props["is_global"] is False
+        assert props["tenant_ids"] == []
+
+    @pytest.mark.asyncio
+    async def test_search_passes_the_audience_into_the_query(
+        self, service, vector_db, embedding_service
+    ):
+        """
+        The audience is a QUERY filter, never a post-filter.
+
+        A post-filter over a fixed top-k would let global chunks consume every slot and
+        return nothing for an organisation with a handful of documents — reported to the
+        worker as 'the corpus does not cover that' — a lie retrieval told itself.
+        """
+        embedding_service.embed.return_value = [0.4]
+        vector_db.near_vector_search.return_value = []
+
+        await service.search("q", ChunkAudience.for_tenant("t-9"), limit=6)
+
+        kwargs = vector_db.near_vector_search.call_args.kwargs
+        assert kwargs["any_of"] == [
+            {"property": "is_global", "equal": True},
+            {"property": "tenant_ids", "contains_any": ["t-9"]},
+        ]
+        # No overfetch: the narrowing happened inside the search, so `limit` is honest.
+        assert kwargs["limit"] == 6
+
+    @pytest.mark.asyncio
+    async def test_search_for_an_empty_audience_filters_rather_than_widening(
+        self, service, vector_db, embedding_service
+    ):
+        embedding_service.embed.return_value = [0.4]
+        vector_db.near_vector_search.return_value = []
+
+        await service.search("q", ChunkAudience(tenant_id=None, include_global=False))
+
+        assert vector_db.near_vector_search.call_args.kwargs["any_of"] == []
+
+    @pytest.mark.asyncio
+    async def test_set_document_audience_updates_in_place(self, service, vector_db):
+        """
+        Retargeting is a property update, not a re-chunk.
+
+        A re-chunk would re-embed every passage to change a boolean AND bump
+        chunk_version, which orphans the citations already recorded against the previous
+        generation in ally-be's conversation log.
+        """
+        updated = await service.set_document_audience(
+            DOC_ID, is_global=False, tenant_ids=["t-1"]
+        )
+
+        assert updated == 3
+        collection, filters, properties = (
+            vector_db.update_properties_by_filter.call_args[0]
+        )
+        assert collection == VectorDBCollectionNames.KNOWLEDGE_CHUNKS
+        assert filters == {"document_id": DOC_ID}
+        assert properties == {"is_global": False, "tenant_ids": ["t-1"]}
+
+    @pytest.mark.asyncio
+    async def test_set_document_audience_clears_tenants_when_going_global(
+        self, service, vector_db
+    ):
+        """
+        Going global CLEARS tenant_ids rather than leaving them behind.
+
+        Stale ids would be harmless while is_global stayed true and wrong the moment it
+        was turned off again — the document would silently come back for organisations
+        an admin had already removed.
+        """
+        await service.set_document_audience(DOC_ID, is_global=True, tenant_ids=None)
+
+        properties = vector_db.update_properties_by_filter.call_args[0][2]
+        assert properties == {"is_global": True, "tenant_ids": []}

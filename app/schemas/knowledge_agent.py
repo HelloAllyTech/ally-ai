@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.core.knowledge_agent.schemas import AnswerIntent, DeclineReason
+from app.schemas.knowledge_chunk import AudienceSelector
 
 
 class AgentTurn(BaseModel):
@@ -86,6 +87,19 @@ class KnowledgeAnswerRequest(BaseModel):
     document_ids: Optional[List[UUID]] = Field(
         None,
         description="Restrict retrieval to these documents; None searches everything",
+    )
+    audience: AudienceSelector = Field(
+        ...,
+        description=(
+            "REQUIRED, unlike every other field here. A document is targetable at one, "
+            "some or all organisations, so answering a worker means knowing which "
+            "organisation is asking. There is no default because the plausible "
+            "defaults are both wrong: 'everything' leaks one customer's material to "
+            "another, and "
+            "'global only' would quietly stop a tenant's own documents from ever being "
+            "retrieved. A caller that cannot resolve the asker's organisation should "
+            "refuse to answer rather than guess — ally-be does exactly that"
+        ),
     )
 
 
