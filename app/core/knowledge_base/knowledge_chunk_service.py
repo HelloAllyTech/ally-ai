@@ -33,14 +33,25 @@ logger = get_logger(__name__)
 
 
 class KnowledgeChunkService:
-    """Indexing and retrieval for the WhatsApp bot's knowledge corpus."""
+    """Indexing and retrieval for ONE passage-level knowledge corpus.
+
+    General-purpose: the corpus is chosen by the collection this instance is bound to,
+    and everything below — chunk writes, deletes, similarity search, id reconciliation —
+    is identical whichever it is. One instance per collection (see
+    app/core/knowledge_base/corpus.py), never one instance switching between them: a
+    collection bound once at construction cannot be the wrong one halfway through a
+    request.
+    """
 
     def __init__(
-        self, vector_db: VectorDB, embedding_service: BaseEmbeddingService
+        self,
+        vector_db: VectorDB,
+        embedding_service: BaseEmbeddingService,
+        collection_name: str = VectorDBCollectionNames.KNOWLEDGE_CHUNKS,
     ) -> None:
         self.vector_db = vector_db
         self.embedding_service = embedding_service
-        self.collection_name = VectorDBCollectionNames.KNOWLEDGE_CHUNKS
+        self.collection_name = collection_name
 
     @staticmethod
     def hash_text(text: str) -> str:
@@ -243,24 +254,34 @@ class KnowledgeChunkService:
             logger.exception(f"Query embedding failed: {type(e).__name__}")
             raise EmbeddingFailedException("Failed to embed the query")
 
-        # near_vector_search supports property equality only, so a document_ids
-        # restriction is applied after the fact. Retrieval asks for more than `limit`
-        # when filtering so the filter cannot starve the result set down to nothing.
-        overfetch = limit * 4 if document_ids else limit
+        # A document_ids restriction is a PRE-filter, applied by the engine before it
+        # ranks. It used to be applied afterwards over an overfetched window, which
+        # cannot work: the engine ranks the whole collection, so the best passage
+        # *within the allowed documents* is often outside the global top-k and the
+        # scoped search comes back empty while the corpus plainly contains an answer.
+        # No overfetch is needed once the filter is real — `limit` hits are `limit`
+        # allowed hits.
+        filters: Dict[str, Any] = {}
+        if language:
+            filters["language"] = language
+        if document_ids is not None:
+            # An explicitly empty scope means "no retrievable documents", which is a
+            # real state (a corpus whose documents are all still indexing) and must
+            # return nothing. Passing it down would raise, and passing nothing down
+            # would search every corpus — the leak this scoping exists to prevent.
+            if not document_ids:
+                return []
+            filters["document_id"] = [str(d) for d in document_ids]
 
         hits = await self.vector_db.near_vector_search(
             collection_name=self.collection_name,
             vector=vector,
-            limit=overfetch,
+            limit=limit,
             min_similarity=min_similarity,
-            filters={"language": language} if language else None,
+            filters=filters or None,
         )
 
-        if document_ids:
-            allowed = {str(d) for d in document_ids}
-            hits = [h for h in hits if str(h.get("document_id")) in allowed]
-
-        return [self._to_passage(hit) for hit in hits[:limit]]
+        return [self._to_passage(hit) for hit in hits]
 
     @staticmethod
     def _to_passage(hit: Dict[str, Any]) -> Dict[str, Any]:

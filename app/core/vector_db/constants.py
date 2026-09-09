@@ -14,6 +14,7 @@ class VectorDBCollectionNames:
     REFERENCE_DOCUMENTS = "ReferenceDocument"
     ROADMAP_OPPORTUNITIES = "RoadmapOpportunity"
     KNOWLEDGE_CHUNKS = "KnowledgeChunk"
+    CHARACTER_CHUNKS = "CharacterChunk"
 
 
 class MigrationHistoryProperties:
@@ -175,8 +176,8 @@ class RoadmapOpportunityProperties:
 
 class KnowledgeChunkProperties:
     """
-    Properties for the KnowledgeChunk collection — passage-level retrieval for the
-    WhatsApp Q&A bot that answers mental healthcare workers' questions.
+    Properties for a passage-level retrieval collection — the WhatsApp Q&A bot's
+    KnowledgeChunk, and the character library's CharacterChunk.
 
     Distinct from ReferenceDocument, which is left untouched: that collection stores one
     object per document with a SINGLE embedding of the whole body, which is why it can
@@ -204,11 +205,26 @@ class KnowledgeChunkProperties:
     identifies the right document, whereas a per-question round trip to resolve titles
     would cost latency on every answer.
 
-    NO tenant_id. This corpus is deliberately GLOBAL — the bot is open to anyone with
+    SHARED BY EVERY CORPUS, INSTANTIATED ONCE PER CORPUS. These properties describe a
+    passage, which is the same shape whatever the passage is for, so `CharacterChunk`
+    (grounding the character-library interview agent) is created from this exact list.
+    What is NOT shared is the collection itself — see VectorDBCollectionNames — and the
+    reasons are the ones this file already gives for keeping ReferenceDocument separate,
+    plus two that are specific to corpora:
+
+      * A similarity THRESHOLD only means something against one distribution. Chunk size
+        is chosen per corpus (400 tokens for a 1600-character WhatsApp reply, 800 for a
+        character vignette), and a longer passage embeds more diffusely — so one index
+        holding both sizes would have one threshold straddling two distributions.
+      * Filtered ANN search is weaker than unfiltered. HNSW traverses a graph built over
+        every vector in the collection, so scoping by a low-selectivity filter costs
+        recall or degrades to a scan. A collection per corpus traverses only its own.
+
+    NO tenant_id. These corpora are deliberately GLOBAL — the bot is open to anyone with
     the number, so there is no tenant to scope by. If a private per-tenant corpus is
-    ever needed it must be a NEW collection, not a filter bolted onto this one:
-    retrieval that forgets a filter leaks, and an un-set filter is the easiest thing in
-    the world to forget.
+    ever needed it must likewise be a NEW collection, not a filter bolted onto one of
+    these: retrieval that forgets a filter leaks, and an un-set filter is the easiest
+    thing in the world to forget.
 
     The Weaviate object UUID IS ally-be's kb_document_chunks.id, so every write is
     idempotent by construction and a citation's chunk_id resolves straight back to the

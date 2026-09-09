@@ -252,25 +252,56 @@ class TestKnowledgeChunkService:
         assert passages[0]["page_from"] == 44
 
     @pytest.mark.asyncio
-    async def test_search_overfetches_when_filtering_by_document(
+    async def test_search_scopes_documents_as_a_pre_filter(
         self, service, vector_db, embedding_service
     ):
-        """A document restriction must not be able to starve the result set.
+        """A document restriction goes to the engine, not to a post-hoc trim.
 
-        near_vector_search supports property equality only, so document_ids is applied
-        after the fact — asking for exactly `limit` first would let unrelated documents
-        consume every slot.
+        Filtering afterwards cannot narrow a ranking — it starves it. The engine ranks
+        the whole collection, so the best passage inside the allowed documents can sit
+        outside the global top-k and a scoped search comes back empty over a corpus that
+        plainly holds an answer. Once the filter is real, `limit` hits are `limit`
+        allowed hits and there is nothing to overfetch.
         """
         embedding_service.embed.return_value = [0.1]
         vector_db.near_vector_search.return_value = [
-            {"id": CHUNK_A, "similarity": 0.6, "document_id": "other-doc"},
             {"id": CHUNK_B, "similarity": 0.55, "document_id": DOC_ID},
         ]
 
         passages = await service.search("q", limit=2, document_ids=[DOC_ID])
 
-        assert vector_db.near_vector_search.call_args.kwargs["limit"] == 8  # 2 * 4
+        kwargs = vector_db.near_vector_search.call_args.kwargs
+        assert kwargs["limit"] == 2
+        assert kwargs["filters"] == {"document_id": [DOC_ID]}
         assert [p["chunk_id"] for p in passages] == [CHUNK_B]
+
+    @pytest.mark.asyncio
+    async def test_search_with_empty_scope_returns_nothing(
+        self, service, vector_db, embedding_service
+    ):
+        """An empty scope is a real state, and it must not widen to every corpus.
+
+        A corpus whose documents are all still indexing resolves to no ids. Searching
+        unscoped there would answer from another consumer's material.
+        """
+        embedding_service.embed.return_value = [0.1]
+
+        assert await service.search("q", limit=2, document_ids=[]) == []
+        vector_db.near_vector_search.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_search_combines_language_and_document_scope(
+        self, service, vector_db, embedding_service
+    ):
+        embedding_service.embed.return_value = [0.1]
+        vector_db.near_vector_search.return_value = []
+
+        await service.search("q", limit=3, document_ids=[DOC_ID], language="ml")
+
+        assert vector_db.near_vector_search.call_args.kwargs["filters"] == {
+            "language": "ml",
+            "document_id": [DOC_ID],
+        }
 
     @pytest.mark.asyncio
     async def test_search_blank_query_returns_nothing(
@@ -288,3 +319,66 @@ class TestKnowledgeChunkService:
 
         with pytest.raises(EmbeddingFailedException):
             await service.search("a question")
+
+
+class TestCollectionBinding:
+    """The service is bound to ONE collection at construction.
+
+    That binding is what makes the corpus boundary structural rather than remembered:
+    there is no per-call collection argument to omit, and no instance that can be
+    pointed somewhere else halfway through a request.
+    """
+
+    @pytest.fixture
+    def vector_db(self):
+        db = AsyncMock()
+        db.create_documents_bulk.return_value = {"succeeded": [], "failed": []}
+        return db
+
+    @pytest.fixture
+    def embedding_service(self):
+        return AsyncMock()
+
+    def test_defaults_to_the_whatsapp_collection(self, vector_db, embedding_service):
+        service = KnowledgeChunkService(vector_db, embedding_service)
+        assert service.collection_name == VectorDBCollectionNames.KNOWLEDGE_CHUNKS
+
+    def test_binds_to_the_collection_it_is_given(self, vector_db, embedding_service):
+        service = KnowledgeChunkService(
+            vector_db, embedding_service, VectorDBCollectionNames.CHARACTER_CHUNKS
+        )
+        assert service.collection_name == VectorDBCollectionNames.CHARACTER_CHUNKS
+
+    @pytest.mark.asyncio
+    async def test_every_read_and_write_goes_to_the_bound_collection(
+        self, vector_db, embedding_service
+    ):
+        service = KnowledgeChunkService(
+            vector_db, embedding_service, VectorDBCollectionNames.CHARACTER_CHUNKS
+        )
+        embedding_service.embed.return_value = [0.1]
+        embedding_service.embed_batch.return_value = [[0.1]]
+        vector_db.near_vector_search.return_value = []
+        vector_db.create_documents_bulk.return_value = {
+            "succeeded": [],
+            "failed": [],
+        }
+        vector_db.delete_by_filter.return_value = 0
+        vector_db.list_document_ids.return_value = []
+
+        await service.search("q")
+        await service.delete_document_chunks(DOC_ID)
+        await service.list_ids()
+
+        assert (
+            vector_db.near_vector_search.call_args.kwargs["collection_name"]
+            == VectorDBCollectionNames.CHARACTER_CHUNKS
+        )
+        assert (
+            vector_db.delete_by_filter.call_args.args[0]
+            == VectorDBCollectionNames.CHARACTER_CHUNKS
+        )
+        assert (
+            vector_db.list_document_ids.call_args.args[0]
+            == VectorDBCollectionNames.CHARACTER_CHUNKS
+        )

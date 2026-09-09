@@ -30,6 +30,55 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _build_property_filter(filters: Optional[Dict[str, Any]]):
+    """
+    Build a Weaviate filter from a plain {property: value} dict, ANDing the conditions.
+
+    A LIST, TUPLE or SET value means "any of these", built as an OR of equalities rather
+    than as `contains_any`. Same primitive `delete_by_filter` already trusts for exact
+    document_id matching, so a set-membership filter is exactly as precise as the delete
+    that pairs with it — `contains_any` on a word-tokenised TEXT property would be a
+    second, subtly different notion of equality.
+
+    This exists because "any of these ids" has to be a PRE-filter. Applied after the
+    search instead, a restriction cannot merely narrow the result — it starves it: the
+    engine ranks the whole collection, hands back its global top-k, and the passage that
+    was the best match *within the allowed set* is simply not in that window. A scoped
+    search that silently returns nothing (or, worse, gets widened by a caller who
+    compensates with a bigger k) is the failure this prevents.
+
+    An EMPTY collection raises rather than being dropped. Dropping it would widen the
+    query to the whole collection, the opposite of what the caller asked for, and is
+    precisely how a corpus boundary leaks — one consumer's material answering another
+    consumer's question. `None` is different and is still skipped: that means "no
+    restriction on this property" and is how an optional filter is expressed.
+    """
+    if not filters:
+        return None
+
+    conditions = []
+    for key, value in filters.items():
+        if value is None:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            allowed = list(value)
+            if not allowed:
+                raise ValueError(
+                    f"Filter '{key}' was given an empty set of allowed values. That "
+                    "matches nothing, and treating it as no filter would widen the "
+                    "search instead of narrowing it."
+                )
+            conditions.append(
+                Filter.any_of([Filter.by_property(key).equal(v) for v in allowed])
+            )
+        else:
+            conditions.append(Filter.by_property(key).equal(value))
+
+    if not conditions:
+        return None
+    return conditions[0] if len(conditions) == 1 else Filter.all_of(conditions)
+
+
 class WeaviateDB(VectorDB):
     def __init__(
         self, client: WeaviateAsyncClient, embedding_service: BaseEmbeddingService
@@ -618,19 +667,7 @@ class WeaviateDB(VectorDB):
         try:
             collection = self.client.collections.get(collection_name)
 
-            query_filters = None
-            if filters:
-                conditions = [
-                    Filter.by_property(key).equal(value)
-                    for key, value in filters.items()
-                    if value is not None
-                ]
-                if conditions:
-                    query_filters = (
-                        conditions[0]
-                        if len(conditions) == 1
-                        else Filter.all_of(conditions)
-                    )
+            query_filters = _build_property_filter(filters)
 
             # A similarity floor is a distance ceiling.
             max_distance = 1.0 - min_similarity

@@ -10,7 +10,7 @@ from weaviate.exceptions import (
     WeaviateInsertManyAllFailedError,
 )
 
-from app.core.vector_db.weaviate import WeaviateDB
+from app.core.vector_db.weaviate import WeaviateDB, _build_property_filter
 from app.exceptions.custom_exceptions import (
     DocumentNotFoundException,
     EmbeddingFailedException,
@@ -755,3 +755,46 @@ class TestWeaviateDB:
             await weaviate_db.delete_by_filter(
                 "KnowledgeChunk", {"document_id": "doc-1"}
             )
+
+
+class TestBuildPropertyFilter:
+    """The filter builder behind near_vector_search.
+
+    Its job is that a scope narrows the search instead of being applied to the search's
+    output. A restriction handed to the engine returns the best allowed matches; the
+    same restriction applied afterwards returns whichever allowed matches happened to
+    survive a global ranking, which for a shared collection is routinely none.
+    """
+
+    def test_returns_none_for_nothing_to_filter(self):
+        assert _build_property_filter(None) is None
+        assert _build_property_filter({}) is None
+        assert _build_property_filter({"language": None}) is None
+
+    def test_single_value_is_property_equality(self):
+        built = _build_property_filter({"language": "ml"})
+        assert built.target == "language"
+        assert built.value == "ml"
+
+    def test_list_value_becomes_an_or_of_equalities(self):
+        """OR of equalities, matching the primitive delete_by_filter already trusts for
+        exact document_id matching, rather than a second notion of equality."""
+        built = _build_property_filter({"document_id": ["a", "b"]})
+        assert [(f.target, f.value) for f in built.filters] == [
+            ("document_id", "a"),
+            ("document_id", "b"),
+        ]
+
+    def test_empty_list_raises_rather_than_widening(self):
+        """The leak guard. Dropping an empty scope would search everything."""
+        with pytest.raises(ValueError, match="empty set of allowed values"):
+            _build_property_filter({"document_id": []})
+
+    def test_multiple_properties_are_all_required(self):
+        built = _build_property_filter({"language": "ta", "document_id": ["a", "b"]})
+        language, documents = built.filters
+        assert (language.target, language.value) == ("language", "ta")
+        assert [(f.target, f.value) for f in documents.filters] == [
+            ("document_id", "a"),
+            ("document_id", "b"),
+        ]
