@@ -180,6 +180,20 @@ class FeedbackGroundednessJudgeSettings(BaseModel):
     PROMPT_VERSION: str = Field("v1")
 
 
+class RagQualityJudgeSettings(BaseModel):
+    """RAG-quality judge — was each retrieved passage relevant, and was the set
+    enough? Sibling of the drift, language and feedback-groundedness judges:
+    separate call, separate rubric version, comparisons valid only within one
+    (MODEL, PROMPT_VERSION) pair.
+
+    Exists because the similarity floor governing retrieval was set three times
+    by argument and never by measurement. Labels joined to the scores already
+    in ally-be's retrieval log turn that into a precision curve."""
+
+    MODEL: str = Field("gemini-2.5-pro")
+    PROMPT_VERSION: str = Field("v1")
+
+
 class AnalyticsAgentSettings(BaseModel):
     """Analytics Agent (admin Analytics -> Analytics Agent tab).
 
@@ -330,6 +344,9 @@ class AppSettings(BaseSettings):
     LLM_USAGE: LLMUsageSettings = Field(default_factory=LLMUsageSettings)
     FEEDBACK_GROUNDEDNESS_JUDGE: FeedbackGroundednessJudgeSettings = Field(
         default_factory=FeedbackGroundednessJudgeSettings
+    )
+    RAG_QUALITY_JUDGE: RagQualityJudgeSettings = Field(
+        default_factory=RagQualityJudgeSettings
     )
 
     def model_post_init(self, __context=None) -> None:

@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     language_quality,
     reference_document,
     roadmap_opportunity,
+    rag_quality,
     round_trip,
     summary,
 )
@@ -53,6 +54,9 @@ api_router.include_router(
 )
 api_router.include_router(
     filler_quality.router, prefix="/filler-quality", tags=["filler_quality"]
+)
+api_router.include_router(
+    rag_quality.router, prefix="/rag-quality", tags=["rag_quality"]
 )
 api_router.include_router(
     round_trip.router, prefix="/round-trip-wer", tags=["language_quality"]

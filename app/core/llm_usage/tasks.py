@@ -27,6 +27,10 @@ class LLMTask(str, Enum):
     # in ally-be's LlmTask enum, or these rows arrive unlabelled.
     FILLER_JUDGE = "filler_judge"
     FEEDBACK_GROUNDEDNESS_JUDGE = "feedback_groundedness_judge"
+    # RAG-quality judge: one call per retrieval, labelling each returned
+    # passage's relevance and the set's sufficiency. Priced separately because
+    # its volume tracks retrievals rather than sessions.
+    RAG_QUALITY_JUDGE = "rag_quality_judge"
     # Analytics Agent: one planning call (question -> SQL) and one narration
     # call (rows -> answer) per question, priced separately because the
     # planner carries the whole schema catalogue and the narrator the rows.
