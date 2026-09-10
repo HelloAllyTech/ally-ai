@@ -862,13 +862,12 @@ class TestWeaviateAudienceFiltering:
             weaviate_db._build_condition({"property": "tenant_ids", "contains_any": []})
 
     @pytest.mark.asyncio
-    async def test_update_properties_by_filter_pages_and_updates(
+    async def test_update_properties_by_filter_collects_then_updates(
         self, weaviate_db, mock_collection
     ):
         first, second = uuid4(), uuid4()
         mock_collection.query.fetch_objects.side_effect = [
             MagicMock(objects=[MagicMock(uuid=first), MagicMock(uuid=second)]),
-            MagicMock(objects=[]),
         ]
 
         updated = await weaviate_db.update_properties_by_filter(
@@ -879,15 +878,60 @@ class TestWeaviateAudienceFiltering:
 
         assert updated == 2
         # No vector is passed: the audience is metadata about the object, not something
-        # its embedding is derived from.
+        # its embedding is derived from, so re-embedding to change it would be waste.
         for call in mock_collection.data.update.call_args_list:
             assert "vector" not in call.kwargs
             assert call.kwargs["properties"] == {"is_global": True, "tenant_ids": []}
-        # The second page continues from the last id rather than an offset — offset
-        # paging over a collection being written to can skip objects, and a skipped
-        # object here keeps the audience it used to have.
-        assert mock_collection.query.fetch_objects.call_args.kwargs["after"] == str(
-            second
+
+    @pytest.mark.asyncio
+    async def test_update_properties_by_filter_never_uses_the_cursor(
+        self, weaviate_db, mock_collection
+    ):
+        """
+        Paged by `offset`, never by `after`.
+
+        The cursor is the one paging mode that cannot be joined to a filter, and every
+        call here is filtered by definition — so a cursor would either error or, worse,
+        quietly page over something other than the matching set.
+        """
+        mock_collection.query.fetch_objects.side_effect = [
+            MagicMock(objects=[MagicMock(uuid=uuid4())]),
+        ]
+
+        await weaviate_db.update_properties_by_filter(
+            "KnowledgeChunk", {"document_id": "doc-1"}, {"is_global": True}
+        )
+
+        kwargs = mock_collection.query.fetch_objects.call_args.kwargs
+        assert kwargs["offset"] == 0
+        assert "after" not in kwargs
+        assert kwargs["filters"] is not None
+
+    @pytest.mark.asyncio
+    async def test_update_properties_by_filter_reads_every_page_before_writing(
+        self, weaviate_db, mock_collection
+    ):
+        """
+        A full page means there may be more, so the read continues before any write.
+
+        Writing between pages would walk a set being mutated underneath the sweep, and
+        an object skipped that way silently keeps the audience it used to have.
+        """
+        weaviate_db.UPDATE_PAGE_SIZE = 2
+        page_one = [MagicMock(uuid=uuid4()), MagicMock(uuid=uuid4())]
+        page_two = [MagicMock(uuid=uuid4())]
+        mock_collection.query.fetch_objects.side_effect = [
+            MagicMock(objects=page_one),
+            MagicMock(objects=page_two),
+        ]
+
+        updated = await weaviate_db.update_properties_by_filter(
+            "KnowledgeChunk", {"document_id": "doc-1"}, {"is_global": True}
+        )
+
+        assert updated == 3
+        assert (
+            mock_collection.query.fetch_objects.call_args_list[1].kwargs["offset"] == 2
         )
 
     @pytest.mark.asyncio

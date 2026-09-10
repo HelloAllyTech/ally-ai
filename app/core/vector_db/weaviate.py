@@ -36,6 +36,11 @@ class WeaviateDB(VectorDB):
     #: failure costs one page of retries.
     UPDATE_PAGE_SIZE = 200
 
+    #: Refuse rather than rewrite beyond this many objects. Comfortably above any
+    #: legitimate caller (ally-be caps a document at 3000 chunks), so reaching it means
+    #: the filter matched far more than the caller meant.
+    UPDATE_MAX_OBJECTS = 10_000
+
     def __init__(
         self, client: WeaviateAsyncClient, embedding_service: BaseEmbeddingService
     ) -> None:
@@ -375,18 +380,22 @@ class WeaviateDB(VectorDB):
         Merge properties into every object matching a filter. See
         VectorDB.update_properties_by_filter.
 
-        Weaviate has no update-by-filter, so this pages matching ids in and updates them
-        one at a time. `data.update` is a MERGE — properties left out are untouched —
-        and
-        no vector is passed, so the embedding is preserved.
+        Weaviate has no update-by-filter, so this collects the matching ids and then
+        updates them one at a time. `data.update` is a MERGE — properties left out are
+        untouched — and no vector is passed, so the embedding is preserved.
 
-        Paged with `after` rather than an offset for the same reason as
-        `list_document_ids`: offset paging over a collection being written to can skip
-        objects, and a skipped object here keeps the audience it used to have.
+        Ids are collected FIRST, and paged with `offset` rather than the `after` cursor.
+        Both parts are deliberate. The cursor is the paging mode that cannot be joined
+        to a filter, and every use of this method is filtered by definition. Collecting
+        before writing means the page boundaries are decided against one consistent read
+        rather than against a set being mutated underneath the sweep; page-then-write
+        walks a moving target, and an object skipped that way silently keeps the
+        properties it used to have.
 
-        The page filter is re-applied on every round trip and the cursor always
-        advances,
-        so an object whose update makes it stop matching cannot cause the sweep to loop.
+        `UPDATE_MAX_OBJECTS` bounds the collection phase. It sits well above any
+        legitimate caller — ally-be caps a document at 3000 chunks — so reaching it
+        means the filter matched something far wider than intended, and refusing beats
+        rewriting a corpus.
         """
         conditions = [
             Filter.by_property(key).equal(value)
@@ -405,30 +414,38 @@ class WeaviateDB(VectorDB):
 
         where = conditions[0] if len(conditions) == 1 else Filter.all_of(conditions)
         updated = 0
-        cursor: Optional[str] = None
 
         try:
             collection = self.client.collections.get(collection_name)
 
+            ids: List[str] = []
+            offset = 0
             while True:
                 async with self._semaphore:
                     page = await collection.query.fetch_objects(
                         limit=self.UPDATE_PAGE_SIZE,
-                        after=cursor,
+                        offset=offset,
                         filters=where,
                         return_properties=[],
                     )
                 if not page.objects:
                     break
 
-                for obj in page.objects:
-                    async with self._semaphore:
-                        await collection.data.update(
-                            uuid=obj.uuid, properties=properties
-                        )
-                    updated += 1
+                ids.extend(str(obj.uuid) for obj in page.objects)
+                if len(page.objects) < self.UPDATE_PAGE_SIZE:
+                    break
+                if len(ids) >= self.UPDATE_MAX_OBJECTS:
+                    raise ValueError(
+                        f"update_properties_by_filter matched more than "
+                        f"{self.UPDATE_MAX_OBJECTS} objects in {collection_name}; "
+                        "refusing to continue"
+                    )
+                offset += self.UPDATE_PAGE_SIZE
 
-                cursor = str(page.objects[-1].uuid)
+            for object_id in ids:
+                async with self._semaphore:
+                    await collection.data.update(uuid=object_id, properties=properties)
+                updated += 1
 
             return updated
 

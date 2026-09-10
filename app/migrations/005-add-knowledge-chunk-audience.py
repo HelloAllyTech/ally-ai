@@ -34,9 +34,13 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-#: Objects updated per page during the backfill. Small enough that a failure costs one
+#: Objects updated per pass during the backfill. Small enough that a failure costs one
 #: page of retries, large enough that a book-sized corpus is a handful of round trips.
 BACKFILL_PAGE_SIZE = 200
+
+#: Stall guard for the self-draining loop below — 200 × 500 is 100,000 chunks, far above
+#: any corpus this collection holds, so reaching it means the writes are not taking.
+MAX_PASSES = 500
 
 
 async def _existing_property_names(client, collection_name: str) -> set:
@@ -92,22 +96,27 @@ async def _backfill_global(collection) -> None:
     """
     Mark every pre-existing chunk as available to all organisations.
 
-    Paged with `after` rather than an offset: offset paging over a collection being
-    written to can skip objects, and a skipped object here is a passage that silently
-    drops out of retrieval.
+    SELF-DRAINING rather than cursor-paged: each pass asks for objects whose `is_global`
+    is still null and writes them, which takes them out of the filter, so the next pass
+    returns the next lot and an empty page means done. No cursor is involved, which
+    matters because cursor paging is the one mode that cannot be combined with a filter
+    — and the filter is what makes this re-runnable after a partial failure.
+
+    `MAX_PASSES` is a stall guard, not a size limit. Without it, a write that silently
+    did not take (a schema mismatch, a permissions problem) would spin on the same page
+    forever inside a migration.
     """
     updated = 0
-    cursor = None
 
-    while True:
+    for _ in range(MAX_PASSES):
         result = await collection.query.fetch_objects(
             limit=BACKFILL_PAGE_SIZE,
-            after=cursor,
             filters=Filter.by_property("is_global").is_none(True),
             return_properties=[],
         )
         if not result.objects:
-            break
+            logger.info(f"Backfilled {updated} chunk(s) to is_global=true")
+            return
 
         for obj in result.objects:
             await collection.data.update(
@@ -116,9 +125,12 @@ async def _backfill_global(collection) -> None:
             )
             updated += 1
 
-        cursor = result.objects[-1].uuid
-
-    logger.info(f"Backfilled {updated} chunk(s) to is_global=true")
+    raise RuntimeError(
+        f"Backfill stalled after {MAX_PASSES} passes ({updated} chunk(s) written): "
+        "objects matching is_global IS NULL keep coming back, so the writes are not "
+        "taking. Investigate before re-running — the collection is half-backfilled and "
+        "the un-backfilled half is not retrievable."
+    )
 
 
 async def down(client):
