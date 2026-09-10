@@ -220,11 +220,40 @@ class KnowledgeChunkProperties:
         every vector in the collection, so scoping by a low-selectivity filter costs
         recall or degrades to a scan. A collection per corpus traverses only its own.
 
-    NO tenant_id. These corpora are deliberately GLOBAL — the bot is open to anyone with
-    the number, so there is no tenant to scope by. If a private per-tenant corpus is
-    ever needed it must likewise be a NEW collection, not a filter bolted onto one of
-    these: retrieval that forgets a filter leaks, and an un-set filter is the easiest
-    thing in the world to forget.
+    AUDIENCE (`is_global` + `tenant_ids`) is the ONE thing scoped by a filter rather
+    than by a collection, and the distinction is not a compromise — it is what the two
+    kinds of scope actually are:
+
+      * A CORPUS is one of a few fixed sets, disjoint, with its own chunk size and its
+        own thresholds. Splitting those into collections costs nothing and buys the two
+        points above.
+      * An ORGANISATION is one of hundreds, and the same clinical guide is deliberately
+        shared by many of them (ally-be kb_documents.is_global + kb_document_tenants).
+        A collection per organisation does not survive one document belonging to three,
+        and duplicating that document per organisation would multiply both the embedding
+        bill and the number of places a correction has to land.
+
+    So the warning above — "retrieval that forgets a filter leaks, and an un-set filter
+    is the easiest thing in the world to forget" — is answered structurally rather than
+    by separation: `KnowledgeChunkService.search` takes a REQUIRED `audience` argument,
+    an unfiltered search has to name `ChunkAudience.unrestricted()` out loud, and an
+    audience that matches nothing returns nothing instead of everything. The recall cost
+    of a filtered traversal is accepted here, and is the reason it is not also used for
+    corpora.
+
+    A NON-WHATSAPP CORPUS INHERITS THESE TWO PROPERTIES AND LEAVES THEM AT THEIR CLOSED
+    DEFAULTS (`is_global = false`, no tenant ids), because nothing writes an audience
+    for it. Retrieval for such a corpus must therefore pass
+    `ChunkAudience.unrestricted()` — which is correct for material that is Ally-global
+    rather than a customer's, and is why that constructor exists as more than admin
+    tooling.
+
+    Audience is also the ONE piece of chunk metadata deliberately MUTABLE in place.
+    Chunk text is immutable for a given (document_id, chunk_version, chunk_index) so a
+    citation can never change under a conversation that quoted it; who may read that
+    passage is not part of what it says, and re-embedding a 300-page book to add an
+    organisation to its audience would be minutes of work and real money to change a
+    boolean.
 
     The Weaviate object UUID IS ally-be's kb_document_chunks.id, so every write is
     idempotent by construction and a citation's chunk_id resolves straight back to the
@@ -318,6 +347,26 @@ class KnowledgeChunkProperties:
         description="Document tags, copied onto each chunk so retrieval can be scoped",
     )
 
+    IS_GLOBAL = wvc.Property(
+        name="is_global",
+        data_type=wvc.DataType.BOOL,
+        description=(
+            "True when the parent document is available to every organisation. "
+            "Mirrors ally-be kb_documents.is_global"
+        ),
+    )
+
+    TENANT_IDS = wvc.Property(
+        name="tenant_ids",
+        data_type=wvc.DataType.TEXT_ARRAY,
+        description=(
+            "ally-be tenant ids this passage may be retrieved for, from "
+            "kb_document_tenants. Empty on a global document, and empty alongside "
+            "is_global=false means the document reaches nobody — a real state an "
+            "admin can save, not a bug"
+        ),
+    )
+
     TOKEN_COUNT = wvc.Property(
         name="token_count",
         data_type=wvc.DataType.INT,
@@ -361,6 +410,8 @@ class KnowledgeChunkProperties:
             cls.SOURCE_URL,
             cls.LANGUAGE,
             cls.TAGS,
+            cls.IS_GLOBAL,
+            cls.TENANT_IDS,
             cls.TOKEN_COUNT,
             cls.TEXT_HASH,
             cls.EMBEDDING_MODEL,

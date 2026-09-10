@@ -55,6 +55,7 @@ async def answer_knowledge_question(
     try:
         result = await service.answer(
             payload.question,
+            payload.audience.to_chunk_audience(),
             history=[turn.model_dump() for turn in payload.history],
             prompts=payload.prompts,
             top_k=payload.top_k,

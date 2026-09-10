@@ -23,8 +23,11 @@ from app.exceptions.custom_exceptions import (
     VectorDBDeleteFailedException,
     VectorDBInsertFailedException,
     VectorDBSearchFailedException,
+    VectorDBUpdateFailedException,
 )
 from app.schemas.knowledge_chunk import (
+    KnowledgeChunkAudienceRequest,
+    KnowledgeChunkAudienceResponse,
     KnowledgeChunkBulkUpsert,
     KnowledgeChunkBulkUpsertResponse,
     KnowledgeChunkDeleteResponse,
@@ -115,6 +118,7 @@ async def search_knowledge_chunks(
                 [str(d) for d in payload.document_ids] if payload.document_ids else None
             ),
             language=payload.language,
+            audience=payload.audience.to_chunk_audience(),
         )
         return KnowledgeChunkSearchResponse(passages=passages)
     except EmbeddingFailedException:
@@ -215,6 +219,53 @@ async def delete_document_chunks(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document chunks",
+        )
+
+
+@router.put(
+    "/document/{document_id}/audience",
+    response_model=KnowledgeChunkAudienceResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["knowledge_chunks"],
+)
+async def set_document_audience(
+    document_id: UUID,
+    payload: KnowledgeChunkAudienceRequest,
+    service: KnowledgeChunkService = Depends(get_knowledge_chunk_service),
+):
+    """
+    Retarget an already-indexed document at one, some or all organisations.
+
+    Called when an admin changes a document's organisations in ally-be. Updates the
+    audience on the existing chunk objects IN PLACE — the one piece of chunk metadata
+    that is deliberately mutable. Re-chunking instead would re-embed every passage to
+    change a boolean, and because a re-chunk bumps chunk_version it would also break the
+    citations already recorded against the old generation in the conversation log.
+
+    Always 200, never 404. `updated: 0` is a legitimate result: a document that is
+    queued, mid-ingest or archived has no vectors to retarget, and ally-be sends the
+    audience alongside the chunks on the next ingest, so the two stores converge without
+    this call having to succeed twice.
+    """
+    try:
+        updated = await service.set_document_audience(
+            str(document_id),
+            is_global=payload.is_global,
+            tenant_ids=payload.tenant_ids,
+        )
+        return KnowledgeChunkAudienceResponse(document_id=document_id, updated=updated)
+    except VectorDBUpdateFailedException as e:
+        # Surfaced, not swallowed. A partial retarget is the dangerous state: some
+        # passages of one document answer for an organisation the admin just removed.
+        # ally-be reports the failure rather than showing the change as saved.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
+        )
+    except Exception:
+        logger.exception("Unexpected error retargeting document chunks")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update the document audience",
         )
 
 

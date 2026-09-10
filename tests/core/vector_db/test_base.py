@@ -55,6 +55,15 @@ class ConcreteVectorDB(VectorDB[MagicMock]):
         """Concrete implementation of get_document_by_id."""
         return {"id": document_id, "content": "test document"}
 
+    async def update_properties_by_filter(
+        self,
+        collection_name: str,
+        filters: Dict[str, Any],
+        properties: Dict[str, Any],
+    ) -> int:
+        """Concrete implementation of update_properties_by_filter."""
+        return 0
+
     async def update_document(
         self,
         collection_name: str,
@@ -87,6 +96,7 @@ class ConcreteVectorDB(VectorDB[MagicMock]):
         limit: int = 10,
         min_similarity: float = 0.0,
         filters: Dict[str, Any] = None,
+        any_of: List[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Concrete implementation of near_vector_search."""
         return [{"id": "1", "similarity": 0.9}]

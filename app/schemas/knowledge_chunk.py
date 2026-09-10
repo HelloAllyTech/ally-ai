@@ -8,7 +8,9 @@ construction.
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.core.knowledge_base.knowledge_chunk_service import ChunkAudience
 
 
 class KnowledgeChunkItem(BaseModel):
@@ -43,6 +45,23 @@ class KnowledgeChunkItem(BaseModel):
     source_url: str = Field("", description="Original URL when fetched from one")
     language: str = Field("", description="BCP-47 tag of this passage")
     tags: List[str] = Field(default_factory=list)
+    is_global: bool = Field(
+        False,
+        description=(
+            "True when the parent document is available to every organisation "
+            "(ally-be kb_documents.is_global). Defaults to the CLOSED value: a caller "
+            "that forgets it indexes a passage nobody retrieves, which is a visible "
+            "bug, where defaulting to global would be an invisible leak"
+        ),
+    )
+    tenant_ids: List[str] = Field(
+        default_factory=list,
+        description=(
+            "ally-be tenant ids allowed to retrieve this passage, from "
+            "kb_document_tenants. Empty alongside is_global=false means the document "
+            "reaches nobody — a real state an admin can save"
+        ),
+    )
     token_count: int = Field(
         0, ge=0, description="Tokens in `text`, so the agent can budget context"
     )
@@ -96,6 +115,64 @@ class KnowledgeChunkDeleteResponse(BaseModel):
     )
 
 
+class AudienceSelector(BaseModel):
+    """
+    Who a retrieval is being performed for. Maps onto `ChunkAudience` in the service.
+
+    Carried as an explicit object rather than a loose pair of optional fields so that a
+    caller which omits the whole thing gets a 422 instead of the whole corpus. That is
+    the structural answer to the note this collection shipped with — "retrieval that
+    forgets a filter leaks, and an un-set filter is the easiest thing in the world to
+    forget".
+    """
+
+    tenant_id: Optional[UUID] = Field(
+        None,
+        description=(
+            "The organisation the asker belongs to. None means no "
+            "organisation-targeted "
+            "document is reachable"
+        ),
+    )
+    include_global: bool = Field(
+        True, description="Include documents available to every organisation"
+    )
+    unrestricted: bool = Field(
+        False,
+        description=(
+            "Ignore targeting entirely and search the whole corpus. ADMIN TOOLING ONLY "
+            "— the corpus browser and retrieval preview answer 'what is indexed', not "
+            "'what may this worker see'. Never set on the WhatsApp answering path"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def reject_empty_audience(self) -> "AudienceSelector":
+        """
+        An audience that can match nothing is refused at the boundary.
+
+        Not served as an empty result: `include_global=false` with no `tenant_id` is
+        almost always a caller that failed to resolve the asker's organisation and sent
+        the default for the other half. Answering "the corpus does not cover that" would
+        hide the bug behind a plausible reply.
+        """
+        if not self.unrestricted and self.tenant_id is None and not self.include_global:
+            raise ValueError(
+                "audience matches nothing: pass a tenant_id, include_global, or "
+                "unrestricted"
+            )
+        return self
+
+    def to_chunk_audience(self) -> ChunkAudience:
+        """The service-layer value object, converted once rather than per endpoint."""
+        if self.unrestricted:
+            return ChunkAudience.unrestricted()
+        return ChunkAudience(
+            tenant_id=str(self.tenant_id) if self.tenant_id else None,
+            include_global=self.include_global,
+        )
+
+
 class KnowledgeChunkSearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
     limit: int = Field(8, ge=1, le=50)
@@ -114,6 +191,45 @@ class KnowledgeChunkSearchRequest(BaseModel):
     )
     language: Optional[str] = Field(
         None, description="Restrict to one passage language"
+    )
+    audience: AudienceSelector = Field(
+        default_factory=lambda: AudienceSelector(unrestricted=True),
+        description=(
+            "Whose documents to search. Defaults to UNRESTRICTED here, unlike the "
+            "answering agent where it is required: this endpoint backs the admin "
+            "retrieval preview, whose job is to show what is actually indexed. Pass a "
+            "tenant_id to preview what one organisation's workers would retrieve"
+        ),
+    )
+
+
+class KnowledgeChunkAudienceRequest(BaseModel):
+    """
+    Retarget an already-indexed document.
+
+    Sent when an admin changes a document's organisations in ally-be. Rewrites the
+    audience on the existing chunk objects in place rather than re-chunking — see
+    `KnowledgeChunkService.set_document_audience`.
+    """
+
+    is_global: bool = Field(
+        ..., description="Available to every organisation, ignoring tenant_ids"
+    )
+    tenant_ids: List[str] = Field(
+        default_factory=list,
+        description="Organisations that may retrieve it when is_global is false",
+    )
+
+
+class KnowledgeChunkAudienceResponse(BaseModel):
+    document_id: UUID
+    updated: int = Field(
+        ...,
+        description=(
+            "Chunks retargeted. 0 is legitimate — a document that is queued, "
+            "mid-ingest or archived has no vectors to update, and ally-be re-sends the "
+            "audience with the chunks on its next ingest"
+        ),
     )
 
 
