@@ -212,3 +212,23 @@ class TestJudgeGuards:
                 "q", "character_library", [_passage("c1")], 0.35
             )
         assert model == "gemini-2.5-flash"
+
+    async def test_blank_missing_arrives_as_null_not_an_empty_string(self):
+        # The gap question is read as `missing IS NOT NULL`; an empty string there answers
+        # "yes, a gap, unnamed" to every such query. Gemini 2.5 Pro returns "" in practice.
+        out = RagQualityOutput(
+            passages=[_judgment("c1")],
+            retrieval=RetrievalJudgment(sufficiency="sufficient", missing="   "),
+        )
+        _, retrieval, _ = await self._run(out, [_passage("c1")])
+        assert retrieval.missing is None
+
+    async def test_a_named_gap_is_kept_verbatim(self):
+        out = RagQualityOutput(
+            passages=[],
+            retrieval=RetrievalJudgment(
+                sufficiency="nothing_useful", missing="a worked example"
+            ),
+        )
+        _, retrieval, _ = await self._run(out, [])
+        assert retrieval.missing == "a worked example"

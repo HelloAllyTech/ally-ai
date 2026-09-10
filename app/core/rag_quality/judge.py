@@ -122,4 +122,11 @@ async def judge_retrieval(
             len(sent),
         )
 
-    return kept, output.retrieval, meta["model"]
+    retrieval = output.retrieval
+    if retrieval is not None and not (retrieval.missing or "").strip():
+        # Blank means "nothing to name", and it has to arrive as null: the gap
+        # question is read as `missing IS NOT NULL`, and an empty string stored
+        # there answers "yes, a gap, unnamed" to every one of those queries.
+        retrieval = retrieval.model_copy(update={"missing": None})
+
+    return kept, retrieval, meta["model"]
