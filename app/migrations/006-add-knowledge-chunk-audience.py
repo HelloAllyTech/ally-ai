@@ -22,6 +22,21 @@ having to read the other.
 
 The backfill is idempotent — it only writes objects whose `is_global` is still null,
 so a re-run after a partial failure resumes rather than rewriting the collection.
+
+BOTH corpus collections are patched, not just KnowledgeChunk. `CharacterChunk` (migration
+005) was created from the same property list before these two existed, so a store built
+before this migration has the character corpus without them — and the audience filter is
+applied by corpus-agnostic code. Filtering `is_global == true` over a collection that has
+no such property takes the whole character corpus out of retrieval exactly as a missing
+backfill would for the WhatsApp one.
+
+WHY THE BACKFILL SCANS RATHER THAN FILTERING ON NULL: it used to ask for objects matching
+`is_global IS NULL`, which cannot work here. Weaviate only answers a null filter when the
+collection indexes null state, and migration 004 did not enable it — so the query failed
+with `fetch doc ids for prop/value pair: Null` on every environment, meaning this
+migration had never once completed and no store held state derived from it. A cursor scan
+reads the property off each object instead and writes only the unset ones, which keeps
+the idempotence the filter was there for without needing an index that isn't there.
 """
 
 from weaviate.classes.query import Filter
@@ -34,13 +49,9 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-#: Objects updated per pass during the backfill. Small enough that a failure costs one
-#: page of retries, large enough that a book-sized corpus is a handful of round trips.
+#: Objects the cursor fetches per round trip. Small enough that a failure costs one page
+#: of retries, large enough that a book-sized corpus is a handful of round trips.
 BACKFILL_PAGE_SIZE = 200
-
-#: Stall guard for the self-draining loop below — 200 × 500 is 100,000 chunks, far above
-#: any corpus this collection holds, so reaching it means the writes are not taking.
-MAX_PASSES = 500
 
 
 async def _existing_property_names(client, collection_name: str) -> set:
@@ -59,77 +70,78 @@ async def up(client):
     """
     logger.info("Running migration up: add-knowledge-chunk-audience")
 
-    collection_name = VectorDBCollectionNames.KNOWLEDGE_CHUNKS
-
     collections = await client.collections.list_all()
     existing_collections = [
         col.name if hasattr(col, "name") else str(col) for col in collections
     ]
-    if collection_name not in existing_collections:
-        # Migration 004 creates it with these properties already present, so a fresh
-        # environment legitimately has nothing to do here.
-        logger.info(
-            f"Collection {collection_name} does not exist yet; migration 004 will "
-            "create it with the audience properties included"
-        )
-        return
 
-    collection = client.collections.get(collection_name)
-    present = await _existing_property_names(client, collection_name)
-
-    for prop in (
-        KnowledgeChunkProperties.IS_GLOBAL,
-        KnowledgeChunkProperties.TENANT_IDS,
+    for collection_name in (
+        VectorDBCollectionNames.KNOWLEDGE_CHUNKS,
+        VectorDBCollectionNames.CHARACTER_CHUNKS,
     ):
-        if prop.name in present:
-            logger.info(f"Property {prop.name} already present; skipping")
+        if collection_name not in existing_collections:
+            # Migrations 004 and 005 build these from the same property list, which now
+            # includes the audience pair, so a fresh environment has nothing to do here.
+            logger.info(
+                f"Collection {collection_name} does not exist yet; its creating "
+                "migration includes the audience properties"
+            )
             continue
-        logger.info(f"Adding property {prop.name} to {collection_name}")
-        await collection.config.add_property(prop)
 
-    await _backfill_global(collection)
+        collection = client.collections.get(collection_name)
+        present = await _existing_property_names(client, collection_name)
+
+        for prop in (
+            KnowledgeChunkProperties.IS_GLOBAL,
+            KnowledgeChunkProperties.TENANT_IDS,
+        ):
+            if prop.name in present:
+                logger.info(
+                    f"Property {prop.name} already present on {collection_name}; skipping"
+                )
+                continue
+            logger.info(f"Adding property {prop.name} to {collection_name}")
+            await collection.config.add_property(prop)
+
+        await _backfill_global(collection, collection_name)
 
     logger.info("Migration up completed: add-knowledge-chunk-audience")
 
 
-async def _backfill_global(collection) -> None:
+async def _backfill_global(collection, collection_name: str) -> None:
     """
-    Mark every pre-existing chunk as available to all organisations.
+    Mark every pre-existing chunk in one collection as available to all organisations.
 
-    SELF-DRAINING rather than cursor-paged: each pass asks for objects whose `is_global`
-    is still null and writes them, which takes them out of the filter, so the next pass
-    returns the next lot and an empty page means done. No cursor is involved, which
-    matters because cursor paging is the one mode that cannot be combined with a filter
-    — and the filter is what makes this re-runnable after a partial failure.
+    A CURSOR SCAN, reading `is_global` off each object and writing only the unset ones.
+    The alternative — asking the engine for objects matching `is_global IS NULL` — is
+    what this migration originally did, and it cannot work: a null filter needs the
+    collection to index null state, which migration 004 did not enable, so the query
+    failed outright rather than returning nothing.
 
-    `MAX_PASSES` is a stall guard, not a size limit. Without it, a write that silently
-    did not take (a schema mismatch, a permissions problem) would spin on the same page
-    forever inside a migration.
+    Scanning keeps the property that mattered about the filter version. Writing a chunk
+    sets `is_global`, so a re-run after a partial failure simply skips what already
+    landed; the scan costs one pass over a corpus that is thousands of objects, not
+    millions. There is no stall guard because there is no longer a loop that can stall:
+    the cursor advances whether or not a write takes, and it ends.
     """
     updated = 0
+    seen = 0
 
-    for _ in range(MAX_PASSES):
-        result = await collection.query.fetch_objects(
-            limit=BACKFILL_PAGE_SIZE,
-            filters=Filter.by_property("is_global").is_none(True),
-            return_properties=[],
+    async for obj in collection.iterator(
+        return_properties=[KnowledgeChunkProperties.IS_GLOBAL.name],
+        cache_size=BACKFILL_PAGE_SIZE,
+    ):
+        seen += 1
+        if obj.properties.get(KnowledgeChunkProperties.IS_GLOBAL.name) is not None:
+            continue
+        await collection.data.update(
+            uuid=obj.uuid,
+            properties={"is_global": True, "tenant_ids": []},
         )
-        if not result.objects:
-            logger.info(f"Backfilled {updated} chunk(s) to is_global=true")
-            return
+        updated += 1
 
-        for obj in result.objects:
-            await collection.data.update(
-                uuid=obj.uuid,
-                properties={"is_global": True, "tenant_ids": []},
-            )
-            updated += 1
-
-    raise RuntimeError(
-        f"Backfill stalled after {MAX_PASSES} passes ({updated} chunk(s) written): "
-        "objects matching is_global IS NULL keep coming back, so the writes are not "
-        "taking. Investigate before re-running — the collection is half-backfilled and "
-        "the un-backfilled half is not retrievable."
+    logger.info(
+        f"{collection_name}: backfilled {updated} of {seen} chunk(s) to is_global=true"
     )
 
 
