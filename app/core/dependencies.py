@@ -2,7 +2,7 @@
 from functools import lru_cache
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, Query
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from weaviate.client import WeaviateAsyncClient
 
@@ -12,6 +12,7 @@ from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.core.knowledge_agent.agent import KnowledgeAgentService
+from app.core.knowledge_base.corpus import KbCorpus, collection_for
 from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkService
 from app.core.reference_documents.reference_document_service import (
     ReferenceDocumentService,
@@ -179,35 +180,62 @@ async def get_roadmap_opportunity_service(
     return _get_roadmap_opportunity_service_cached()
 
 
-@lru_cache(maxsize=1)
-def _get_knowledge_chunk_service_cached() -> KnowledgeChunkService:
+# One cached instance per corpus, keyed by it. Each is bound to its own collection at
+# construction, so a request cannot end up reading the wrong corpus partway through.
+@lru_cache(maxsize=len(KbCorpus))
+def _get_knowledge_chunk_service_cached(corpus: KbCorpus) -> KnowledgeChunkService:
     return KnowledgeChunkService(
         _get_vector_db_cached(),
         _get_embedding_service_cached(),
+        collection_for(corpus),
     )
 
 
-# Dependency for the knowledge chunk (WhatsApp Q&A corpus) service
+# Dependency for a knowledge-chunk corpus service
 async def get_knowledge_chunk_service(
-    vector_db=Depends(get_vector_db), embedding_service=Depends(get_embedding_service)
+    corpus: KbCorpus = Query(
+        KbCorpus.WHATSAPP_QA,
+        description=(
+            "Which corpus to act on. Each resolves to its own Weaviate collection."
+        ),
+    ),
+    vector_db=Depends(get_vector_db),
+    embedding_service=Depends(get_embedding_service),
 ) -> KnowledgeChunkService:
     """
-    Returns an instance of KnowledgeChunkService.
+    Returns the KnowledgeChunkService bound to `corpus`'s collection.
+
+    DEFAULTED, not required, and only for the deploy window: ally-ai ships before
+    ally-be (the vector index has to accept the new corpus before anything writes to
+    it), and a required field would 422 every call the currently-deployed ally-be makes
+    in between — taking the live WhatsApp bot down for the gap.
+
+    The default is safe here in a way it would not be with one shared collection. A
+    caller who omits it reads the WhatsApp collection, which holds only WhatsApp
+    material: the failure is an empty, obviously-wrong result, not another corpus's
+    passages arriving as if they answered the question. Once both services are on this
+    version the default can be dropped.
     """
-    return _get_knowledge_chunk_service_cached()
+    return _get_knowledge_chunk_service_cached(corpus)
 
 
 @lru_cache(maxsize=1)
 def _get_knowledge_agent_service_cached() -> KnowledgeAgentService:
-    return KnowledgeAgentService(_get_knowledge_chunk_service_cached())
+    return KnowledgeAgentService(
+        _get_knowledge_chunk_service_cached(KbCorpus.WHATSAPP_QA)
+    )
 
 
 # Dependency for the knowledge agent (WhatsApp Q&A retrieval + answering) service
-async def get_knowledge_agent_service(
-    chunk_service=Depends(get_knowledge_chunk_service),
-) -> KnowledgeAgentService:
+async def get_knowledge_agent_service() -> KnowledgeAgentService:
     """
     Returns an instance of KnowledgeAgentService.
+
+    Pinned to the WhatsApp corpus, deliberately — this agent IS the WhatsApp bot's
+    retrieve-and-answer loop, with its own decline thresholds and reply composition.
+    The character interview agent does not reuse it: it retrieves through ally-be and
+    composes in its own tool-calling loop, where the interviewer prompt decides what to
+    do with a passage. Taking a corpus here would imply generality that does not exist.
     """
     return _get_knowledge_agent_service_cached()
 

@@ -14,6 +14,7 @@ class VectorDBCollectionNames:
     REFERENCE_DOCUMENTS = "ReferenceDocument"
     ROADMAP_OPPORTUNITIES = "RoadmapOpportunity"
     KNOWLEDGE_CHUNKS = "KnowledgeChunk"
+    CHARACTER_CHUNKS = "CharacterChunk"
 
 
 class MigrationHistoryProperties:
@@ -175,8 +176,8 @@ class RoadmapOpportunityProperties:
 
 class KnowledgeChunkProperties:
     """
-    Properties for the KnowledgeChunk collection — passage-level retrieval for the
-    WhatsApp Q&A bot that answers mental healthcare workers' questions.
+    Properties for a passage-level retrieval collection — the WhatsApp Q&A bot's
+    KnowledgeChunk, and the character library's CharacterChunk.
 
     Distinct from ReferenceDocument, which is left untouched: that collection stores one
     object per document with a SINGLE embedding of the whole body, which is why it can
@@ -204,23 +205,50 @@ class KnowledgeChunkProperties:
     identifies the right document, whereas a per-question round trip to resolve titles
     would cost latency on every answer.
 
-    AUDIENCE (`is_global` + `tenant_ids`) is mirrored onto every chunk, because a
-    document is now targetable at one, some or all organisations (ally-be
-    kb_documents.is_global + kb_document_tenants). It lives HERE rather than being
-    applied to search results afterwards: a post-filter over a fixed top-k silently
-    starves recall — a tenant with five documents among ten thousand global chunks
-    would retrieve nothing — whereas a Weaviate filter narrows the search itself.
+    SHARED BY EVERY CORPUS, INSTANTIATED ONCE PER CORPUS. These properties describe a
+    passage, which is the same shape whatever the passage is for, so `CharacterChunk`
+    (grounding the character-library interview agent) is created from this exact list.
+    What is NOT shared is the collection itself — see VectorDBCollectionNames — and the
+    reasons are the ones this file already gives for keeping ReferenceDocument separate,
+    plus two that are specific to corpora:
 
-    The original decision was that a per-tenant corpus should be a NEW collection,
-    because "retrieval that forgets a filter leaks, and an un-set filter is the easiest
-    thing in the world to forget". A separate collection per tenant does not survive a
-    document shared by three organisations, so that warning is answered structurally
-    instead: `KnowledgeChunkService.search` takes a REQUIRED `audience` argument, and
-    only way to search unfiltered is to pass `ChunkAudience.unrestricted()` — an
-    unfiltered search is therefore something a caller must name out loud, not something
-    it can reach by omission.
+      * A similarity THRESHOLD only means something against one distribution. Chunk size
+        is chosen per corpus (400 tokens for a 1600-character WhatsApp reply, 800 for a
+        character vignette), and a longer passage embeds more diffusely — so one index
+        holding both sizes would have one threshold straddling two distributions.
+      * Filtered ANN search is weaker than unfiltered. HNSW traverses a graph built over
+        every vector in the collection, so scoping by a low-selectivity filter costs
+        recall or degrades to a scan. A collection per corpus traverses only its own.
 
-    Audience is the ONE piece of chunk metadata that is deliberately MUTABLE in place.
+    AUDIENCE (`is_global` + `tenant_ids`) is the ONE thing scoped by a filter rather
+    than by a collection, and the distinction is not a compromise — it is what the two
+    kinds of scope actually are:
+
+      * A CORPUS is one of a few fixed sets, disjoint, with its own chunk size and its
+        own thresholds. Splitting those into collections costs nothing and buys the two
+        points above.
+      * An ORGANISATION is one of hundreds, and the same clinical guide is deliberately
+        shared by many of them (ally-be kb_documents.is_global + kb_document_tenants).
+        A collection per organisation does not survive one document belonging to three,
+        and duplicating that document per organisation would multiply both the embedding
+        bill and the number of places a correction has to land.
+
+    So the warning above — "retrieval that forgets a filter leaks, and an un-set filter
+    is the easiest thing in the world to forget" — is answered structurally rather than
+    by separation: `KnowledgeChunkService.search` takes a REQUIRED `audience` argument,
+    an unfiltered search has to name `ChunkAudience.unrestricted()` out loud, and an
+    audience that matches nothing returns nothing instead of everything. The recall cost
+    of a filtered traversal is accepted here, and is the reason it is not also used for
+    corpora.
+
+    A NON-WHATSAPP CORPUS INHERITS THESE TWO PROPERTIES AND LEAVES THEM AT THEIR CLOSED
+    DEFAULTS (`is_global = false`, no tenant ids), because nothing writes an audience
+    for it. Retrieval for such a corpus must therefore pass
+    `ChunkAudience.unrestricted()` — which is correct for material that is Ally-global
+    rather than a customer's, and is why that constructor exists as more than admin
+    tooling.
+
+    Audience is also the ONE piece of chunk metadata deliberately MUTABLE in place.
     Chunk text is immutable for a given (document_id, chunk_version, chunk_index) so a
     citation can never change under a conversation that quoted it; who may read that
     passage is not part of what it says, and re-embedding a 300-page book to add an

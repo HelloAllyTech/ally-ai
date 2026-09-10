@@ -1,10 +1,15 @@
-"""KnowledgeChunk index endpoints — the write and reconciliation surface for the
-WhatsApp bot's knowledge corpus.
+"""Chunk-index endpoints — the write and reconciliation surface for a knowledge corpus.
 
-Retrieval-plus-answering lives at /knowledge-agent. This module is the plumbing
-underneath it: ally-be pushes chunks here after extracting and chunking a document,
-deletes a document's chunks when it re-chunks or archives, and reconciles ids against
-its own rows.
+Corpus-agnostic. Every route takes a `corpus` query parameter that resolves to that
+corpus's own Weaviate collection (see app/core/knowledge_base/corpus.py), so the same
+plumbing serves the WhatsApp Q&A bot and the character-library interview agent without
+either being able to read the other's passages.
+
+This module is the plumbing: ally-be pushes chunks here after extracting and chunking a
+document, deletes a document's chunks when it re-chunks or archives, and reconciles ids
+against its own rows. Retrieval-plus-answering — retrieve, decide whether the corpus
+covers the question, compose a reply — lives at /knowledge-agent and is the WhatsApp
+bot's loop specifically, not a shared one.
 """
 
 from uuid import UUID
@@ -95,6 +100,14 @@ async def search_knowledge_chunks(
     threshold and needs to see exactly what the agent would see. Separated from
     /knowledge-agent/answer so tuning retrieval costs nothing in generation tokens and
     cannot be confounded by the prompt.
+
+    Also the character interview agent's retrieval path: ally-be calls this per corpus
+    and composes the answer in its own tool-calling loop, rather than reusing the
+    WhatsApp answering agent's decline thresholds and reply framing.
+
+    `document_ids` scopes WITHIN the corpus and is not the corpus boundary — the
+    collection is. ally-be uses it for the curator's topic boost: search the documents
+    mapped to what is being asked about, then top up from the rest.
     """
     try:
         passages = await service.search(
