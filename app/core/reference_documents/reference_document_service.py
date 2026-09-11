@@ -1,7 +1,10 @@
+import time
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from app.core.config import settings
 from app.core.embeddings.base import BaseEmbeddingService
+from app.core.retrieval_log.emitter import emit_retrieval_log
 from app.core.vector_db.base import VectorDB
 from app.core.vector_db.constants import VectorDBCollectionNames
 from app.exceptions.custom_exceptions import (
@@ -328,12 +331,14 @@ class ReferenceDocumentService:
                 filters["id"] = document_ids
 
             # Search documents using the vector database
+            search_started_at = time.monotonic()
             results = await self.vector_db.search_documents(
                 collection_name=self.collection_name,
                 query=query,
                 limit=limit,
                 filters=filters,
             )
+            search_latency_ms = int((time.monotonic() - search_started_at) * 1000)
 
             # Format the results
             documents = []
@@ -353,6 +358,39 @@ class ReferenceDocumentService:
             if sort_by and sort_by in ["heading", "category", "content"]:
                 reverse = sort_order.lower() == "desc"
                 documents.sort(key=lambda x: x.get(sort_by, ""), reverse=reverse)
+
+            # Reported so this search has a distribution behind it. Note what is converted:
+            # this collection is governed by a DISTANCE threshold, not a similarity floor, so
+            # the emitted number is (1 - distance) and means the same thing as the floor
+            # recorded for every other surface. Storing the distance raw would put two
+            # opposite scales in one column.
+            #
+            # The unit of retrieval here is a WHOLE DOCUMENT rather than a chunk, so the
+            # passage rows carry the document id in both id fields. Nothing judges these: the
+            # text lives in this collection, not in ally-be's kb_document_chunks, and the
+            # judge's selector excludes the corpus by name.
+            emit_retrieval_log(
+                corpus="reference_documents",
+                consumer="reference_search",
+                query=query,
+                min_similarity=1.0 - float(
+                    settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD
+                ),
+                requested_limit=limit,
+                returned_count=len(documents),
+                latency_ms=search_latency_ms,
+                hits=[
+                    {
+                        "chunk_id": doc.get("id"),
+                        "document_id": doc.get("id"),
+                        "similarity": doc.get("score") or 0.0,
+                    }
+                    for doc in documents
+                ],
+                # A counsellor typing into a search box mid-call can put case details in the
+                # query, and nothing downstream needs the text to read the distribution.
+                query_sensitive=True,
+            )
 
             return {
                 "documents": documents,

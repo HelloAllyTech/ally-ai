@@ -1,9 +1,11 @@
+import time
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.constants import EmbeddingConstants
 from app.core.embeddings.base import BaseEmbeddingService
+from app.core.retrieval_log.emitter import emit_retrieval_log
 from app.core.vector_db.base import VectorDB
 from app.core.vector_db.constants import VectorDBCollectionNames
 from app.exceptions.custom_exceptions import (
@@ -237,12 +239,37 @@ class RoadmapOpportunityService:
             logger.exception(f"Query embedding failed: {type(e).__name__}")
             raise EmbeddingFailedException("Failed to embed the query description")
 
+        started_at = time.monotonic()
         hits = await self.vector_db.near_vector_search(
             collection_name=self.collection_name,
             vector=vector,
             limit=limit,
             min_similarity=threshold,
             filters={"product_goal": product_goal} if product_goal else None,
+        )
+
+        # Reported so this threshold has a distribution behind it like any other. Duplicate
+        # detection fails quietly in both directions — too low and every draft looks like a
+        # duplicate of something, too high and the same opportunity is filed twice — and
+        # neither shows up anywhere until someone reads the numbers.
+        emit_retrieval_log(
+            corpus="roadmap_opportunities",
+            consumer="roadmap_matcher",
+            query=text,
+            min_similarity=float(threshold),
+            requested_limit=int(limit),
+            returned_count=len(hits),
+            latency_ms=int((time.monotonic() - started_at) * 1000),
+            hits=[
+                {
+                    "chunk_id": hit.get("id"),
+                    "document_id": hit.get("id"),
+                    "similarity": hit.get("similarity"),
+                }
+                for hit in hits
+            ],
+            # Staff-authored product text on both sides of this comparison.
+            query_sensitive=False,
         )
 
         return [

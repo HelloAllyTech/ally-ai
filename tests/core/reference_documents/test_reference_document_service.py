@@ -1,6 +1,8 @@
 """Tests for ReferenceDocumentService."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+
+from app.core.config import settings
 from uuid import uuid4
 
 import pytest
@@ -602,3 +604,93 @@ class TestReferenceDocumentService:
 
         headings = [d["heading"] for d in result["documents"]]
         assert headings == ["Bravo", "Alpha"]
+
+
+class TestSearchIsReported:
+    """The staff document search reports itself to the retrieval log.
+
+    Two things here are easy to get wrong and invisible once wrong. This collection is
+    governed by a DISTANCE threshold while every other surface in the log records a similarity
+    floor, so the emitted number has to be converted or the column holds two opposite scales.
+    And the query is typed by a counsellor who may be mid-call, so it is marked sensitive.
+    """
+
+    @pytest.fixture
+    def service(self):
+        return ReferenceDocumentService(AsyncMock(), AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_reports_the_search_with_the_floor_converted_from_distance(
+        self, service
+    ):
+        service.vector_db.search_documents.return_value = {
+            "documents": [
+                {"id": "doc-1", "heading": "h", "content": "c", "score": 0.81},
+                {"id": "doc-2", "heading": "h", "content": "c", "score": 0.44},
+            ],
+            "total": 2,
+            "categories": ["test"],
+        }
+
+        with patch(
+            "app.core.reference_documents.reference_document_service.emit_retrieval_log"
+        ) as emit:
+            await service.search_documents("how do I de-escalate a distressed caller?")
+
+        kwargs = emit.call_args.kwargs
+        assert kwargs["corpus"] == "reference_documents"
+        assert kwargs["consumer"] == "reference_search"
+        # 1 - 0.65, the configured distance threshold. Storing 0.65 raw would mean the
+        # opposite of what the column means everywhere else.
+        assert kwargs["min_similarity"] == pytest.approx(
+            1.0 - settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD
+        )
+        assert kwargs["returned_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_marks_the_query_sensitive(self, service):
+        service.vector_db.search_documents.return_value = {
+            "documents": [],
+            "total": 0,
+            "categories": [],
+        }
+
+        with patch(
+            "app.core.reference_documents.reference_document_service.emit_retrieval_log"
+        ) as emit:
+            await service.search_documents("a query that may carry case detail")
+
+        assert emit.call_args.kwargs["query_sensitive"] is True
+
+    @pytest.mark.asyncio
+    async def test_reports_a_whole_document_as_the_unit_of_retrieval(self, service):
+        # There are no chunks in this collection. Both id fields carry the document id, which
+        # is why the judge's selector excludes this corpus rather than trying to read text
+        # for it out of kb_document_chunks.
+        service.vector_db.search_documents.return_value = {
+            "documents": [{"id": "doc-1", "heading": "h", "content": "c", "score": 0.7}],
+            "total": 1,
+            "categories": [],
+        }
+
+        with patch(
+            "app.core.reference_documents.reference_document_service.emit_retrieval_log"
+        ) as emit:
+            await service.search_documents("q")
+
+        hit = emit.call_args.kwargs["hits"][0]
+        assert hit["chunk_id"] == "doc-1"
+        assert hit["document_id"] == "doc-1"
+        assert hit["similarity"] == 0.7
+
+    @pytest.mark.asyncio
+    async def test_a_search_that_fails_reports_nothing(self, service):
+        service.vector_db.search_documents.side_effect = RuntimeError("weaviate down")
+
+        with patch(
+            "app.core.reference_documents.reference_document_service.emit_retrieval_log"
+        ) as emit:
+            with pytest.raises(Exception):
+                await service.search_documents("q")
+
+        emit.assert_not_called()
