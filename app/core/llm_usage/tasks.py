@@ -31,6 +31,7 @@ class LLMTask(str, Enum):
     # passage's relevance and the set's sufficiency. Priced separately because
     # its volume tracks retrievals rather than sessions.
     RAG_QUALITY_JUDGE = "rag_quality_judge"
+    RECALL_QUALITY_JUDGE = "recall_quality_judge"
     # Analytics Agent: one planning call (question -> SQL) and one narration
     # call (rows -> answer) per question, priced separately because the
     # planner carries the whole schema catalogue and the narrator the rows.

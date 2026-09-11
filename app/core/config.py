@@ -194,6 +194,20 @@ class RagQualityJudgeSettings(BaseModel):
     PROMPT_VERSION: str = Field("v1")
 
 
+class RecallQualityJudgeSettings(BaseModel):
+    """Recall-quality judge — did the client recall the fact the turn called for?
+
+    Sibling of the drift, language, groundedness, filler and RAG judges: separate call,
+    separate rubric version, comparisons valid only within one (MODEL, PROMPT_VERSION) pair.
+
+    Exists because the voice agent's recall ranks its pool on five weighted terms under a hard
+    cap of five, and those weights were never tunable from anything but argument — the scores
+    were computed and thrown away on every turn."""
+
+    MODEL: str = Field("gemini-2.5-pro")
+    PROMPT_VERSION: str = Field("v1")
+
+
 class AnalyticsAgentSettings(BaseModel):
     """Analytics Agent (admin Analytics -> Analytics Agent tab).
 
@@ -347,6 +361,9 @@ class AppSettings(BaseSettings):
     )
     RAG_QUALITY_JUDGE: RagQualityJudgeSettings = Field(
         default_factory=RagQualityJudgeSettings
+    )
+    RECALL_QUALITY_JUDGE: RecallQualityJudgeSettings = Field(
+        default_factory=RecallQualityJudgeSettings
     )
 
     def model_post_init(self, __context=None) -> None:
