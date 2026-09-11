@@ -23,7 +23,8 @@ all.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+import time
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from app.core.config import settings
 from app.core.knowledge_agent.prompt import (
@@ -47,7 +48,9 @@ from app.core.knowledge_base.knowledge_chunk_service import (
 )
 from app.core.llm.dispatch import generate_structured
 from app.core.llm_usage.tasks import LLMTask
+from app.core.knowledge_base.corpus import KbCorpus
 from app.core.phi_events import PHIEvents
+from app.core.retrieval_log.emitter import emit_retrieval_log
 from app.core.phi_logger import PHILogEvent, phi_logger
 from app.exceptions.custom_exceptions import LLMInvocationFailedException
 from app.prompts.resolver import get_backend_llm_overrides
@@ -59,6 +62,16 @@ logger = get_logger(__name__)
 # this and hard-caps the whole message at 1600 characters (Twilio's ceiling, below
 # Meta's 4096 — composing to the portable one is what keeps the provider seam honest).
 DEFAULT_MAX_ANSWER_CHARS = 1400
+
+
+#: DeclineReason -> the disposition ally-be records. A translation failure is kept apart from
+#: the two corpus answers on purpose: retrieval ran on untranslated text, so a weak result says
+#: nothing about coverage and must never be counted as a gap.
+_DECLINE_DISPOSITIONS = {
+    DeclineReason.NO_HITS: "declined_no_hits",
+    DeclineReason.BELOW_THRESHOLD: "declined_below_threshold",
+    DeclineReason.TRANSLATION_FAILED: "declined_translation_failed",
+}
 
 
 class KnowledgeAgentService:
@@ -220,6 +233,43 @@ class KnowledgeAgentService:
 
     # ------------------------------------------------------------------ retrieval
 
+    def _report_retrieval(
+        self,
+        *,
+        query: str,
+        min_similarity: float,
+        decline_similarity: float,
+        top_k: int,
+        hits: Sequence[Dict[str, Any]],
+        returned_count: int,
+        latency_ms: int,
+        language: Optional[str],
+        disposition: str,
+    ) -> None:
+        """Report this retrieval to ally-be's log. Best-effort; never affects the answer.
+
+        The query is a health worker's own question, so it goes with ``query_sensitive=True``
+        and every read surface withholds the text. What the panel shows instead is the judge's
+        own words about what was missing, which is judge-authored and safe to render.
+
+        Reported at DECLINE as well as at answer, because the decline is the outcome the worker
+        experienced and the one the bot's threshold should be calibrated against.
+        """
+        emit_retrieval_log(
+            corpus=KbCorpus.WHATSAPP_QA.value,
+            consumer="whatsapp_bot",
+            query=query,
+            min_similarity=min_similarity,
+            decline_similarity=decline_similarity,
+            requested_limit=top_k,
+            returned_count=returned_count,
+            latency_ms=latency_ms,
+            hits=hits,
+            disposition=disposition,
+            query_language=language,
+            query_sensitive=True,
+        )
+
     @staticmethod
     def _select_passages(
         hits: List[Dict[str, Any]],
@@ -376,6 +426,7 @@ class KnowledgeAgentService:
                 translation_degraded,
             ) = await self.prepare_query(question, prompts=prompts)
 
+        retrieval_started_at = time.monotonic()
         hits = await self.chunk_service.search(
             query=search_text,
             limit=top_k,
@@ -383,6 +434,7 @@ class KnowledgeAgentService:
             document_ids=document_ids,
             audience=audience,
         )
+        retrieval_latency_ms = int((time.monotonic() - retrieval_started_at) * 1000)
         top_similarity = float(hits[0].get("similarity") or 0.0) if hits else 0.0
 
         retrieval: Dict[str, Any] = {
@@ -420,6 +472,22 @@ class KnowledgeAgentService:
                 len(hits),
                 top_similarity,
             )
+            # Report the DECLINE, not just the search. A retrieval that returned six
+            # passages and was refused on all of them looks healthy in every count except
+            # this one, and refusal is what the worker actually experienced.
+            self._report_retrieval(
+                query=search_text,
+                min_similarity=min_similarity,
+                decline_similarity=decline_similarity,
+                top_k=top_k,
+                hits=hits,
+                returned_count=0,
+                latency_ms=retrieval_latency_ms,
+                language=language,
+                disposition=_DECLINE_DISPOSITIONS.get(
+                    reason, "declined_below_threshold"
+                ),
+            )
             return {
                 "intent": AnswerIntent.DECLINE,
                 "answer": "",
@@ -440,6 +508,17 @@ class KnowledgeAgentService:
             max_context_tokens=max_context_tokens,
         )
         retrieval["passages_used"] = len(passages)
+        self._report_retrieval(
+            query=search_text,
+            min_similarity=min_similarity,
+            decline_similarity=decline_similarity,
+            top_k=top_k,
+            hits=hits,
+            returned_count=len(passages),
+            latency_ms=retrieval_latency_ms,
+            language=language,
+            disposition="answered",
+        )
 
         provider, model, temperature = get_backend_llm_overrides(
             ANSWER_PROMPT_PATH, prompts
