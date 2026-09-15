@@ -1613,6 +1613,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             improvements_list = [item.improvement for item in response.areas_of_growth]
 
             result: Dict[str, Any] = {
+                "challenge_description": response.challenge_description,
                 "areas_of_growth": areas_of_growth_list,
                 # Deprecated, for backward compatibility
                 "improvements": improvements_list,

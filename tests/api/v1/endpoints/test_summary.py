@@ -261,6 +261,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
                 "areas_of_growth": [
                     {
                         "improvement": "Ask more open-ended questions",
@@ -286,6 +287,12 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                     {"category": "Emotional Attunement", "percentage": 90},
                     {"category": "Supportive engagement", "percentage": 40},
                 ],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
             }
 
             response = client.post("/api/v1/summary/scenario/evaluate", json=request)
@@ -335,11 +342,18 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
                 "areas_of_growth": [],
                 "improvements": [],
                 "positives": [],
                 "emotional_movement": [],
                 "skill_coverage": [],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
             }
 
             response = client.post("/api/v1/summary/scenario/evaluate", json=request)
@@ -363,11 +377,18 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
                 "areas_of_growth": [],
                 "improvements": [],
                 "positives": [],
                 "emotional_movement": [],
                 "skill_coverage": [],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
             }
 
             response = client.post("/api/v1/summary/scenario/evaluate", json=request)

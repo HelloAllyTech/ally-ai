@@ -527,6 +527,9 @@ class ScenarioEvaluationResponse(BaseModel):
     Response model for the /scenario/evaluate endpoint.
     """
 
+    challenge_description: str = Field(
+        ..., description="The challenge description for the simulation"
+    )
     areas_of_growth: List[AreasOfGrowth] = Field(
         ..., description="Areas that need improvement with specific recommendations"
     )

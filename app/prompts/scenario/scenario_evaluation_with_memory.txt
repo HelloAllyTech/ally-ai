@@ -14,7 +14,7 @@ Previous Summary (if available):
 ```
 
 Evaluate the counselor's performance and return ONLY a JSON object with
-exactly eight fields.
+exactly nine fields.
 
 {SUPERVISOR_NOTE_SECTION}
 
@@ -37,6 +37,7 @@ Important rules:
 - CRITICAL: Base your evaluation ONLY on what actually appears in the
   transcript. Do NOT invent, assume, or hallucinate counselor behaviors
   that are not explicitly present in the conversation.
+- For "challenge_description": Summarize the provided helpful and unhelpful behaviors to describe the challenge of the simulation.
 - For "positives": Only include strengths that the counselor clearly
   demonstrated with specific evidence from the transcript. DO NOT praise
    behaviors that didn't occur.
@@ -68,6 +69,7 @@ Important rules:
   client's journey.
 
 Return only valid JSON with these fields:
+- "challenge_description": A summary of the helpful and unhelpful behaviors that constitute the challenge of the simulation.
 - "positives": Array of demonstrated strengths and effective techniques with
   specific examples from the conversation. ONLY include what the counselor
   actually did. Use quotes or describe the moment without message IDs.
