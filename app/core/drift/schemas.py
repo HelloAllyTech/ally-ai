@@ -72,7 +72,7 @@ class PerTurnJudgment(BaseModel):
     )
     counselor_utterance_garbled: GarbleLevel = Field(
         description="STT quality of the counselor (human) utterance this turn replies "
-                    "to."
+        "to."
     )
     stt_error_type: SttErrorType = Field(
         description="Sub-type of STT garble, or 'none' if not garbled."
@@ -82,7 +82,7 @@ class PerTurnJudgment(BaseModel):
     )
     root_attribution: RootAttribution = Field(
         description="Root cause, considering the prior ~3 turns; 'none' if not a drift "
-                    "turn."
+        "turn."
     )
 
     # ---- v2 labels ------------------------------------------------------

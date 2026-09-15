@@ -1,8 +1,10 @@
-"""Unit tests for the recall-quality judge: the prompt builder and the post-processing guards.
+"""Unit tests for the recall-quality judge: the prompt builder and the
+post-processing guards.
 
-The LLM call itself is not exercised. What is, is the part that keeps a verdict honest — a
-`missed_better` naming a fact that was never in the pool would send someone to retune a weight
-over material that does not exist, and it would look exactly like a real finding.
+The LLM call itself is not exercised. What is, is the part that keeps a verdict
+honest — a `missed_better` naming a fact that was never in the pool would send
+someone to retune a weight over material that does not exist, and it would look
+exactly like a real finding.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -50,7 +52,8 @@ class TestPromptBuilder:
         assert "CLIENT REPLIED: There's not much to tell." in prompt
 
     def test_states_the_stance_so_withholding_is_not_read_as_failure(self):
-        # A guarded client who declines to volunteer a fact recalled it perfectly well.
+        # A guarded client who declines to volunteer a fact recalled it perfectly
+        # well.
         prompt = build_judge_prompt(
             counsellor_turn="q",
             client_reply="a",
@@ -77,7 +80,8 @@ class TestPromptBuilder:
         assert "RECALLED (what the client had in mind): none." in prompt
 
     def test_the_rubric_licenses_no_demand_freely(self):
-        # Without this the rate is dominated by "mm-hmm" turns scored as recall failures.
+        # Without this the rate is dominated by "mm-hmm" turns scored as recall
+        # failures.
         assert "USE THIS FREELY" in DEFAULT_JUDGE_RUBRIC
         assert "no_demand" in DEFAULT_JUDGE_RUBRIC
 
@@ -128,9 +132,9 @@ class TestGuards:
         assert model == "gemini-2.5-pro"
 
     async def test_strips_a_better_fact_that_was_never_shown(self):
-        # Stored as-is it would read as "the ranking buried this" and send someone to retune a
-        # weight over a fact that does not exist. The verdict stands; the invented quote does
-        # not.
+        # Stored as-is it would read as "the ranking buried this" and send
+        # someone to retune a weight over a fact that does not exist. The verdict
+        # stands; the invented quote does not.
         judgment, _ = await self._run(
             self._out(verdict="missed_better", better_fact="a fact nobody wrote")
         )
@@ -152,18 +156,20 @@ class TestGuards:
                 ]
             )
         )
-        assert judgment.unused_selected == ["she ran a tailoring shop for thirty years"]
+        assert judgment.unused_selected == [
+            "she ran a tailoring shop for thirty years"
+        ]
 
     async def test_returns_none_when_the_judge_returns_nothing(self):
-        # Distinct from `no_demand`: this is OUR failure, and counting it as "the turn needed
-        # nothing" would quietly inflate the healthy bucket.
+        # Distinct from `no_demand`: this is OUR failure, and counting it as "the
+        # turn needed nothing" would quietly inflate the healthy bucket.
         judgment, model = await self._run(None)
         assert judgment is None
         assert model == "gemini-2.5-pro"
 
     async def test_does_not_call_the_model_when_there_was_no_pool(self):
-        # No pool was never a ranking decision. Different from a pool with nothing apt, which
-        # is a real finding.
+        # No pool was never a ranking decision. Different from a pool with
+        # nothing apt, which is a real finding.
         with patch(
             "app.core.llm.dispatch.generate_structured", new=AsyncMock()
         ) as spy:

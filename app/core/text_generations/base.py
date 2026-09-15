@@ -5,7 +5,6 @@ from app.schemas.common import ChatMessage
 from app.schemas.conversation import IdentifyResponse
 from app.schemas.summary import DynamicSummaryNoteResponse, SummaryNoteAndTagsResponse
 
-
 ModelT = TypeVar("ModelT")
 
 

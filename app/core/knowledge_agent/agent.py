@@ -64,9 +64,9 @@ logger = get_logger(__name__)
 DEFAULT_MAX_ANSWER_CHARS = 1400
 
 
-#: DeclineReason -> the disposition ally-be records. A translation failure is kept apart from
-#: the two corpus answers on purpose: retrieval ran on untranslated text, so a weak result says
-#: nothing about coverage and must never be counted as a gap.
+#: DeclineReason -> the disposition ally-be records. A translation failure is kept apart
+#: from the two corpus answers on purpose: retrieval ran on untranslated text, so a weak
+#: result says nothing about coverage and must never be counted as a gap.
 _DECLINE_DISPOSITIONS = {
     DeclineReason.NO_HITS: "declined_no_hits",
     DeclineReason.BELOW_THRESHOLD: "declined_below_threshold",
@@ -90,18 +90,20 @@ class KnowledgeAgentService:
         English.
 
         Returns ``(search_text, language, translated_query, degraded)``.
-        `translated_query` is None when no translation happened, so the caller can show
-        an admin exactly what was searched versus what was asked. `degraded` is True
-        only when translation was ATTEMPTED and failed (call error, or a missing prompt
-        template) — never for a question that was already English, which is a normal,
-        fully-successful outcome and must not be conflated with a failure.
+        `translated_query` is None when no translation happened, so the caller can
+        show an admin exactly what was searched versus what was asked. `degraded`
+        is True only when translation was ATTEMPTED and failed (call error, or a
+        missing prompt template) — never for a question that was already English,
+        which is a normal, fully-successful outcome and must not be conflated with
+        a failure.
 
-        A failure here degrades to searching the ORIGINAL text rather than failing the
-        question. That is deliberate: a translation outage should cost retrieval quality
-        for non-English questions, not take the bot down for everyone. But the caller
-        needs `degraded` precisely because of that: a NO_HITS/BELOW_THRESHOLD decline
-        that follows is "we couldn't understand your language", not "we don't cover
-        this" — see DeclineReason.TRANSLATION_FAILED.
+        A failure here degrades to searching the ORIGINAL text rather than failing
+        the question. That is deliberate: a translation outage should cost
+        retrieval quality for non-English questions, not take the bot down for
+        everyone. But the caller needs `degraded` precisely because of that: a
+        NO_HITS/BELOW_THRESHOLD decline that follows is "we couldn't understand
+        your language", not "we don't cover this" — see
+        DeclineReason.TRANSLATION_FAILED.
         """
         provider, model, temperature = get_backend_llm_overrides(
             TRANSLATE_PROMPT_PATH, prompts
@@ -146,22 +148,24 @@ class KnowledgeAgentService:
         """
         Decide whether a message is about a crisis happening now.
 
-        A SEPARATE call from `answer`, not a stage inside it, for two reasons. It lets
-        ally-be run the two concurrently, so the safety net costs no latency on a
-        question that is not a crisis. And it keeps the precedence decision — crisis
-        beats answer, always — in ally-be, which is the side that actually sends.
+        A SEPARATE call from `answer`, not a stage inside it, for two reasons. It
+        lets ally-be run the two concurrently, so the safety net costs no latency
+        on a question that is not a crisis. And it keeps the precedence decision
+        — crisis beats answer, always — in ally-be, which is the side that
+        actually sends.
 
-        The keyword rules in ally-be remain the first line and are still terminal: they
-        are instant, free, and auditable. This exists for what they structurally cannot
-        catch, which is indirect disclosure ("I can't keep doing this"). Neither
-        replaces the other.
+        The keyword rules in ally-be remain the first line and are still
+        terminal: they are instant, free, and auditable. This exists for what
+        they structurally cannot catch, which is indirect disclosure ("I can't
+        keep doing this"). Neither replaces the other.
 
-        A failure here returns ``is_crisis: false`` rather than raising, and `failed`
-        says so. Raising would take the whole question down over the classifier, and
-        defaulting to true would answer every question with a crisis message the moment
-        an API key expired — a bot that only ever says "call a crisis line" is a broken
-        bot, and workers would stop reading the message that matters. The keyword rules
-        are what still hold in that window, which is why they were not replaced.
+        A failure here returns ``is_crisis: false`` rather than raising, and
+        `failed` says so. Raising would take the whole question down over the
+        classifier, and defaulting to true would answer every question with a
+        crisis message the moment an API key expired — a bot that only ever says
+        "call a crisis line" is a broken bot, and workers would stop reading the
+        message that matters. The keyword rules are what still hold in that
+        window, which is why they were not replaced.
         """
         cfg = settings.KNOWLEDGE_AGENT
         provider, model, temperature = get_backend_llm_overrides(
@@ -186,8 +190,9 @@ class KnowledgeAgentService:
                 task=LLMTask.WHATSAPP_CRISIS_CLASSIFY.value,
                 provider=provider,
                 model=model or cfg.CRISIS_MODEL,
-                # Zero, not low: this is a classification, and any sampling variance
-                # means the same message is a crisis on Tuesday and not on Wednesday.
+                # Zero, not low: this is a classification, and any sampling
+                # variance means the same message is a crisis on Tuesday and not
+                # on Wednesday.
                 temperature=temperature if temperature is not None else 0.0,
             )
         # noqa: BLE001 below — never fail the question over the classifier.
@@ -204,9 +209,10 @@ class KnowledgeAgentService:
             }
 
         if parsed.is_crisis:
-            # Info, not debug: a positive verdict is an operationally significant event.
-            # The signal phrase itself is a worker's verbatim disclosure, so it goes to
-            # the PHI audit log, never the application log — only the confidence does.
+            # Info, not debug: a positive verdict is an operationally significant
+            # event. The signal phrase itself is a worker's verbatim disclosure,
+            # so it goes to the PHI audit log, never the application log — only
+            # the confidence does.
             logger.info("Crisis classifier fired: confidence=%.2f", parsed.confidence)
             await phi_logger.log(
                 PHILogEvent(
@@ -248,12 +254,14 @@ class KnowledgeAgentService:
     ) -> None:
         """Report this retrieval to ally-be's log. Best-effort; never affects the answer.
 
-        The query is a health worker's own question, so it goes with ``query_sensitive=True``
-        and every read surface withholds the text. What the panel shows instead is the judge's
-        own words about what was missing, which is judge-authored and safe to render.
+        The query is a health worker's own question, so it goes with
+        ``query_sensitive=True`` and every read surface withholds the text. What the
+        panel shows instead is the judge's own words about what was missing, which is
+        judge-authored and safe to render.
 
-        Reported at DECLINE as well as at answer, because the decline is the outcome the worker
-        experienced and the one the bot's threshold should be calibrated against.
+        Reported at DECLINE as well as at answer, because the decline is the outcome
+        the worker experienced and the one the bot's threshold should be calibrated
+        against.
         """
         emit_retrieval_log(
             corpus=KbCorpus.WHATSAPP_QA.value,
@@ -283,16 +291,15 @@ class KnowledgeAgentService:
 
         Three filters, in order:
 
-        1. A similarity BAND relative to the best hit. One strong match plus seven weak
-        ones
-           is worse than the strong match alone — the weak ones give the model licence
-           to blend unrelated material into a single confident-sounding answer.
-        2. A hard count cap, because a 1600-character reply cannot honestly ground on
-        more
-           than a handful of passages.
-        3. A context token budget, using the token_count ally-be already computed per
-        chunk.
-           No tokeniser is needed here, and none exists in this service.
+        1. A similarity BAND relative to the best hit. One strong match plus seven
+           weak ones is worse than the strong match alone — the weak ones give the
+           model licence to blend unrelated material into a single confident-sounding
+           answer.
+        2. A hard count cap, because a 1600-character reply cannot honestly ground
+           on more than a handful of passages.
+        3. A context token budget, using the token_count ally-be already computed
+           per chunk. No tokeniser is needed here, and none exists in this
+           service.
         """
         if not hits:
             return []
@@ -303,8 +310,8 @@ class KnowledgeAgentService:
         selected: List[Dict[str, Any]] = []
         budget = max_context_tokens
         for hit in banded[:max_passages]:
-            # Fall back to a rough character estimate only when ally-be sent no count,
-            # so a missing field cannot silently disable the budget.
+            # Fall back to a rough character estimate only when ally-be sent no
+            # count, so a missing field cannot silently disable the budget.
             tokens = int(hit.get("token_count") or 0) or max(
                 1, len(hit.get("text") or "") // 4
             )
@@ -321,18 +328,19 @@ class KnowledgeAgentService:
         numbers: List[int], passages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Map the model's passage numbers back to real chunk metadata, dropping anything
-        bogus.
+        Map the model's passage numbers back to real chunk metadata, dropping
+        anything bogus.
 
-        Validated in code rather than trusted, on the same principle as validate_chart()
-        in the analytics agent: a citation pointing at passage 9 when 5 were supplied
-        would render as a source line the reader cannot check, and an answer that cites
-        something is read as more trustworthy than one that does not. Out-of-range
-        numbers are dropped rather than clamped — clamping would silently attribute the
-        claim to a real but wrong passage, which is worse than losing the citation.
+        Validated in code rather than trusted, on the same principle as
+        validate_chart() in the analytics agent: a citation pointing at passage 9
+        when 5 were supplied would render as a source line the reader cannot check,
+        and an answer that cites something is read as more trustworthy than one
+        that does not. Out-of-range numbers are dropped rather than clamped —
+        clamping would silently attribute the claim to a real but wrong passage,
+        which is worse than losing the citation.
 
-        Order is preserved and duplicates collapsed, so the rendered source list matches
-        the order the model reasoned in.
+        Order is preserved and duplicates collapsed, so the rendered source list
+        matches the order the model reasoned in.
         """
         resolved: List[Dict[str, Any]] = []
         seen: set[int] = set()
@@ -389,14 +397,14 @@ class KnowledgeAgentService:
     ) -> Dict[str, Any]:
         """
         Answer one question. Every threshold is overridable per request by ally-be,
-        which reads them from the `whatsapp_bot` settings row, so retrieval can be tuned
-        without a deploy.
+        which reads them from the `whatsapp_bot` settings row, so retrieval can be
+        tuned without a deploy.
 
         `audience` is positional and required for the same reason it is on
-        `KnowledgeChunkService.search`: documents are targetable at one, some or all
-        organisations, and an omitted audience would answer from material the asker may
-        not be entitled to. There is no default — a caller that cannot say who is asking
-        has to decide what to do about that itself.
+        `KnowledgeChunkService.search`: documents are targetable at one, some or
+        all organisations, and an omitted audience would answer from material the
+        asker may not be entitled to. There is no default — a caller that cannot
+        say who is asking has to decide what to do about that itself.
         """
         cfg = settings.KNOWLEDGE_AGENT
         top_k = top_k or cfg.TOP_K
@@ -404,7 +412,9 @@ class KnowledgeAgentService:
             cfg.MIN_SIMILARITY if min_similarity is None else min_similarity
         )
         decline_similarity = (
-            cfg.DECLINE_SIMILARITY if decline_similarity is None else decline_similarity
+            cfg.DECLINE_SIMILARITY
+            if decline_similarity is None
+            else decline_similarity
         )
         max_passages = max_passages or cfg.MAX_PASSAGES
         max_context_tokens = max_context_tokens or cfg.MAX_CONTEXT_TOKENS
@@ -453,18 +463,21 @@ class KnowledgeAgentService:
         # --- Gate 1: deterministic, no LLM call ---
         #
         # Answering this in code rather than asking the model is what makes the
-        # threshold auditable and tunable, and it means the common "we simply don't have
-        # this" case costs nothing in generation tokens.
+        # threshold auditable and tunable, and it means the common "we simply
+        # don't have this" case costs nothing in generation tokens.
         if not hits or top_similarity < decline_similarity:
             if translation_degraded:
-                # Retrieval ran on untranslated/original-language text because query
-                # translation failed — a weak or empty result here says nothing about
-                # whether the corpus covers the topic, so it must not be reported (or
-                # answered for) as NO_HITS/BELOW_THRESHOLD.
+                # Retrieval ran on untranslated/original-language text because
+                # query translation failed — a weak or empty result here says
+                # nothing about whether the corpus covers the topic, so it must
+                # not be reported (or answered for) as
+                # NO_HITS/BELOW_THRESHOLD.
                 reason = DeclineReason.TRANSLATION_FAILED
             else:
                 reason = (
-                    DeclineReason.NO_HITS if not hits else DeclineReason.BELOW_THRESHOLD
+                    DeclineReason.NO_HITS
+                    if not hits
+                    else DeclineReason.BELOW_THRESHOLD
                 )
             logger.info(
                 "Declining before generation: reason=%s hits=%d top=%.4f",
@@ -472,9 +485,10 @@ class KnowledgeAgentService:
                 len(hits),
                 top_similarity,
             )
-            # Report the DECLINE, not just the search. A retrieval that returned six
-            # passages and was refused on all of them looks healthy in every count except
-            # this one, and refusal is what the worker actually experienced.
+            # Report the DECLINE, not just the search. A retrieval that returned
+            # six passages and was refused on all of them looks healthy in every
+            # count except this one, and refusal is what the worker actually
+            # experienced.
             self._report_retrieval(
                 query=search_text,
                 min_similarity=min_similarity,
@@ -553,8 +567,9 @@ class KnowledgeAgentService:
 
         # --- Gate 2 post-validation ---
         if intent == AnswerIntent.ANSWER and not answer_text:
-            # "I answered" with nothing in it reaches the worker as silence. Treat it as
-            # the decline it actually is, so it also lands in the unanswered queue.
+            # "I answered" with nothing in it reaches the worker as silence.
+            # Treat it as the decline it actually is, so it also lands in the
+            # unanswered queue.
             logger.warning("Model returned intent=answer with an empty answer")
             intent = AnswerIntent.DECLINE
 
@@ -562,15 +577,16 @@ class KnowledgeAgentService:
             decline_reason = DeclineReason.MODEL_DECLINED
             citations = []
         elif intent == AnswerIntent.CLARIFY:
-            # A clarification is not grounded in anything, so it carries no citations —
-            # and deliberately does NOT create an unanswered-question row: a vague
-            # question is not evidence of a corpus gap.
+            # A clarification is not grounded in anything, so it carries no
+            # citations — and deliberately does NOT create an
+            # unanswered-question row: a vague question is not evidence of a
+            # corpus gap.
             citations = []
         elif intent == AnswerIntent.ANSWER and not citations:
-            # Kept, not discarded: a legitimate synthesis across passages sometimes
-            # cites nothing. Flagged so the dashboard can count ungrounded answers,
-            # which is the number that tells you whether the grounding instruction is
-            # holding.
+            # Kept, not discarded: a legitimate synthesis across passages
+            # sometimes cites nothing. Flagged so the dashboard can count
+            # ungrounded answers, which is the number that tells you whether
+            # the grounding instruction is holding.
             retrieval["unsupported"] = True
             logger.info("Answer returned with no usable citations")
 

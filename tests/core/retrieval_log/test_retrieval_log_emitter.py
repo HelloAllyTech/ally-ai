@@ -1,8 +1,9 @@
-"""Unit tests for the retrieval-log emitter: payload shape and the privacy default.
+"""Unit tests for the retrieval-log emitter: payload shape and the privacy
+default.
 
-The emitter has one job that matters beyond plumbing — marking whose words the query is. A
-health worker's question rendered in an admin panel is not a cosmetic mistake, so the default
-is tested rather than assumed.
+The emitter has one job that matters beyond plumbing — marking whose words the
+query is. A health worker's question rendered in an admin panel is not a
+cosmetic mistake, so the default is tested rather than assumed.
 """
 
 import json
@@ -34,17 +35,18 @@ def _emit(**over):
         "query_language": "ta",
     }
     args.update(over)
-    with patch.object(emitter_module, "_queue_url", return_value="https://sqs/test"), patch.object(
-        emitter_module, "_send_blocking"
-    ) as send:
+    with (
+        patch.object(emitter_module, "_queue_url", return_value="https://sqs/test"),
+        patch.object(emitter_module, "_send_blocking") as send,
+    ):
         emit_retrieval_log(**args)
     return send
 
 
 class TestPrivacyDefault:
     def test_a_query_is_sensitive_unless_told_otherwise(self):
-        # Wrongly marking an operator's query sensitive costs one withheld string; wrongly
-        # marking a worker's question public renders it in a console.
+        # Wrongly marking an operator's query sensitive costs one withheld string;
+        # wrongly marking a worker's question public renders it in a console.
         send = _emit()
         assert _sent(send)["query_sensitive"] is True
 
@@ -55,8 +57,8 @@ class TestPrivacyDefault:
 
 class TestPayload:
     def test_carries_both_thresholds(self):
-        # The search floor and the refusal threshold are different numbers, and the bot can
-        # retrieve a passage it then refuses to answer from.
+        # The search floor and the refusal threshold are different numbers, and the
+        # bot can retrieve a passage it then refuses to answer from.
         send = _emit(min_similarity=0.35, decline_similarity=0.5)
         body = _sent(send)
         assert body["min_similarity"] == 0.35
@@ -75,7 +77,9 @@ class TestPayload:
         assert passages[0]["similarity"] == 0.62
 
     def test_drops_a_hit_with_no_ids_rather_than_inventing_them(self):
-        send = _emit(hits=[{"similarity": 0.5}, {"chunk_id": "c1", "document_id": "d1"}])
+        send = _emit(
+            hits=[{"similarity": 0.5}, {"chunk_id": "c1", "document_id": "d1"}]
+        )
         assert [p["chunk_id"] for p in _sent(send)["passages"]] == ["c1"]
 
     def test_caps_the_passages_one_message_can_carry(self):
@@ -87,12 +91,14 @@ class TestPayload:
         assert len(_sent(send)["passages"]) == MAX_PASSAGES
 
     def test_travels_as_its_own_message_type(self):
-        # Same queue as llm_usage — dispatched by type on the other side, so there is no new
-        # queue to provision. The knowledge base already shipped once against a queue that did
-        # not exist and 500'd every upload for a fortnight.
-        with patch.object(
-            emitter_module, "_queue_url", return_value="https://sqs/test"
-        ), patch.object(emitter_module, "_send_blocking") as send:
+        # Same queue as llm_usage — dispatched by type on the other side, so there
+        # is no new queue to provision. The knowledge base already shipped once
+        # against a queue that did not exist and 500'd every upload for a
+        # fortnight.
+        with (
+            patch.object(emitter_module, "_queue_url", return_value="https://sqs/test"),
+            patch.object(emitter_module, "_send_blocking") as send,
+        ):
             emit_retrieval_log(
                 corpus="whatsapp_qa",
                 consumer="whatsapp_bot",
@@ -107,9 +113,10 @@ class TestPayload:
 
 class TestNeverInTheWay:
     def test_no_ops_without_a_queue_configured(self):
-        with patch.object(emitter_module, "_queue_url", return_value=""), patch.object(
-            emitter_module, "_send_blocking"
-        ) as send:
+        with (
+            patch.object(emitter_module, "_queue_url", return_value=""),
+            patch.object(emitter_module, "_send_blocking") as send,
+        ):
             emit_retrieval_log(
                 corpus="whatsapp_qa",
                 consumer="whatsapp_bot",
@@ -127,10 +134,11 @@ class TestNeverInTheWay:
 
     def test_swallows_a_send_failure(self):
         # Analytics are worth a table, not a worker's answer.
-        with patch.object(
-            emitter_module, "_queue_url", return_value="https://sqs/test"
-        ), patch.object(
-            emitter_module, "_send_blocking", side_effect=RuntimeError("sqs down")
+        with (
+            patch.object(emitter_module, "_queue_url", return_value="https://sqs/test"),
+            patch.object(
+                emitter_module, "_send_blocking", side_effect=RuntimeError("sqs down")
+            ),
         ):
             emit_retrieval_log(
                 corpus="whatsapp_qa",

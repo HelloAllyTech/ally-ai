@@ -1,19 +1,22 @@
 """Best-effort emitter for retrieval-log events (ally-ai).
 
-Reports a retrieval this service performed to ally-be, which owns the retrieval log. Wire
-shape mirrors ``llm_usage`` (``data.retrieval_log = {...}``) and it travels on the SAME queue,
-so there is no new infrastructure to provision — a lesson from the knowledge base shipping
-against a queue that did not exist, which 500'd every upload for a fortnight.
+Reports a retrieval this service performed to ally-be, which owns the retrieval log.
+Wire shape mirrors ``llm_usage`` (``data.retrieval_log = {...}``) and it travels on
+the SAME queue, so there is no new infrastructure to provision — a lesson from the
+knowledge base shipping against a queue that did not exist, which 500'd every
+upload for a fortnight.
 
-WHY THIS EXISTS. The WhatsApp Q&A bot retrieves here, in one call, and never passes through
-ally-be's search path — the only writer of that log. So the platform's highest-volume RAG
-surface was the one nothing measured, while the character corpus had a judge and a precision
-curve. The floor that governs the bot was the number with least evidence behind it.
+WHY THIS EXISTS. The WhatsApp Q&A bot retrieves here, in one call, and never passes
+through ally-be's search path — the only writer of that log. So the platform's
+highest-volume RAG surface was the one nothing measured, while the character corpus
+had a judge and a precision curve. The floor that governs the bot was the number
+with least evidence behind it.
 
-PRIVACY. ``query_sensitive`` marks a query as someone's own words rather than an operator's.
-A health worker's question is PHI-adjacent by default here, so callers on that path MUST pass
-True; ally-be treats an ABSENT flag as sensitive, and every read surface withholds the text.
-Never blocks or fails the retrieval path, and no-ops unless the queue is configured.
+PRIVACY. ``query_sensitive`` marks a query as someone's own words rather than an
+operator's. A health worker's question is PHI-adjacent by default here, so callers
+on that path MUST pass True; ally-be treats an ABSENT flag as sensitive, and every
+read surface withholds the text. Never blocks or fails the retrieval path, and
+no-ops unless the queue is configured.
 """
 
 import asyncio
@@ -27,8 +30,8 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-#: Cap on passages reported per retrieval. Generous next to any real top-k, and it keeps one
-#: malformed call from writing hundreds of rows on the other side.
+#: Cap on passages reported per retrieval. Generous next to any real top-k, and it
+#: keeps one malformed call from writing hundreds of rows on the other side.
 MAX_PASSAGES = 60
 
 
@@ -90,9 +93,10 @@ def emit_retrieval_log(
 ) -> None:
     """Report one retrieval. Never raises, never blocks the caller.
 
-    `query_sensitive` defaults to True rather than False on purpose: the cost of wrongly
-    marking an operator's query sensitive is that a panel withholds one string, and the cost of
-    wrongly marking a worker's question public is that it renders in an admin console.
+    `query_sensitive` defaults to True rather than False on purpose: the cost of
+    wrongly marking an operator's query sensitive is that a panel withholds one
+    string, and the cost of wrongly marking a worker's question public is that it
+    renders in an admin console.
     """
     try:
         if not _enabled() or not corpus or not consumer or not (query or "").strip():
@@ -111,7 +115,9 @@ def emit_retrieval_log(
                         "query_language": query_language,
                         "min_similarity": float(min_similarity),
                         "decline_similarity": (
-                            None if decline_similarity is None else float(decline_similarity)
+                            None
+                            if decline_similarity is None
+                            else float(decline_similarity)
                         ),
                         "disposition": disposition,
                         "requested_limit": int(requested_limit),

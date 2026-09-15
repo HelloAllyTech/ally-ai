@@ -20,9 +20,7 @@ def test_resolve_template_supervisor_note_always_local(mock_prompt_manager):
 
     # This is the broken case: backend_prompts has a stale version.
     # The resolver should ignore it and use the local version.
-    result = resolve_template(
-        prompt_code, backend_prompts, internal_path=internal_path
-    )
+    result = resolve_template(prompt_code, backend_prompts, internal_path=internal_path)
     assert result == local_template, (
         "Expected the local template to be used for supervisor_note, "
         "even when a backend version is present."

@@ -198,9 +198,7 @@ class TestOpenAITextGenerationService:
         mock_response.content = "Test response"
         override_model.ainvoke = AsyncMock(return_value=mock_response)
 
-        with patch(
-            "app.core.llm_usage.emitter.emit_llm_usage"
-        ) as mock_emit:
+        with patch("app.core.llm_usage.emitter.emit_llm_usage") as mock_emit:
             await text_generation_service._invoke_llm(
                 "Test prompt", llm_override=override_model, task="nudge"
             )
@@ -1388,16 +1386,12 @@ class TestScenarioEvaluationLanguageDirective:
             ),
         ]
 
-    async def _capture_prompt(
-        self, service, sample_chat_messages, **kwargs
-    ) -> str:
+    async def _capture_prompt(self, service, sample_chat_messages, **kwargs) -> str:
         """Run generate_scenario_evaluation and return the prompt sent to the LLM."""
         with patch.object(
             service, "_invoke_llm", return_value=_make_scenario_evaluation()
         ) as mock_invoke:
-            await service.generate_scenario_evaluation(
-                sample_chat_messages, **kwargs
-            )
+            await service.generate_scenario_evaluation(sample_chat_messages, **kwargs)
             assert mock_invoke.await_count == 1
             return mock_invoke.await_args.args[0]
 
