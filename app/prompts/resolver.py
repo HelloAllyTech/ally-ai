@@ -157,6 +157,14 @@ def resolve_template(
     Use metadata prompt when present and non-empty.
     Otherwise use local .txt.
     """
+    # HACK: The debrief note is central to the learner experience and rarely
+    #       changed from the dashboard. A stale copy in the backend_prompts
+    #       cache can break the structured-debrief format and show learners
+    #       an old single-block summary. Always take this one from local disk
+    #       to guard against that.
+    if prompt_code == "ally_ai_shared_supervisor_note":
+        return _get_local_template(prompt_code, internal_path=internal_path)
+
     backend_entry = _get_backend_prompt_entry(backend_prompts, prompt_code)
     backend_template = _extract_backend_template(backend_entry)
     if backend_template and backend_template.strip():

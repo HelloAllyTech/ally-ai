@@ -375,9 +375,7 @@ class SQSQueueService:
             attrs = response.get("Attributes", {}) if response else {}
             return {
                 "visible": int(attrs.get("ApproximateNumberOfMessages", 0)),
-                "in_flight": int(
-                    attrs.get("ApproximateNumberOfMessagesNotVisible", 0)
-                ),
+                "in_flight": int(attrs.get("ApproximateNumberOfMessagesNotVisible", 0)),
             }
         except Exception as e:
             logger.warning(

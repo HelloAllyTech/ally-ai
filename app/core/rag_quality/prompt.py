@@ -111,9 +111,7 @@ def build_judge_prompt(
     """Assemble the RAG-quality prompt for one retrieval."""
     lines = [rubric or DEFAULT_JUDGE_RUBRIC, ""]
     lines.append("CORPUS:")
-    lines.append(
-        CORPUS_PURPOSE.get(corpus, f"An unrecognised corpus ({corpus}).")
-    )
+    lines.append(CORPUS_PURPOSE.get(corpus, f"An unrecognised corpus ({corpus})."))
     lines.append("")
     lines.append(f"QUERY AS ISSUED: {query}")
     # Stated so the judge can see when everything returned sits just above the

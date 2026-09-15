@@ -360,9 +360,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
 
             assert response.status_code == 200
             assert mock_generate_evaluation.call_count == 1
-            assert (
-                mock_generate_evaluation.call_args.kwargs["language_code"] == "hi"
-            )
+            assert mock_generate_evaluation.call_args.kwargs["language_code"] == "hi"
 
     def test_scenario_evaluation_language_code_defaults_to_none(
         self, client: TestClient, mock_summary_service, sample_chat_messages
@@ -397,9 +395,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
 
             assert response.status_code == 200
             assert mock_generate_evaluation.call_count == 1
-            assert (
-                mock_generate_evaluation.call_args.kwargs["language_code"] is None
-            )
+            assert mock_generate_evaluation.call_args.kwargs["language_code"] is None
 
     def test_scenario_evaluation_methods(
         self, client: TestClient, sample_chat_messages

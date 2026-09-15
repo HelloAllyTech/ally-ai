@@ -1,7 +1,6 @@
 from langchain_core.prompts import PromptTemplate
 from app.prompts.resolver import load_template
 
-
 NUDGE_PROMPT = PromptTemplate(
     template=load_template("nudge/nudge"),
     input_variables=["conversation", "chat_history", "suggestion"],
@@ -44,14 +43,16 @@ COUNSELOR_ANALYSIS_PROMPT = PromptTemplate(
 
 SCENARIO_EVALUATION_PROMPT = PromptTemplate(
     input_variables=["chat_history"],
-    template=load_template("scenario/scenario_evaluation")
-    .replace("{SKILL_COVERAGE_DESCRIPTIONS}", load_template("shared/skill_coverage")),
+    template=load_template("scenario/scenario_evaluation").replace(
+        "{SKILL_COVERAGE_DESCRIPTIONS}", load_template("shared/skill_coverage")
+    ),
 )
 
 SCENARIO_EVALUATION_WITH_MEMORY_PROMPT = PromptTemplate(
     input_variables=["chat_history", "previous_summary", "custom_prompt_section"],
-    template=load_template("scenario/scenario_evaluation_with_memory")
-    .replace("{SKILL_COVERAGE_DESCRIPTIONS}", load_template("shared/skill_coverage")),
+    template=load_template("scenario/scenario_evaluation_with_memory").replace(
+        "{SKILL_COVERAGE_DESCRIPTIONS}", load_template("shared/skill_coverage")
+    ),
 )
 
 SIMULATION_ANALYSIS_PROMPT = PromptTemplate(
