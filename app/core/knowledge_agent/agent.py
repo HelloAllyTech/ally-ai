@@ -252,7 +252,9 @@ class KnowledgeAgentService:
         language: Optional[str],
         disposition: str,
     ) -> None:
-        """Report this retrieval to ally-be's log. Best-effort; never affects the answer.
+        """Report this retrieval to ally-be's log.
+
+        Best-effort; never affects the answer.
 
         The query is a health worker's own question, so it goes with
         ``query_sensitive=True`` and every read surface withholds the text. What the
