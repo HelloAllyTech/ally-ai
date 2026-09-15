@@ -53,8 +53,7 @@ def generate_migration(message: str) -> str:
     file_path = migrations_dir / filename
 
     # Create migration template
-    template = textwrap.dedent(
-        f'''\
+    template = textwrap.dedent(f'''\
         """
         Migration: {message}
         Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -97,8 +96,7 @@ def generate_migration(message: str) -> str:
             # await collection.config.remove_property(...)
 
             logger.info("Migration down completed: {message}")
-        '''
-    )
+        ''')
 
     # Write the file
     with open(file_path, "w") as f:

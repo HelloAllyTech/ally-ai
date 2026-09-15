@@ -248,10 +248,11 @@ class RoadmapOpportunityService:
             filters={"product_goal": product_goal} if product_goal else None,
         )
 
-        # Reported so this threshold has a distribution behind it like any other. Duplicate
-        # detection fails quietly in both directions — too low and every draft looks like a
-        # duplicate of something, too high and the same opportunity is filed twice — and
-        # neither shows up anywhere until someone reads the numbers.
+        # Reported so this threshold has a distribution behind it like any other.
+        # Duplicate detection fails quietly in both directions — too low and every
+        # draft looks like a duplicate of something, too high and the same
+        # opportunity is filed twice — and neither shows up anywhere until
+        # someone reads the numbers.
         emit_retrieval_log(
             corpus="roadmap_opportunities",
             consumer="roadmap_matcher",

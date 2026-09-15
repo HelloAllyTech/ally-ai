@@ -24,7 +24,7 @@ class RoadmapOpportunityUpsertResponse(BaseModel):
     text_hash: str = Field(
         ...,
         description="SHA-256 of the embedded text; ally-be stores this to detect a "
-                    "stale vector",
+        "stale vector",
     )
     embedding_model: str
 
@@ -117,5 +117,5 @@ class RoadmapOpportunityIdsResponse(BaseModel):
     next_cursor: UUID | None = Field(
         None,
         description="Pass as `after` to fetch the next page; None means this was the "
-                    "last",
+        "last",
     )

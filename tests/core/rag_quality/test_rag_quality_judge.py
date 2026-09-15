@@ -62,7 +62,10 @@ class TestPromptBuilder:
 
     def test_includes_the_query_verbatim_and_the_floor(self):
         prompt = build_judge_prompt(
-            "how specific should a character be?", "character_library", [_passage()], 0.35
+            "how specific should a character be?",
+            "character_library",
+            [_passage()],
+            0.35,
         )
         assert "QUERY AS ISSUED: how specific should a character be?" in prompt
         assert "SIMILARITY FLOOR IN FORCE: 0.35" in prompt
@@ -126,7 +129,9 @@ class TestJudgeGuards:
         # row and misreport it.
         out = RagQualityOutput(
             passages=[_judgment("c1"), _judgment("invented")],
-            retrieval=RetrievalJudgment(sufficiency="partial", missing="a case account"),
+            retrieval=RetrievalJudgment(
+                sufficiency="partial", missing="a case account"
+            ),
         )
         kept, _, _ = await self._run(out, [_passage("c1")])
         assert [p.chunk_id for p in kept] == ["c1"]
@@ -178,9 +183,7 @@ class TestJudgeGuards:
         assert model == "gemini-2.5-pro"
 
     async def test_does_not_call_the_model_for_a_blank_query(self):
-        with patch(
-            "app.core.llm.dispatch.generate_structured", new=AsyncMock()
-        ) as spy:
+        with patch("app.core.llm.dispatch.generate_structured", new=AsyncMock()) as spy:
             kept, retrieval, model = await judge_retrieval(
                 "   ", "character_library", [_passage()], 0.35
             )
@@ -214,8 +217,9 @@ class TestJudgeGuards:
         assert model == "gemini-2.5-flash"
 
     async def test_blank_missing_arrives_as_null_not_an_empty_string(self):
-        # The gap question is read as `missing IS NOT NULL`; an empty string there answers
-        # "yes, a gap, unnamed" to every such query. Gemini 2.5 Pro returns "" in practice.
+        # The gap question is read as `missing IS NOT NULL`; an empty string there
+        # answers "yes, a gap, unnamed" to every such query. Gemini 2.5 Pro returns
+        # "" in practice.
         out = RagQualityOutput(
             passages=[_judgment("c1")],
             retrieval=RetrievalJudgment(sufficiency="sufficient", missing="   "),

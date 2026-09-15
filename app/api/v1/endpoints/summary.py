@@ -178,9 +178,11 @@ async def generate_scenario_evaluation(
 
         logger.info(
             "scenario/evaluate succeeded (keys=%s)",
-            list(evaluation_response.keys())
-            if isinstance(evaluation_response, dict)
-            else "non-dict",
+            (
+                list(evaluation_response.keys())
+                if isinstance(evaluation_response, dict)
+                else "non-dict"
+            ),
         )
         return ScenarioEvaluationResponse(**evaluation_response)
     except CounselorTrainingAnalysisFailedException:

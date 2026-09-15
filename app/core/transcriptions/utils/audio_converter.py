@@ -114,9 +114,7 @@ async def convert_and_segment_audio_async(
             # below (which can yield a noise transcript). The flag lets us route
             # it deterministically to the raw-PCM decoder at the given sample
             # rate.
-            logger.info(
-                "Audio flagged as linear16 PCM; decoding directly as raw PCM"
-            )
+            logger.info("Audio flagged as linear16 PCM; decoding directly as raw PCM")
             await phi_logger.log(
                 PHILogEvent(
                     event_type=PHIEvents.DATA_ACCESSED,
@@ -643,9 +641,7 @@ async def download_and_convert_raw_audio_to_wav(
         raise
 
 
-async def transcode_with_autodetect_to_wav(
-    file_path: str, chat_id: int = None
-) -> str:
+async def transcode_with_autodetect_to_wav(file_path: str, chat_id: int = None) -> str:
     """Transcode an audio file to 16kHz mono WAV, letting ffmpeg auto-detect the
     input format (no input format is forced).
 
@@ -706,9 +702,7 @@ async def transcode_with_autodetect_to_wav(
         if output_size == 0:
             raise Exception("FFmpeg auto-detect output file is empty")
 
-        logger.info(
-            f"Audio auto-detect converted successfully ({output_size} bytes)"
-        )
+        logger.info(f"Audio auto-detect converted successfully ({output_size} bytes)")
         await phi_logger.log(
             PHILogEvent(
                 event_type=PHIEvents.DATA_MODIFIED,
@@ -729,9 +723,7 @@ async def transcode_with_autodetect_to_wav(
             # Clean up the original download; we return the converted wav.
             await asyncio.to_thread(os.unlink, file_path)
         except Exception as e:
-            logger.warning(
-                f"Failed to clean up temp input file: {type(e).__name__}"
-            )
+            logger.warning(f"Failed to clean up temp input file: {type(e).__name__}")
 
         return output_path
 

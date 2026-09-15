@@ -19,9 +19,7 @@ class ReadinessCheckResponse(BaseModel):
 
     status: str = Field(
         ...,
-        description=(
-            "'ok' when every dependency below is reachable, else 'degraded'."
-        ),
+        description=("'ok' when every dependency below is reachable, else 'degraded'."),
     )
     dependencies: Dict[str, str] = Field(
         default_factory=dict,
