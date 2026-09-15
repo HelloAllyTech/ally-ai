@@ -812,6 +812,7 @@ class TestOpenAITextGenerationService:
         """
         # LLM mock uses short IDs (what the LLM sees in the prompt)
         mock_evaluation = ScenarioEvaluation(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Ask more open-ended questions",
@@ -899,6 +900,7 @@ class TestOpenAITextGenerationService:
         """
         # LLM mock uses short IDs
         mock_response = ScenarioEvaluationWithMemory(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Improve reflective listening",
@@ -979,6 +981,7 @@ class TestOpenAITextGenerationService:
         """
         # Mock LLM response with multiple AreasOfGrowth objects
         mock_evaluation = ScenarioEvaluation(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Ask more open-ended questions",
@@ -1058,6 +1061,7 @@ class TestOpenAITextGenerationService:
         """
         # LLM uses short IDs; m99 is hallucinated (doesn't exist)
         mock_evaluation = ScenarioEvaluation(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Improve X", recommendation="Try doing X better"
@@ -1137,6 +1141,7 @@ def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
     duplicate the whole builder.
     """
     return ScenarioEvaluation(
+        challenge_description="Test challenge description",
         areas_of_growth=[
             AreasOfGrowth(
                 improvement="Ask more open-ended questions",
