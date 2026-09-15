@@ -560,6 +560,9 @@ class SupervisorMemoryUpdate(BaseModel):
 class ScenarioEvaluation(BaseModel):
     """Structured output model for scenario evaluation with competency tracking."""
 
+    challenge_description: str = Field(
+        description="The challenge description for the simulation"
+    )
     areas_of_growth: List[AreasOfGrowth] = Field(
         description=(
             "Specific, actionable areas that need improvement during "

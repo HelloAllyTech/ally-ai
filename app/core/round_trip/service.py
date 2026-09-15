@@ -45,8 +45,17 @@ _ROUND_TRIP_SLOTS = asyncio.Semaphore(6)
 
 # Sarvam supports these BCP-47 codes for TTS/STT.
 SARVAM_LANGUAGES = {
-    "hi-IN", "bn-IN", "kn-IN", "ml-IN", "mr-IN", "od-IN",
-    "pa-IN", "ta-IN", "te-IN", "gu-IN", "en-IN",
+    "hi-IN",
+    "bn-IN",
+    "kn-IN",
+    "ml-IN",
+    "mr-IN",
+    "od-IN",
+    "pa-IN",
+    "ta-IN",
+    "te-IN",
+    "gu-IN",
+    "en-IN",
 }
 
 

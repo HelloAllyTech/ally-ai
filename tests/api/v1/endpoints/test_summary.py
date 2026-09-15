@@ -261,6 +261,7 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
                 "areas_of_growth": [
                     {
                         "improvement": "Ask more open-ended questions",
@@ -286,6 +287,12 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
                     {"category": "Emotional Attunement", "percentage": 90},
                     {"category": "Supportive engagement", "percentage": 40},
                 ],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
             }
 
             response = client.post("/api/v1/summary/scenario/evaluate", json=request)
@@ -335,20 +342,25 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
                 "areas_of_growth": [],
                 "improvements": [],
                 "positives": [],
                 "emotional_movement": [],
                 "skill_coverage": [],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
             }
 
             response = client.post("/api/v1/summary/scenario/evaluate", json=request)
 
             assert response.status_code == 200
             assert mock_generate_evaluation.call_count == 1
-            assert (
-                mock_generate_evaluation.call_args.kwargs["language_code"] == "hi"
-            )
+            assert mock_generate_evaluation.call_args.kwargs["language_code"] == "hi"
 
     def test_scenario_evaluation_language_code_defaults_to_none(
         self, client: TestClient, mock_summary_service, sample_chat_messages
@@ -365,20 +377,25 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             "generate_scenario_evaluation"
         ) as mock_generate_evaluation:
             mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
                 "areas_of_growth": [],
                 "improvements": [],
                 "positives": [],
                 "emotional_movement": [],
                 "skill_coverage": [],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
             }
 
             response = client.post("/api/v1/summary/scenario/evaluate", json=request)
 
             assert response.status_code == 200
             assert mock_generate_evaluation.call_count == 1
-            assert (
-                mock_generate_evaluation.call_args.kwargs["language_code"] is None
-            )
+            assert mock_generate_evaluation.call_args.kwargs["language_code"] is None
 
     def test_scenario_evaluation_methods(
         self, client: TestClient, sample_chat_messages

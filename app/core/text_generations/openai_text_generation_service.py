@@ -576,9 +576,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # Never affects the result, but logged so a bug in this
                 # extraction (as opposed to the emitter's own send failures,
                 # which it logs itself) doesn't vanish with zero trace.
-                logger.debug(
-                    "LLM usage emit skipped (best-effort)", exc_info=True
-                )
+                logger.debug("LLM usage emit skipped (best-effort)", exc_info=True)
 
             return response if output_class else response.content
 
@@ -1615,6 +1613,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             improvements_list = [item.improvement for item in response.areas_of_growth]
 
             result: Dict[str, Any] = {
+                "challenge_description": response.challenge_description,
                 "areas_of_growth": areas_of_growth_list,
                 # Deprecated, for backward compatibility
                 "improvements": improvements_list,

@@ -96,7 +96,5 @@ def build_judge_prompt(
             f"[claim {claim['claim_index']}] ({claim['kind']}) {claim['text']}"
         )
     lines.append("")
-    lines.append(
-        "Emit one judgment per claim, in order, keyed by its claim_index."
-    )
+    lines.append("Emit one judgment per claim, in order, keyed by its claim_index.")
     return "\n".join(lines)

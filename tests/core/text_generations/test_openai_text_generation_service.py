@@ -198,9 +198,7 @@ class TestOpenAITextGenerationService:
         mock_response.content = "Test response"
         override_model.ainvoke = AsyncMock(return_value=mock_response)
 
-        with patch(
-            "app.core.llm_usage.emitter.emit_llm_usage"
-        ) as mock_emit:
+        with patch("app.core.llm_usage.emitter.emit_llm_usage") as mock_emit:
             await text_generation_service._invoke_llm(
                 "Test prompt", llm_override=override_model, task="nudge"
             )
@@ -812,6 +810,7 @@ class TestOpenAITextGenerationService:
         """
         # LLM mock uses short IDs (what the LLM sees in the prompt)
         mock_evaluation = ScenarioEvaluation(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Ask more open-ended questions",
@@ -899,6 +898,7 @@ class TestOpenAITextGenerationService:
         """
         # LLM mock uses short IDs
         mock_response = ScenarioEvaluationWithMemory(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Improve reflective listening",
@@ -979,6 +979,7 @@ class TestOpenAITextGenerationService:
         """
         # Mock LLM response with multiple AreasOfGrowth objects
         mock_evaluation = ScenarioEvaluation(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Ask more open-ended questions",
@@ -1058,6 +1059,7 @@ class TestOpenAITextGenerationService:
         """
         # LLM uses short IDs; m99 is hallucinated (doesn't exist)
         mock_evaluation = ScenarioEvaluation(
+            challenge_description="Test challenge description",
             areas_of_growth=[
                 AreasOfGrowth(
                     improvement="Improve X", recommendation="Try doing X better"
@@ -1137,6 +1139,7 @@ def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
     duplicate the whole builder.
     """
     return ScenarioEvaluation(
+        challenge_description="Test challenge description",
         areas_of_growth=[
             AreasOfGrowth(
                 improvement="Ask more open-ended questions",
@@ -1388,16 +1391,12 @@ class TestScenarioEvaluationLanguageDirective:
             ),
         ]
 
-    async def _capture_prompt(
-        self, service, sample_chat_messages, **kwargs
-    ) -> str:
+    async def _capture_prompt(self, service, sample_chat_messages, **kwargs) -> str:
         """Run generate_scenario_evaluation and return the prompt sent to the LLM."""
         with patch.object(
             service, "_invoke_llm", return_value=_make_scenario_evaluation()
         ) as mock_invoke:
-            await service.generate_scenario_evaluation(
-                sample_chat_messages, **kwargs
-            )
+            await service.generate_scenario_evaluation(sample_chat_messages, **kwargs)
             assert mock_invoke.await_count == 1
             return mock_invoke.await_args.args[0]
 

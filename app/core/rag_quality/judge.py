@@ -52,9 +52,7 @@ async def judge_retrieval(
     if not query.strip():
         return [], None, settings.RAG_QUALITY_JUDGE.MODEL
 
-    prompt = build_judge_prompt(
-        query, corpus, passages, min_similarity, rubric=rubric
-    )
+    prompt = build_judge_prompt(query, corpus, passages, min_similarity, rubric=rubric)
 
     from app.core.llm.dispatch import PROVIDER_GEMINI, generate_structured
     from app.core.llm_usage.tasks import LLMTask

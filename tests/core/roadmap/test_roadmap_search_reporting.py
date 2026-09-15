@@ -1,13 +1,14 @@
 """The roadmap duplicate-detection search reports itself to the retrieval log.
 
-Worth logging for a reason the service's own docstring states: its 0.5 threshold was
-calibrated against a different embedding model at a different dimensionality, and "needs
-re-calibrating against real data before it is trusted". There was no real data to calibrate
-against, because nothing recorded what this search scored.
+Worth logging for a reason the service's own docstring states: its 0.5
+threshold was calibrated against a different embedding model at a different
+dimensionality, and "needs re-calibrating against real data before it is
+trusted". There was no real data to calibrate against, because nothing recorded
+what this search scored.
 
-Duplicate detection also fails quietly in both directions — too low and every draft looks like
-a duplicate of something, too high and the same opportunity gets filed twice — so neither
-failure surfaces without the distribution.
+Duplicate detection also fails quietly in both directions — too low and every
+draft looks like a duplicate of something, too high and the same opportunity
+gets filed twice — so neither failure surfaces without the distribution.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -33,7 +34,9 @@ async def test_reports_the_search_with_the_threshold_in_force(service):
     with patch(
         "app.core.roadmap.roadmap_opportunity_service.emit_retrieval_log"
     ) as emit:
-        await service.search("learners abandon a track after the second session", threshold=0.5)
+        await service.search(
+            "learners abandon a track after the second session", threshold=0.5
+        )
 
     kwargs = emit.call_args.kwargs
     assert kwargs["corpus"] == "roadmap_opportunities"
@@ -44,8 +47,8 @@ async def test_reports_the_search_with_the_threshold_in_force(service):
 
 @pytest.mark.asyncio
 async def test_does_not_mark_staff_product_text_sensitive(service):
-    # Both sides of this comparison are staff-authored product descriptions. Withholding them
-    # would cost the qualitative reading for nothing.
+    # Both sides of this comparison are staff-authored product descriptions.
+    # Withholding them would cost the qualitative reading for nothing.
     service.embedding_service.embed.return_value = [0.1] * 8
     service.vector_db.near_vector_search.return_value = []
 
@@ -59,8 +62,8 @@ async def test_does_not_mark_staff_product_text_sensitive(service):
 
 @pytest.mark.asyncio
 async def test_reports_an_empty_result_too(service):
-    # "Nothing similar" is the answer that files a new opportunity, so it is exactly the case
-    # a too-high threshold would produce wrongly.
+    # "Nothing similar" is the answer that files a new opportunity, so it is
+    # exactly the case a too-high threshold would produce wrongly.
     service.embedding_service.embed.return_value = [0.1] * 8
     service.vector_db.near_vector_search.return_value = []
 
@@ -73,7 +76,9 @@ async def test_reports_an_empty_result_too(service):
 
 
 @pytest.mark.asyncio
-async def test_an_empty_description_searches_nothing_and_reports_nothing(service):
+async def test_an_empty_description_searches_nothing_and_reports_nothing(
+    service,
+):
     with patch(
         "app.core.roadmap.roadmap_opportunity_service.emit_retrieval_log"
     ) as emit:

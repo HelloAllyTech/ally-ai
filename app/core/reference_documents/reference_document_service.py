@@ -359,23 +359,22 @@ class ReferenceDocumentService:
                 reverse = sort_order.lower() == "desc"
                 documents.sort(key=lambda x: x.get(sort_by, ""), reverse=reverse)
 
-            # Reported so this search has a distribution behind it. Note what is converted:
-            # this collection is governed by a DISTANCE threshold, not a similarity floor, so
-            # the emitted number is (1 - distance) and means the same thing as the floor
-            # recorded for every other surface. Storing the distance raw would put two
-            # opposite scales in one column.
+            # Reported so this search has a distribution behind it. Note what is
+            # converted: this collection is governed by a DISTANCE threshold, not a
+            # similarity floor, so the emitted number is (1 - distance) and means the
+            # same thing as the floor recorded for every other surface. Storing the
+            # distance raw would put two opposite scales in one column.
             #
-            # The unit of retrieval here is a WHOLE DOCUMENT rather than a chunk, so the
-            # passage rows carry the document id in both id fields. Nothing judges these: the
-            # text lives in this collection, not in ally-be's kb_document_chunks, and the
-            # judge's selector excludes the corpus by name.
+            # The unit of retrieval here is a WHOLE DOCUMENT rather than a chunk, so
+            # the passage rows carry the document id in both id fields. Nothing judges
+            # these: the text lives in this collection, not in ally-be's
+            # kb_document_chunks, and the judge's selector excludes the corpus by name.
             emit_retrieval_log(
                 corpus="reference_documents",
                 consumer="reference_search",
                 query=query,
-                min_similarity=1.0 - float(
-                    settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD
-                ),
+                min_similarity=1.0
+                - float(settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD),
                 requested_limit=limit,
                 returned_count=len(documents),
                 latency_ms=search_latency_ms,
@@ -387,8 +386,9 @@ class ReferenceDocumentService:
                     }
                     for doc in documents
                 ],
-                # A counsellor typing into a search box mid-call can put case details in the
-                # query, and nothing downstream needs the text to read the distribution.
+                # A counsellor typing into a search box mid-call can put case details
+                # in the query, and nothing downstream needs the text to read the
+                # distribution.
                 query_sensitive=True,
             )
 

@@ -2,6 +2,7 @@
 """
 Test runner for Lifeline AI utility functions.
 """
+
 import logging
 import subprocess
 import sys

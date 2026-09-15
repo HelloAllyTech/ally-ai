@@ -56,7 +56,10 @@ class PassageJudgment(BaseModel):
     """One retrieved passage, judged against the query that retrieved it."""
 
     chunk_id: str = Field(
-        description="The passage's id, exactly as supplied. Used to join the label back."
+        description=(
+            "The passage's id, exactly as supplied. "
+            "Used to join the label back."
+        )
     )
     relevance: PassageRelevance = Field(
         description="How directly the passage bears on the query."
