@@ -38,12 +38,15 @@ class TranscriptionAttempt:
     provider: str
     ok: bool
     error: Optional[str] = None
+    status_code: Optional[int] = None
 
     def to_dict(self) -> Dict[str, object]:
         """camelCase-free per-provider record; ally-be's DTO field names match."""
         record: Dict[str, object] = {"provider": self.provider, "ok": self.ok}
         if self.error is not None:
             record["error"] = self.error
+        if self.status_code is not None:
+            record["status_code"] = self.status_code
         return record
 
 
@@ -173,9 +176,16 @@ class FallbackTranscriptionService:
             except Exception as e:
                 last_exception = e
                 is_last = position == total - 1
+                status_code: Optional[int] = None
+                if isinstance(e, TranscriptionFailedException):
+                    status_code = e.status_code
+
                 self.last_attempts.append(
                     TranscriptionAttempt(
-                        provider=name, ok=False, error=f"{type(e).__name__}: {e}"
+                        provider=name,
+                        ok=False,
+                        error=f"{type(e).__name__}: {e}",
+                        status_code=status_code
                     )
                 )
                 logger.error(

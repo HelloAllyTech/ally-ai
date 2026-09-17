@@ -262,3 +262,26 @@ class TestFallbackTranscriptionService:
 
         assert text == "fast"
         secondary.transcribe_audio_from_url.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_trail_records_status_code_on_transcription_failed_exception(self):
+        # deepgram fails with TranscriptionFailedException and a 500 status code
+        primary = _service(side_effect=TranscriptionFailedException(
+            message="deepgram returned an empty transcript", status_code=500
+        ))
+        secondary = _service(return_value=(7, "recovered text"))
+        fb = FallbackTranscriptionService(
+            [("deepgram", primary), ("sarvam", secondary)]
+        )
+
+        await fb.transcribe_audio_from_url(
+            audio_url="http://x", chat_id=7, sample_rate=8000
+        )
+
+        assert fb.last_succeeded_provider == "sarvam"
+        trail = [a.to_dict() for a in fb.last_attempts]
+        assert trail[0]["provider"] == "deepgram"
+        assert trail[0]["ok"] is False
+        assert "error" in trail[0]
+        assert trail[0]["status_code"] == 500
+        assert trail[1] == {"provider": "sarvam", "ok": True}
