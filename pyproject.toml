@@ -28,7 +28,7 @@ deepgram-sdk = "^4.7.0"
 rapidfuzz = "^3.13.0"
 ffmpeg-python = "^0.2.0"
 httpx = "^0.28.1"
-sarvamai = "^0.1.0"
+sarvamai = "^0.1.34"
 google-genai = "^1.0.0"
 # Raw SDK, not langchain-anthropic: the knowledge agent needs Anthropic's forced-tool call for
 # structured output (there is no response_schema equivalent), which the langchain wrapper does not
