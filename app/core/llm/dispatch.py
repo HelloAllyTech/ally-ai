@@ -35,6 +35,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.exceptions.custom_exceptions import LLMInvocationFailedException
+from google.api_core.exceptions import ClientError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -120,6 +121,8 @@ def _is_retryable_provider_failure(error: BaseException) -> bool:
     So a fallback fires only for a dead credential, a retired model, capacity,
     or a request that never arrived.
     """
+    if isinstance(error, ClientError):
+        return True
     # Our own exception, raised by the generators above when a provider ANSWERED
     # but the answer was unusable — no tool block, nothing parsable. It carries
     # an internal 500 for the API layer, which would otherwise read as a server
