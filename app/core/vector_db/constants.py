@@ -13,6 +13,7 @@ class VectorDBCollectionNames:
     CONVERSATIONS = "Conversation"
     REFERENCE_DOCUMENTS = "ReferenceDocument"
     ROADMAP_OPPORTUNITIES = "RoadmapOpportunity"
+    AGENT_MEMORIES = "AgentMemory"
     KNOWLEDGE_CHUNKS = "KnowledgeChunk"
     CHARACTER_CHUNKS = "CharacterChunk"
 
@@ -168,6 +169,60 @@ class RoadmapOpportunityProperties:
         """Get all properties for the RoadmapOpportunity collection"""
         return [
             cls.PRODUCT_GOAL,
+            cls.TEXT_HASH,
+            cls.EMBEDDING_MODEL,
+            cls.EMBEDDED_AT,
+        ]
+
+
+class AgentMemoryProperties:
+    """
+    Properties for the AgentMemory collection — semantic search over the notebook an
+    Ally agent (Bug Hunter first, Builder next) keeps of what it has learned.
+
+    Same design as RoadmapOpportunity: ally-be's Postgres (agent_memories.body) is the
+    system of record and this collection is a DERIVED index holding the vector plus the
+    minimum needed to filter and reconcile. THE ENTRY TEXT IS NOT STORED HERE — ally-be
+    resolves the returned ids against its own rows, which is also what applies the
+    repo scope, the active/retired status and the pin, none of which belong in an index
+    that would only ever be stale about them.
+
+    The Weaviate object UUID IS agent_memories.id, so every write is idempotent.
+
+    `agent` is the one filter the index applies itself: a Bug Hunter lookup must never
+    surface a Builder lesson, and a filter the caller can forget to pass is not a
+    boundary — so ally-be always passes it and the search refuses without it.
+    """
+
+    AGENT = wvc.Property(
+        name="agent",
+        data_type=wvc.DataType.TEXT,
+        description="Which agent's notebook this is (bug_hunter, builder)",
+    )
+
+    TEXT_HASH = wvc.Property(
+        name="text_hash",
+        data_type=wvc.DataType.TEXT,
+        description="SHA-256 of the embedded text; lets ally-be detect a stale vector",
+    )
+
+    EMBEDDING_MODEL = wvc.Property(
+        name="embedding_model",
+        data_type=wvc.DataType.TEXT,
+        description="Model that produced the vector, so a model change is detectable",
+    )
+
+    EMBEDDED_AT = wvc.Property(
+        name="embedded_at",
+        data_type=wvc.DataType.DATE,
+        description="When the vector was generated",
+    )
+
+    @classmethod
+    def get_all_properties(cls):
+        """Get all properties for the AgentMemory collection"""
+        return [
+            cls.AGENT,
             cls.TEXT_HASH,
             cls.EMBEDDING_MODEL,
             cls.EMBEDDED_AT,
