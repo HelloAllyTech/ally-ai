@@ -17,6 +17,7 @@ from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkServic
 from app.core.reference_documents.reference_document_service import (
     ReferenceDocumentService,
 )
+from app.core.agent_memory.agent_memory_service import AgentMemoryService
 from app.core.roadmap.roadmap_opportunity_service import RoadmapOpportunityService
 from app.core.summaries.summary_service import SummaryService
 from app.core.text_generations.base import BaseTextGenerationService
@@ -168,6 +169,24 @@ def _get_roadmap_opportunity_service_cached() -> RoadmapOpportunityService:
         _get_vector_db_cached(),
         _get_embedding_service_cached(),
     )
+
+
+@lru_cache(maxsize=1)
+def _get_agent_memory_service_cached() -> AgentMemoryService:
+    return AgentMemoryService(
+        _get_vector_db_cached(),
+        _get_embedding_service_cached(),
+    )
+
+
+# Dependency for the agent-memory (Bug Hunter / Builder notebook) index service
+async def get_agent_memory_service(
+    vector_db=Depends(get_vector_db), embedding_service=Depends(get_embedding_service)
+) -> AgentMemoryService:
+    """
+    Returns an instance of AgentMemoryService.
+    """
+    return _get_agent_memory_service_cached()
 
 
 # Dependency for the roadmap opportunity (semantic duplicate detection) service
