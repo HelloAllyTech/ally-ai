@@ -127,12 +127,25 @@ def _is_retryable_provider_failure(error: BaseException) -> bool:
     if isinstance(error, LLMInvocationFailedException):
         return False
 
-    status = (
-        getattr(error, "status_code", None)
-        or getattr(error, "status", None)
-        or getattr(getattr(error, "response", None), "status_code", None)
+    # google-genai's `APIError` (and its `ClientError`/`ServerError`) carries the
+    # HTTP status as `code` and puts the gRPC status NAME — a string such as
+    # "PERMISSION_DENIED" — in `status`. Without `code` here, a dead Gemini key
+    # has no int status and falls through to the class-name check below, which
+    # rejects it: exactly the dead-credential case this function exists for.
+    status = next(
+        (
+            candidate
+            for candidate in (
+                getattr(error, "status_code", None),
+                getattr(error, "code", None),
+                getattr(error, "status", None),
+                getattr(getattr(error, "response", None), "status_code", None),
+            )
+            if isinstance(candidate, int)
+        ),
+        None,
     )
-    if isinstance(status, int):
+    if status is not None:
         return status in _RETRYABLE_STATUSES or status >= 500
 
     # No status: retry only for the transport-level failures, matched by class

@@ -503,6 +503,54 @@ class TestRetryAfterFailure:
         assert meta["provider"] == "openai"
         assert meta["fell_back_from"] == "gemini"
 
+    @staticmethod
+    def _genai_err(code, status_name):
+        """Shaped like google-genai's `ClientError`: the HTTP status is `code`,
+        and `status` is the gRPC status name, not a number."""
+        err = type("ClientError", (Exception,), {})(f"{code} {status_name}")
+        err.code = code
+        err.status = status_name
+        return err
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "code,status_name",
+        [
+            (401, "UNAUTHENTICATED"),
+            (403, "PERMISSION_DENIED"),
+            (429, "RESOURCE_EXHAUSTED"),
+        ],
+    )
+    async def test_retries_a_gemini_client_error_on_a_dead_provider(
+        self, code, status_name
+    ):
+        failing = AsyncMock(side_effect=self._genai_err(code, status_name))
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+            patch.object(dispatch, "_get_openai_client", return_value=openai_client()),
+        ):
+            _, meta = await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="gemini", model="gemini-2.5-pro"
+            )
+
+        assert meta["provider"] == "openai"
+        assert meta["fell_back_from"] == "gemini"
+
+    @pytest.mark.asyncio
+    async def test_does_not_retry_a_gemini_client_error_for_a_rejected_request(self):
+        failing = AsyncMock(side_effect=self._genai_err(400, "INVALID_ARGUMENT"))
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+        ):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer, prompt="q", provider="gemini", model="gemini-2.5-pro"
+                )
+
     @pytest.mark.asyncio
     async def test_does_not_retry_a_rejected_request(self):
         # A 400 means the request was wrong. Retrying it elsewhere fails twice.
