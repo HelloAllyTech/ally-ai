@@ -515,9 +515,15 @@ class TestRetryAfterFailure:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "code,status_name",
-        [(401, "UNAUTHENTICATED"), (403, "PERMISSION_DENIED"), (429, "RESOURCE_EXHAUSTED")],
+        [
+            (401, "UNAUTHENTICATED"),
+            (403, "PERMISSION_DENIED"),
+            (429, "RESOURCE_EXHAUSTED"),
+        ],
     )
-    async def test_retries_a_gemini_client_error_on_a_dead_provider(self, code, status_name):
+    async def test_retries_a_gemini_client_error_on_a_dead_provider(
+        self, code, status_name
+    ):
         failing = AsyncMock(side_effect=self._genai_err(code, status_name))
         with (
             patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
