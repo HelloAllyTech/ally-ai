@@ -35,7 +35,6 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.exceptions.custom_exceptions import LLMInvocationFailedException
-from google.api_core.exceptions import ClientError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -121,8 +120,6 @@ def _is_retryable_provider_failure(error: BaseException) -> bool:
     So a fallback fires only for a dead credential, a retired model, capacity,
     or a request that never arrived.
     """
-    if isinstance(error, ClientError):
-        return True
     # Our own exception, raised by the generators above when a provider ANSWERED
     # but the answer was unusable — no tool block, nothing parsable. It carries
     # an internal 500 for the API layer, which would otherwise read as a server
@@ -130,12 +127,25 @@ def _is_retryable_provider_failure(error: BaseException) -> bool:
     if isinstance(error, LLMInvocationFailedException):
         return False
 
-    status = (
-        getattr(error, "status_code", None)
-        or getattr(error, "status", None)
-        or getattr(getattr(error, "response", None), "status_code", None)
+    # google-genai's `APIError` (and its `ClientError`/`ServerError`) carries the
+    # HTTP status as `code` and puts the gRPC status NAME — a string such as
+    # "PERMISSION_DENIED" — in `status`. Without `code` here, a dead Gemini key
+    # has no int status and falls through to the class-name check below, which
+    # rejects it: exactly the dead-credential case this function exists for.
+    status = next(
+        (
+            candidate
+            for candidate in (
+                getattr(error, "status_code", None),
+                getattr(error, "code", None),
+                getattr(error, "status", None),
+                getattr(getattr(error, "response", None), "status_code", None),
+            )
+            if isinstance(candidate, int)
+        ),
+        None,
     )
-    if isinstance(status, int):
+    if status is not None:
         return status in _RETRYABLE_STATUSES or status >= 500
 
     # No status: retry only for the transport-level failures, matched by class
