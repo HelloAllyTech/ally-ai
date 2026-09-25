@@ -1168,6 +1168,128 @@ def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
     )
 
 
+class TestInvokeLlmUsageAttribution:
+    """room_id / scenario_session_id passed into _invoke_llm's kwargs must
+    reach emit_llm_usage unchanged, so ally-be can attribute the cost back to
+    a scenario session. Omitting them must behave exactly as before.
+    """
+
+    @pytest.fixture
+    def text_generation_service(self):
+        with patch(
+            "app.core.text_generations.openai_text_generation_service.settings"
+        ) as mock_settings:
+            mock_settings.LLM.MAX_CONCURRENT_LLM_CALLS = 10
+            return OpenAITextGenerationService(MagicMock(), AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_room_id_and_scenario_session_id_reach_the_emitter(
+        self, text_generation_service
+    ):
+        override_model = MagicMock()
+        override_model.model_name = "gpt-override"
+        mock_response = MagicMock()
+        mock_response.content = "Test response"
+        override_model.ainvoke = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.llm_usage.emitter.emit_llm_usage") as mock_emit:
+            await text_generation_service._invoke_llm(
+                "Test prompt",
+                llm_override=override_model,
+                task="scenario_evaluation",
+                room_id="room-abc",
+                scenario_session_id="sess-123",
+            )
+
+        mock_emit.assert_called_once()
+        assert mock_emit.call_args.kwargs["room_id"] == "room-abc"
+        assert mock_emit.call_args.kwargs["scenario_session_id"] == "sess-123"
+
+    @pytest.mark.asyncio
+    async def test_missing_room_id_and_scenario_session_id_still_emits(
+        self, text_generation_service
+    ):
+        """An old caller that never passes these kwargs must keep working:
+        the emitter still fires, just without attribution."""
+        override_model = MagicMock()
+        override_model.model_name = "gpt-override"
+        mock_response = MagicMock()
+        mock_response.content = "Test response"
+        override_model.ainvoke = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.llm_usage.emitter.emit_llm_usage") as mock_emit:
+            await text_generation_service._invoke_llm(
+                "Test prompt",
+                llm_override=override_model,
+                task="scenario_evaluation",
+            )
+
+        mock_emit.assert_called_once()
+        assert mock_emit.call_args.kwargs["room_id"] is None
+        assert mock_emit.call_args.kwargs["scenario_session_id"] is None
+
+
+class TestGenerateScenarioEvaluationUsageAttribution:
+    """room_id / scenario_session_id passed to generate_scenario_evaluation
+    must be forwarded, via **kwargs, into the single _invoke_llm call the
+    evaluate path makes.
+    """
+
+    @pytest.fixture
+    def text_generation_service(self):
+        with patch(
+            "app.core.text_generations.openai_text_generation_service.settings"
+        ) as mock_settings:
+            mock_settings.LLM.MAX_CONCURRENT_LLM_CALLS = 10
+            return OpenAITextGenerationService(MagicMock(), AsyncMock())
+
+    @pytest.fixture
+    def sample_chat_messages(self):
+        return [
+            ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_forwards_room_id_and_scenario_session_id_to_invoke_llm(
+        self, text_generation_service, sample_chat_messages
+    ):
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages,
+                room_id="room-abc",
+                scenario_session_id="sess-123",
+            )
+
+        assert mock_invoke.await_args.kwargs["room_id"] == "room-abc"
+        assert mock_invoke.await_args.kwargs["scenario_session_id"] == "sess-123"
+
+    @pytest.mark.asyncio
+    async def test_omitting_room_id_and_scenario_session_id_still_succeeds(
+        self, text_generation_service, sample_chat_messages
+    ):
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+
+        assert mock_invoke.await_args.kwargs.get("room_id") is None
+        assert mock_invoke.await_args.kwargs.get("scenario_session_id") is None
+        assert result["positives"] == ["Good rapport building"]
+
+
 class TestWantsTranslatedFeedback:
     """Unit tests for the _wants_translated_feedback helper."""
 

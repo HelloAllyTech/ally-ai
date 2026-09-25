@@ -397,6 +397,84 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
             assert mock_generate_evaluation.call_count == 1
             assert mock_generate_evaluation.call_args.kwargs["language_code"] is None
 
+    def test_scenario_evaluation_passes_usage_attribution_fields(
+        self, client: TestClient, mock_summary_service, sample_chat_messages
+    ):
+        """room_id / scenario_session_id from the request are threaded to the
+        service call, so the evaluate call's llm_usage can be attributed back
+        to the scenario session in ally-be."""
+        request = {
+            "chat_history": sample_chat_messages,
+            "room_id": "room-abc",
+            "scenario_session_id": "sess-123",
+        }
+
+        with patch(
+            "app.core.summaries.summary_service.SummaryService."
+            "generate_scenario_evaluation"
+        ) as mock_generate_evaluation:
+            mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
+                "areas_of_growth": [],
+                "improvements": [],
+                "positives": [],
+                "emotional_movement": [],
+                "skill_coverage": [],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
+            }
+
+            response = client.post("/api/v1/summary/scenario/evaluate", json=request)
+
+            assert response.status_code == 200
+            assert mock_generate_evaluation.call_count == 1
+            assert mock_generate_evaluation.call_args.kwargs["room_id"] == "room-abc"
+            assert (
+                mock_generate_evaluation.call_args.kwargs["scenario_session_id"]
+                == "sess-123"
+            )
+
+    def test_scenario_evaluation_usage_attribution_fields_default_to_none(
+        self, client: TestClient, mock_summary_service, sample_chat_messages
+    ):
+        """Omitting room_id/scenario_session_id (an old ally-be caller) still
+        works exactly as before -- both simply pass through as None."""
+        request = {
+            "chat_history": sample_chat_messages,
+        }
+
+        with patch(
+            "app.core.summaries.summary_service.SummaryService."
+            "generate_scenario_evaluation"
+        ) as mock_generate_evaluation:
+            mock_generate_evaluation.return_value = {
+                "challenge_description": "Test challenge description",
+                "areas_of_growth": [],
+                "improvements": [],
+                "positives": [],
+                "emotional_movement": [],
+                "skill_coverage": [],
+                "supervisor_note": "note",
+                "memory_update": {
+                    "focus_areas": [],
+                    "trajectory": "trajectory",
+                    "next_time": "next_time",
+                },
+            }
+
+            response = client.post("/api/v1/summary/scenario/evaluate", json=request)
+
+            assert response.status_code == 200
+            assert mock_generate_evaluation.call_count == 1
+            assert mock_generate_evaluation.call_args.kwargs["room_id"] is None
+            assert (
+                mock_generate_evaluation.call_args.kwargs["scenario_session_id"] is None
+            )
+
     def test_scenario_evaluation_methods(
         self, client: TestClient, sample_chat_messages
     ):
