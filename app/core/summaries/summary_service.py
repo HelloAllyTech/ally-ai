@@ -291,6 +291,8 @@ class SummaryService:
         helpful_behaviours: Optional[List[str]] = None,
         unhelpful_behaviours: Optional[List[str]] = None,
         live_notes: Optional[List[str]] = None,
+        room_id: Optional[str] = None,
+        scenario_session_id: Optional[str] = None,
     ):
         """
         Generate scenario evaluation.
@@ -318,6 +320,10 @@ class SummaryService:
             live_notes (Optional[List[str]]): Coaching hints the supervisor
                 already sent the learner DURING this session, in order. Empty
                 for most sessions — live notes are opt-in per scenario.
+            room_id (Optional[str]): LiveKit room name for the session, used
+                to attribute this call's llm_usage cost.
+            scenario_session_id (Optional[str]): Scenario session id, used to
+                attribute this call's llm_usage cost. Preferred over room_id.
 
         Returns:
             Dict[str, Any]: Dictionary containing:
@@ -361,6 +367,8 @@ class SummaryService:
                 helpful_behaviours=helpful_behaviours,
                 unhelpful_behaviours=unhelpful_behaviours,
                 live_notes=live_notes,
+                room_id=room_id,
+                scenario_session_id=scenario_session_id,
             )
 
             # Calculate processing time

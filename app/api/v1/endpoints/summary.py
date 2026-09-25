@@ -174,6 +174,8 @@ async def generate_scenario_evaluation(
             helpful_behaviours=request.helpful_behaviours,
             unhelpful_behaviours=request.unhelpful_behaviours,
             live_notes=request.live_notes,
+            room_id=request.room_id,
+            scenario_session_id=request.scenario_session_id,
         )
 
         logger.info(

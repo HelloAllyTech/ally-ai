@@ -332,3 +332,50 @@ class TestSummaryService:
 
         with pytest.raises(CounselorTrainingAnalysisFailedException):
             await summary_service.generate_scenario_evaluation(sample_chat_messages)
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_threads_usage_attribution(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """room_id / scenario_session_id are forwarded to the text generation
+        service call, so every llm_usage emission for this request can be
+        attributed back to the scenario session in ally-be."""
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": ["Test improvement"],
+            "positives": ["Test positive"],
+            "emotional_movement": [],
+            "skill_coverage": [],
+        }
+
+        await summary_service.generate_scenario_evaluation(
+            sample_chat_messages,
+            room_id="room-abc",
+            scenario_session_id="sess-123",
+        )
+
+        mock_text_generation_service.generate_scenario_evaluation.assert_called_once()
+        call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
+        assert call_args[1]["room_id"] == "room-abc"
+        assert call_args[1]["scenario_session_id"] == "sess-123"
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_usage_attribution_defaults_to_none(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """Omitting room_id/scenario_session_id (an old ally-be caller) must
+        keep working exactly as before."""
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": ["Test improvement"],
+            "positives": ["Test positive"],
+            "emotional_movement": [],
+            "skill_coverage": [],
+        }
+
+        result = await summary_service.generate_scenario_evaluation(
+            sample_chat_messages
+        )
+
+        assert result["positives"] == ["Test positive"]
+        call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
+        assert call_args[1]["room_id"] is None
+        assert call_args[1]["scenario_session_id"] is None

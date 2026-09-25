@@ -503,6 +503,24 @@ class ScenarioEvaluationRequest(BaseModel):
             "common case — the per-scenario toggle is off by default."
         ),
     )
+    room_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "The LiveKit room name for the session being evaluated, so the "
+            "resulting llm_usage cost can be attributed back to the scenario "
+            "session in ally-be. Optional; omitting it still generates the "
+            "evaluation, just without cost attribution."
+        ),
+    )
+    scenario_session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "The scenario session id (ally-be's session record) being "
+            "evaluated, for llm_usage cost attribution. Preferred over room_id "
+            "when both are present. Optional; omitting it still generates the "
+            "evaluation, just without cost attribution."
+        ),
+    )
 
 
 class SupervisorMemoryUpdateItem(BaseModel):

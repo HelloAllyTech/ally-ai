@@ -40,6 +40,7 @@ def _build_body(
     characters: Optional[int] = None,
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> str:
     env = None
     try:
@@ -64,6 +65,7 @@ def _build_body(
                     "characters": characters,
                     "env": env,
                     "scenario_id": scenario_id,
+                    "scenario_session_id": scenario_session_id,
                 }
             },
         }
@@ -108,6 +110,7 @@ def emit_ai_usage(
     characters: Optional[int] = None,
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
+    scenario_session_id: Optional[str] = None,
     blocking: bool = False,
 ) -> None:
     """Best-effort emit for any AI service ('llm' | 'stt' | 'tts'). Never raises."""
@@ -137,6 +140,7 @@ def emit_ai_usage(
             characters=characters,
             room_id=room_id,
             scenario_id=scenario_id,
+            scenario_session_id=scenario_session_id,
         )
         if blocking:
             _send_blocking(body)
@@ -154,6 +158,7 @@ def emit_llm_usage(
     usage: Optional[Tuple[int, int, int]],
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> None:
     """Back-compat LLM helper (async). Forwards to emit_ai_usage(service='llm')."""
     if not usage:
@@ -169,6 +174,7 @@ def emit_llm_usage(
         total_tokens=total,
         room_id=room_id,
         scenario_id=scenario_id,
+        scenario_session_id=scenario_session_id,
     )
 
 
@@ -179,6 +185,7 @@ def emit_llm_usage_blocking(
     usage: Optional[Tuple[int, int, int]],
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> None:
     """Back-compat LLM helper (sync) for non-async call sites (e.g. drift judge)."""
     if not usage:
@@ -194,5 +201,6 @@ def emit_llm_usage_blocking(
         total_tokens=total,
         room_id=room_id,
         scenario_id=scenario_id,
+        scenario_session_id=scenario_session_id,
         blocking=True,
     )

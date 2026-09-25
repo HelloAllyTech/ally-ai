@@ -571,6 +571,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         usage=_usage,
                         room_id=kwargs.get("room_id"),
                         scenario_id=kwargs.get("scenario_id"),
+                        scenario_session_id=kwargs.get("scenario_session_id"),
                     )
             except Exception:
                 # Never affects the result, but logged so a bug in this
