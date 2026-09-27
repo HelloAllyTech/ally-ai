@@ -12,8 +12,10 @@ Reads the export from the data dir and writes `<kind>.results.jsonl` next to
 it. Resumable: units already in the results file are skipped. The key comes
 from JEV_API_KEY (TYPESAFE_API_KEY also accepted) or ally-ai/.env.
 
-Drift is asked PER TURN with a short window (brief + recent turns), because
-Jev's accuracy drops as state fills with content irrelevant to the decision.
+Drift is asked PER TURN: brief + the prior `--window` transcript lines (0 = all
+prior turns). Jev's accuracy drops as state fills with irrelevant content, but
+repetition and context lock-in need earlier turns, so the window is a trade-off
+the bake-off measures rather than assumes.
 Groundedness is asked PER SESSION: the whole transcript is the evidence, and
 all of a session's claims share that one state.
 """
@@ -38,7 +40,6 @@ URL = "https://api.typesafe.ai/v1/systemone"
 # Pinned, not jev-latest: a moving alias would make two runs incomparable.
 MODEL = os.environ.get("JEV_MODEL", "jev-1.13.0")
 PERSONA_CHARS = 6000
-WINDOW_LINES = 6
 
 
 def api_key() -> str:
@@ -59,7 +60,7 @@ def speaker_line(t: dict) -> str:
     return f"{tag}{who}: {t.get('text', '')}"
 
 
-def drift_units(export: dict):
+def drift_units(export: dict, window: int):
     for s in export["sessions"]:
         transcript = s["transcript"]
         pos = {t["turn_index"]: i for i, t in enumerate(transcript) if t.get("role") == "client"}
@@ -72,7 +73,7 @@ def drift_units(export: dict):
             state = {
                 "language": s["language"],
                 "client_brief": (s.get("persona") or "")[:PERSONA_CHARS],
-                "recent_conversation": [speaker_line(t) for t in prev[-WINDOW_LINES:]],
+                "recent_conversation": [speaker_line(t) for t in (prev[-window:] if window else prev)],
                 "turn_being_judged": {
                     "COUNSELOR": counselor,
                     "AI_CLIENT": transcript[i].get("text", ""),
@@ -110,16 +111,16 @@ async def ask(client: httpx.AsyncClient, state, questions) -> tuple[dict, float]
     raise RuntimeError(f"gave up after retries: HTTP {r.status_code}")
 
 
-async def run(kind: str, limit: int | None, concurrency: int) -> None:
+async def run(kind: str, limit: int | None, concurrency: int, window: int, tag: str) -> None:
     export = json.loads((DATA_DIR / f"{kind}.json").read_text())
     if export.get("scope") != "test_organizations_only":
         raise SystemExit(f"{kind}.json is not a test-organization-only export; re-export it")
-    out_path = DATA_DIR / f"{kind}.results.jsonl"
+    out_path = DATA_DIR / f"{kind}{tag}.results.jsonl"
     done = set()
     if out_path.exists():
         done = {json.loads(line)["unit"] for line in out_path.read_text().splitlines() if line}
 
-    units = list(drift_units(export) if kind == "drift" else groundedness_units(export))
+    units = list(drift_units(export, window) if kind == "drift" else groundedness_units(export))
     todo = [u for u in units if u[0] not in done][: limit or None]
     print(f"{kind}: {len(units)} units, {len(done)} done, running {len(todo)}", file=sys.stderr)
 
@@ -157,12 +158,15 @@ def main() -> None:
     ap.add_argument("--only", choices=["drift", "groundedness"])
     ap.add_argument("--limit", type=int, help="max units per judge this run")
     ap.add_argument("--concurrency", type=int, default=8)
+    ap.add_argument("--window", type=int, default=6,
+                    help="drift: prior transcript lines Jev sees; 0 = all prior turns")
+    ap.add_argument("--tag", default="", help="results-file suffix, to keep runs side by side")
     args = ap.parse_args()
     for kind in [args.only] if args.only else ["drift", "groundedness"]:
         if not (DATA_DIR / f"{kind}.json").exists():
             print(f"{kind}: no export at {DATA_DIR}; run export_prod.py first", file=sys.stderr)
             continue
-        asyncio.run(run(kind, args.limit, args.concurrency))
+        asyncio.run(run(kind, args.limit, args.concurrency, args.window, args.tag))
 
 
 if __name__ == "__main__":

@@ -39,8 +39,8 @@ DRIFT_NOULS = ["in_character", "role_inversion", "offered_solution",
 DRIFT_CHOICES = ["topic_label", "counselor_utterance_garbled", "ai_reply_failure_mode"]
 
 
-def load(kind: str) -> list[dict]:
-    p = DATA_DIR / f"{kind}.results.jsonl"
+def load(kind: str, tag: str = "") -> list[dict]:
+    p = DATA_DIR / f"{kind}{tag}.results.jsonl"
     return [json.loads(line) for line in p.read_text().splitlines() if line] if p.exists() else []
 
 
@@ -120,6 +120,46 @@ def confidence_table(pairs) -> list[str]:
     return lines
 
 
+# What counts as "the judge flagged a problem" for each label.
+PROBLEM = {
+    "coherence": lambda v: v in ("gibberish", "mostly_incoherent", "degrading"),
+    "topic_label": lambda v: v != "on_topic",
+    "counselor_utterance_garbled": lambda v: v != "none",
+    "ai_reply_failure_mode": lambda v: v != "none",
+    "role_inversion": lambda v: v is True,
+    "offered_solution": lambda v: v is True,
+    "introduced_new_information": lambda v: v is True,
+    "verdict": lambda v: v != "supported",
+    "quote_is_accurate": lambda v: v is False,
+}
+
+
+def recall_table(pairs) -> list[str]:
+    """Of the cases Gemini flagged, how many did Jev flag too — and how often
+    did Jev flag a case Gemini called clean. The confidence table above can't
+    show this: confident agreement is dominated by easy clean cases."""
+    by = defaultdict(lambda: {"tp": 0, "pos": 0, "fp": 0, "neg": 0, "conf_pos": 0})
+    for label, g, p, conf, r in pairs:
+        if label not in PROBLEM:
+            continue
+        d = by[label]
+        if PROBLEM[label](g):
+            d["pos"] += 1
+            d["tp"] += PROBLEM[label](p)
+            d["conf_pos"] += (conf or 0) >= HIGH_CONFIDENCE
+        else:
+            d["neg"] += 1
+            d["fp"] += PROBLEM[label](p)
+    lines = ["| label | flagged by Gemini | Jev caught | confident on flagged | "
+             "false alarms on clean |", "|---|---|---|---|---|"]
+    for label, d in sorted(by.items()):
+        if not d["pos"]:
+            continue
+        lines.append(f"| {label} | {d['pos']} | {d['tp'] / d['pos']:.2f} | "
+                     f"{d['conf_pos'] / d['pos']:.2f} | {d['fp']}/{d['neg']} |")
+    return lines
+
+
 def ops_lines(rows) -> list[str]:
     if not rows:
         return []
@@ -147,12 +187,18 @@ def section(title, rows, pairs_fn, meta) -> list[str]:
     out += ops_lines(rows) + [""]
     out += ["### Agreement by language", ""] + label_table(pairs, lambda r: r["language"]) + [""]
     out += ["### Agreement by actor model", ""] + label_table(pairs, lambda r: r["llm_model"]) + [""]
+    out += ["### Problem recall (the headline)", ""] + recall_table(pairs) + [""]
     out += ["### Confidence (cascade test)", ""] + confidence_table(pairs) + [""]
     return out
 
 
 def main() -> None:
-    lines = ["# Jev bake-off (Phase 0)", "",
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tag", default="", help="results-file suffix to report on")
+    tag = ap.parse_args().tag
+    lines = [f"# Jev bake-off (Phase 0){' · ' + tag.lstrip('.') if tag else ''}", "",
              "Untuned Jev questions against the pinned Gemini judge. Kappa is the "
              "headline; agreement alone flatters rare labels.", ""]
     for kind, title, fn in [("drift", "Drift judge (per turn)", pairs_for_drift),
@@ -163,9 +209,9 @@ def main() -> None:
         if meta_path.exists():
             m = json.loads(meta_path.read_text())
             meta = {k: m.get(k) for k in ("judgeModel", "judgePromptVersion")}
-        lines += section(title, load(kind), fn, meta)
+        lines += section(title, load(kind, tag), fn, meta)
     text = "\n".join(lines)
-    (DATA_DIR / "report.md").write_text(text + "\n")
+    (DATA_DIR / f"report{tag}.md").write_text(text + "\n")
     print(text)
 
 
