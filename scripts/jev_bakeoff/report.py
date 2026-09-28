@@ -29,19 +29,30 @@ from sklearn.metrics import cohen_kappa_score
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from questions import COHERENCE_LEVELS  # noqa: E402
 
-DATA_DIR = Path(os.environ.get("JEV_BAKEOFF_DATA", Path.home() / ".cache" / "ally-jev-bakeoff"))
+DATA_DIR = Path(
+    os.environ.get("JEV_BAKEOFF_DATA", Path.home() / ".cache" / "ally-jev-bakeoff")
+)
 USD_PER_M_INPUT = 0.042  # list price; free for us today
 HIGH_CONFIDENCE = 0.8
 MIN_N = 20  # below this a kappa is noise; shown, but flagged
 
-DRIFT_NOULS = ["in_character", "role_inversion", "offered_solution",
-               "introduced_new_information", "resistance_briefed"]
+DRIFT_NOULS = [
+    "in_character",
+    "role_inversion",
+    "offered_solution",
+    "introduced_new_information",
+    "resistance_briefed",
+]
 DRIFT_CHOICES = ["topic_label", "counselor_utterance_garbled", "ai_reply_failure_mode"]
 
 
 def load(kind: str, tag: str = "") -> list[dict]:
     p = DATA_DIR / f"{kind}{tag}.results.jsonl"
-    return [json.loads(line) for line in p.read_text().splitlines() if line] if p.exists() else []
+    return (
+        [json.loads(line) for line in p.read_text().splitlines() if line]
+        if p.exists()
+        else []
+    )
 
 
 def noul_conf(p: float) -> float:
@@ -72,7 +83,9 @@ def pairs_for_groundedness(rows):
         for claim in r["gold"]["claims"]:
             key = f"{claim['kind']}_{claim['claim_index']}"
             if (c := a.get(f"{key}__verdict")) and claim.get("verdict"):
-                yield "verdict", claim["verdict"], c.get("choice"), c.get("confidence"), r
+                yield "verdict", claim["verdict"], c.get("choice"), c.get(
+                    "confidence"
+                ), r
             for q in ("quotes_transcript", "quote_is_accurate"):
                 c = a.get(f"{key}__{q}")
                 if c and claim.get(q) is not None:
@@ -99,7 +112,9 @@ def label_table(pairs, group_key) -> list[str]:
         gold, pred = zip(*gp)
         agree = sum(a == b for a, b in gp) / len(gp)
         flag = " (small n)" if len(gp) < MIN_N else ""
-        lines.append(f"| {label} | {grp}{flag} | {len(gp)} | {agree:.2f} | {fmt(kappa(gold, pred))} |")
+        lines.append(
+            f"| {label} | {grp}{flag} | {len(gp)} | {agree:.2f} | {fmt(kappa(gold, pred))} |"
+        )
     return lines
 
 
@@ -109,8 +124,11 @@ def confidence_table(pairs) -> list[str]:
         if conf is None:
             continue
         by[label]["hi" if conf >= HIGH_CONFIDENCE else "lo"].append(g == p)
-    lines = [f"| label | share confident (≥{HIGH_CONFIDENCE}) | agreement when confident | "
-             "agreement otherwise |", "|---|---|---|---|"]
+    lines = [
+        f"| label | share confident (≥{HIGH_CONFIDENCE}) | agreement when confident | "
+        "agreement otherwise |",
+        "|---|---|---|---|",
+    ]
     for label, d in sorted(by.items()):
         n = len(d["hi"]) + len(d["lo"])
         share = len(d["hi"]) / n if n else None
@@ -150,13 +168,18 @@ def recall_table(pairs) -> list[str]:
         else:
             d["neg"] += 1
             d["fp"] += PROBLEM[label](p)
-    lines = ["| label | flagged by Gemini | Jev caught | confident on flagged | "
-             "false alarms on clean |", "|---|---|---|---|---|"]
+    lines = [
+        "| label | flagged by Gemini | Jev caught | confident on flagged | "
+        "false alarms on clean |",
+        "|---|---|---|---|---|",
+    ]
     for label, d in sorted(by.items()):
         if not d["pos"]:
             continue
-        lines.append(f"| {label} | {d['pos']} | {d['tp'] / d['pos']:.2f} | "
-                     f"{d['conf_pos'] / d['pos']:.2f} | {d['fp']}/{d['neg']} |")
+        lines.append(
+            f"| {label} | {d['pos']} | {d['tp'] / d['pos']:.2f} | "
+            f"{d['conf_pos'] / d['pos']:.2f} | {d['fp']}/{d['neg']} |"
+        )
     return lines
 
 
@@ -181,12 +204,24 @@ def section(title, rows, pairs_fn, meta) -> list[str]:
         return [f"## {title}", "", "No results yet.", ""]
     pairs = list(pairs_fn(rows))
     sessions = len({r["session"] for r in rows})
-    out = [f"## {title}", "",
-           f"Gemini reference: `{meta.get('judgeModel')}` / `{meta.get('judgePromptVersion')}` · "
-           f"{sessions} sessions (test organizations only)", ""]
+    out = [
+        f"## {title}",
+        "",
+        f"Gemini reference: `{meta.get('judgeModel')}` / `{meta.get('judgePromptVersion')}` · "
+        f"{sessions} sessions (test organizations only)",
+        "",
+    ]
     out += ops_lines(rows) + [""]
-    out += ["### Agreement by language", ""] + label_table(pairs, lambda r: r["language"]) + [""]
-    out += ["### Agreement by actor model", ""] + label_table(pairs, lambda r: r["llm_model"]) + [""]
+    out += (
+        ["### Agreement by language", ""]
+        + label_table(pairs, lambda r: r["language"])
+        + [""]
+    )
+    out += (
+        ["### Agreement by actor model", ""]
+        + label_table(pairs, lambda r: r["llm_model"])
+        + [""]
+    )
     out += ["### Problem recall (the headline)", ""] + recall_table(pairs) + [""]
     out += ["### Confidence (cascade test)", ""] + confidence_table(pairs) + [""]
     return out
@@ -198,12 +233,17 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", default="", help="results-file suffix to report on")
     tag = ap.parse_args().tag
-    lines = [f"# Jev bake-off (Phase 0){' · ' + tag.lstrip('.') if tag else ''}", "",
-             "Untuned Jev questions against the pinned Gemini judge. Kappa is the "
-             "headline; agreement alone flatters rare labels.", ""]
-    for kind, title, fn in [("drift", "Drift judge (per turn)", pairs_for_drift),
-                            ("groundedness", "Feedback groundedness (per claim)",
-                             pairs_for_groundedness)]:
+    lines = [
+        f"# Jev bake-off (Phase 0){' · ' + tag.lstrip('.') if tag else ''}",
+        "",
+        "Untuned Jev questions against the pinned Gemini judge. Kappa is the "
+        "headline; agreement alone flatters rare labels.",
+        "",
+    ]
+    for kind, title, fn in [
+        ("drift", "Drift judge (per turn)", pairs_for_drift),
+        ("groundedness", "Feedback groundedness (per claim)", pairs_for_groundedness),
+    ]:
         meta_path = DATA_DIR / f"{kind}.json"
         meta = {}
         if meta_path.exists():
