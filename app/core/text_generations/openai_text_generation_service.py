@@ -169,8 +169,9 @@ def _build_supervisor_note_section(
         # template tells the model to open without a name in that case.
         LEARNER_NAME=(learner_name or "").strip() or "there",
         SUPERVISOR_MEMORY=(
-            (supervisor_memory or "").strip()
-            or "No previous sessions with this learner yet."
+            supervisor_memory.strip()
+            if supervisor_memory is not None
+            else "No previous sessions with this learner yet."
         ),
         LIVE_NOTES=_format_live_notes(live_notes),
     )
