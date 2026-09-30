@@ -1,6 +1,7 @@
 """Phase 1: tune one Jev question's wording against the pinned Gemini judge.
 
-    <venv>/bin/python scripts/jev_bakeoff/phase1_tune.py --label counselor_utterance_garbled
+    <venv>/bin/python scripts/jev_bakeoff/phase1_tune.py \\
+        --label counselor_utterance_garbled
 
 Uses GEPA's `optimize_anything` (the optimizer behind `dspy.GEPA`) rather than
 `dspy.GEPA` itself: DSPy's TypeSafe path puts signature instructions into
@@ -275,33 +276,52 @@ def leaks(cand: dict, examples, n: int = 8) -> list[str]:
 
 BACKGROUND = {
     "drift": (
-        "Ally runs role-play counselling-training sessions. An AI plays the CLIENT; the human "
-        "COUNSELOR trainee speaks through speech-to-text, so their words may be garbled. "
+        "Ally runs role-play counselling-training sessions. An AI plays the CLIENT; "
+        "the human "
+        "COUNSELOR trainee speaks through speech-to-text, so their words may be "
+        "garbled. "
         "Sessions are in English, Hindi, Marathi, Kannada and Tamil, often code-mixed; "
-        "code-switching and transliteration are NORMAL, not errors. The reference labels come "
-        "from a Gemini 2.5 Pro judge that read the whole conversation. The state Jev sees "
-        "contains client_brief, recent_conversation (all prior turns) and turn_being_judged."
+        "code-switching and transliteration are NORMAL, not errors. The reference "
+        "labels come "
+        "from a Gemini 2.5 Pro judge that read the whole conversation. The state Jev "
+        "sees "
+        "contains client_brief, recent_conversation (all prior turns) and "
+        "turn_being_judged."
     ),
     "groundedness": (
-        "Ally gives counselling trainees written feedback after a role-play session. Each "
-        "feedback claim is checked against the session transcript. The COUNSELLOR is the "
+        "Ally gives counselling trainees written feedback after a role-play session. "
+        "Each "
+        "feedback claim is checked against the session transcript. The COUNSELLOR is "
+        "the "
         "trainee; the CLIENT is an AI, and nothing the client said is the counsellor's "
-        "behaviour. An 'improvement' claim saying the counsellor failed to do something is "
-        "CONTRADICTED if they visibly did it, even once or clumsily. The reference labels come "
-        "from a Gemini 2.5 Pro judge. Transcripts may be in Indian languages or code-mixed."
+        "behaviour. An 'improvement' claim saying the counsellor failed to do "
+        "something is "
+        "CONTRADICTED if they visibly did it, even once or clumsily. The reference "
+        "labels come "
+        "from a Gemini 2.5 Pro judge. Transcripts may be in Indian languages or "
+        "code-mixed."
     ),
 }
 
 OBJECTIVE = (
-    "Rewrite this typed question for Jev, a model that answers a multiple-choice question "
-    "about a state with calibrated probabilities, so that its answers match the reference "
-    "judge on BOTH flagged and clean cases. The score is balanced accuracy: missing a real "
-    "problem and raising a false alarm cost the same. `instructions` is the question text. "
-    "`criteria` is a JSON object mapping each option key to its description: keep EXACTLY the "
-    "same keys, and improve only the descriptions (you may use an object per option with "
-    "`what`, `not_for` and `examples` fields). Jev reads questions literally and struggles "
-    "with negations and multi-step conditions, so state each boundary directly. Never copy "
-    "text, names or details from the example sessions: the wording must be general, because "
+    "Rewrite this typed question for Jev, a model that answers a multiple-choice "
+    "question "
+    "about a state with calibrated probabilities, so that its answers match the "
+    "reference "
+    "judge on BOTH flagged and clean cases. The score is balanced accuracy: missing a "
+    "real "
+    "problem and raising a false alarm cost the same. `instructions` is the question "
+    "text. "
+    "`criteria` is a JSON object mapping each option key to its description: keep "
+    "EXACTLY the "
+    "same keys, and improve only the descriptions (you may use an object per option "
+    "with "
+    "`what`, `not_for` and `examples` fields). Jev reads questions literally and "
+    "struggles "
+    "with negations and multi-step conditions, so state each boundary directly. Never "
+    "copy "
+    "text, names or details from the example sessions: the wording must be general, "
+    "because "
     "it will be reused on every session."
 )
 
@@ -331,7 +351,8 @@ def main() -> None:
     )
     train, val = split_balanced(examples, is_problem, args.per_class)
     print(
-        f"{args.label}: train {len(train)}, val {len(val)} (balanced, split by session)",
+        f"{args.label}: train {len(train)}, val {len(val)} (balanced, split by "
+        "session)",
         file=sys.stderr,
     )
 

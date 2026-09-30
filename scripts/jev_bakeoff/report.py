@@ -113,7 +113,8 @@ def label_table(pairs, group_key) -> list[str]:
         agree = sum(a == b for a, b in gp) / len(gp)
         flag = " (small n)" if len(gp) < MIN_N else ""
         lines.append(
-            f"| {label} | {grp}{flag} | {len(gp)} | {agree:.2f} | {fmt(kappa(gold, pred))} |"
+            f"| {label} | {grp}{flag} | {len(gp)} | {agree:.2f} | "
+            f"{fmt(kappa(gold, pred))} |"
         )
     return lines
 
@@ -207,7 +208,8 @@ def section(title, rows, pairs_fn, meta) -> list[str]:
     out = [
         f"## {title}",
         "",
-        f"Gemini reference: `{meta.get('judgeModel')}` / `{meta.get('judgePromptVersion')}` · "
+        f"Gemini reference: `{meta.get('judgeModel')}` / "
+        f"`{meta.get('judgePromptVersion')}` · "
         f"{sessions} sessions (test organizations only)",
         "",
     ]

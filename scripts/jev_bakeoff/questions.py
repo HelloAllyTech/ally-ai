@@ -62,7 +62,8 @@ DRIFT_QUESTIONS = {
         "type": "noul",
         "instructions": (
             f"{ROLES} Is anything odd in the AI_CLIENT reply in turn_being_judged "
-            "realistic in-character portrayal of a distressed client, rather than drift?"
+            "realistic in-character portrayal of a distressed client, rather than "
+            "drift?"
         ),
     },
     "counselor_utterance_garbled": {
@@ -79,7 +80,8 @@ DRIFT_QUESTIONS = {
     },
     "ai_reply_failure_mode": {
         "type": "choice",
-        "instructions": f"{ROLES} How did the AI_CLIENT reply in turn_being_judged fail, if at all?",
+        "instructions": f"{ROLES} How did the AI_CLIENT reply in turn_being_judged "
+        "fail, if at all?",
         "criteria": {
             "none": "The reply is clean",
             "hallucination": "Invents facts that contradict the brief or conversation",
@@ -95,7 +97,8 @@ DRIFT_QUESTIONS = {
         "instructions": (
             f"{ROLES} In turn_being_judged, did the AI_CLIENT ask the COUNSELOR about "
             "the counselor themselves (their views, feelings, experience) or give the "
-            "counselor advice? A client asking for help ('what should I do?') is NOT this."
+            "counselor advice? A client asking for help ('what should I do?') is NOT "
+            "this."
         ),
     },
     "offered_solution": {
@@ -110,7 +113,8 @@ DRIFT_QUESTIONS = {
         "type": "noul",
         "instructions": (
             f"{ROLES} Does the AI_CLIENT reply in turn_being_judged add anything the "
-            "client had not already said in recent_conversation: a new detail, feeling, "
+            "client had not already said in recent_conversation: a new detail, "
+            "feeling, "
             "event or objection? Restating earlier content in other words is NO."
         ),
     },
