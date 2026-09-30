@@ -26,7 +26,9 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DATA_DIR = Path(os.environ.get("JEV_BAKEOFF_DATA", Path.home() / ".cache" / "ally-jev-bakeoff"))
+DATA_DIR = Path(
+    os.environ.get("JEV_BAKEOFF_DATA", Path.home() / ".cache" / "ally-jev-bakeoff")
+)
 CLUSTER = "ally-prd-mb-ecs-cluster"
 SERVICE = "ally-prd-svc-core"
 REGION = "ap-south-1"
@@ -51,13 +53,45 @@ def aws(env: dict, *args: str) -> str:
 
 
 def instance_id(env: dict) -> str:
-    task = aws(env, "ecs", "list-tasks", "--cluster", CLUSTER, "--service-name", SERVICE,
-               "--query", "taskArns[0]", "--output", "text")
-    ci = aws(env, "ecs", "describe-tasks", "--cluster", CLUSTER, "--tasks", task,
-             "--query", "tasks[0].containerInstanceArn", "--output", "text")
-    return aws(env, "ecs", "describe-container-instances", "--cluster", CLUSTER,
-               "--container-instances", ci, "--query",
-               "containerInstances[0].ec2InstanceId", "--output", "text")
+    task = aws(
+        env,
+        "ecs",
+        "list-tasks",
+        "--cluster",
+        CLUSTER,
+        "--service-name",
+        SERVICE,
+        "--query",
+        "taskArns[0]",
+        "--output",
+        "text",
+    )
+    ci = aws(
+        env,
+        "ecs",
+        "describe-tasks",
+        "--cluster",
+        CLUSTER,
+        "--tasks",
+        task,
+        "--query",
+        "tasks[0].containerInstanceArn",
+        "--output",
+        "text",
+    )
+    return aws(
+        env,
+        "ecs",
+        "describe-container-instances",
+        "--cluster",
+        CLUSTER,
+        "--container-instances",
+        ci,
+        "--query",
+        "containerInstances[0].ec2InstanceId",
+        "--output",
+        "text",
+    )
 
 
 def run_page(env: dict, iid: str, params: dict):
@@ -74,23 +108,68 @@ def run_page(env: dict, iid: str, params: dict):
     ]
     pfile = DATA_DIR / ".ssm_params.json"
     pfile.write_text(json.dumps({"commands": commands}))
-    cmd = aws(env, "ssm", "send-command", "--instance-ids", iid, "--document-name",
-              "AWS-RunShellScript", "--parameters", f"file://{pfile}",
-              "--query", "Command.CommandId", "--output", "text")
+    cmd = aws(
+        env,
+        "ssm",
+        "send-command",
+        "--instance-ids",
+        iid,
+        "--document-name",
+        "AWS-RunShellScript",
+        "--parameters",
+        f"file://{pfile}",
+        "--query",
+        "Command.CommandId",
+        "--output",
+        "text",
+    )
     for _ in range(60):
         time.sleep(3)
         try:
-            status = aws(env, "ssm", "get-command-invocation", "--command-id", cmd,
-                         "--instance-id", iid, "--query", "Status", "--output", "text")
+            status = aws(
+                env,
+                "ssm",
+                "get-command-invocation",
+                "--command-id",
+                cmd,
+                "--instance-id",
+                iid,
+                "--query",
+                "Status",
+                "--output",
+                "text",
+            )
         except subprocess.CalledProcessError:
             continue
         if status in ("Pending", "InProgress", "Delayed"):
             continue
-        out = aws(env, "ssm", "get-command-invocation", "--command-id", cmd,
-                  "--instance-id", iid, "--query", "StandardOutputContent", "--output", "text")
+        out = aws(
+            env,
+            "ssm",
+            "get-command-invocation",
+            "--command-id",
+            cmd,
+            "--instance-id",
+            iid,
+            "--query",
+            "StandardOutputContent",
+            "--output",
+            "text",
+        )
         if status != "Success":
-            err = aws(env, "ssm", "get-command-invocation", "--command-id", cmd,
-                      "--instance-id", iid, "--query", "StandardErrorContent", "--output", "text")
+            err = aws(
+                env,
+                "ssm",
+                "get-command-invocation",
+                "--command-id",
+                cmd,
+                "--instance-id",
+                iid,
+                "--query",
+                "StandardErrorContent",
+                "--output",
+                "text",
+            )
             raise RuntimeError(f"SSM {status}: {err[-500:]}")
         if "BAKEOFF_B64:" not in out or ":END" not in out:
             return None  # truncated at 24KB: caller halves the page
@@ -103,10 +182,15 @@ def fetch_sessions(env, iid, kind, pin, ids, page=8):
     out, i = [], 0
     while i < len(ids):
         chunk = ids[i : i + page]
-        got = run_page(env, iid, {"mode": "sessions", "kind": kind, "ids": chunk, **pin})
+        got = run_page(
+            env, iid, {"mode": "sessions", "kind": kind, "ids": chunk, **pin}
+        )
         if got is None:
             if page == 1:
-                print(f"  skip {chunk[0]}: one session exceeds the SSM output cap", file=sys.stderr)
+                print(
+                    f"  skip {chunk[0]}: one session exceeds the SSM output cap",
+                    file=sys.stderr,
+                )
                 i += 1
                 continue
             page = max(1, page // 2)
@@ -128,16 +212,27 @@ def main() -> None:
     iid = instance_id(env)
     print(f"instance {iid}; writing to {DATA_DIR}", file=sys.stderr)
 
-    plan = run_page(env, iid, {"mode": "plan", "sinceDays": args.since_days,
-                               "perStratum": args.per_stratum})
+    plan = run_page(
+        env,
+        iid,
+        {"mode": "plan", "sinceDays": args.since_days, "perStratum": args.per_stratum},
+    )
     if plan is None:
         raise RuntimeError("plan output exceeded the SSM cap; lower --per-stratum")
 
-    scenario_ids = sorted({s["scenario_id"] for k in plan.values() for s in k["sessions"]
-                           if s["scenario_id"] is not None})
+    scenario_ids = sorted(
+        {
+            s["scenario_id"]
+            for k in plan.values()
+            for s in k["sessions"]
+            if s["scenario_id"] is not None
+        }
+    )
     personas = {}
     for i in range(0, len(scenario_ids), 5):
-        got = run_page(env, iid, {"mode": "personas", "scenarioIds": scenario_ids[i : i + 5]})
+        got = run_page(
+            env, iid, {"mode": "personas", "scenarioIds": scenario_ids[i : i + 5]}
+        )
         if got is None:  # one very long persona: fetch singly, skip if still too big
             for sid in scenario_ids[i : i + 5]:
                 got1 = run_page(env, iid, {"mode": "personas", "scenarioIds": [sid]})
@@ -146,20 +241,29 @@ def main() -> None:
             personas.update(got)
 
     for kind, p in plan.items():
-        pin = {"judgeModel": p["judgeModel"], "judgePromptVersion": p["judgePromptVersion"]}
+        pin = {
+            "judgeModel": p["judgeModel"],
+            "judgePromptVersion": p["judgePromptVersion"],
+        }
         meta = {s["id"]: s for s in p["sessions"]}
         rows = fetch_sessions(env, iid, kind, pin, list(meta))
         for r in rows:
             m = meta[r["id"]]
-            r.update(language=m["language"], llm_model=m["llm_model"],
-                     persona=personas.get(str(m["scenario_id"]), ""))
+            r.update(
+                language=m["language"],
+                llm_model=m["llm_model"],
+                persona=personas.get(str(m["scenario_id"]), ""),
+            )
         # export_query.js only ever returns test-organization sessions; the
         # marker lets score.py refuse an export made before that restriction.
         (DATA_DIR / f"{kind}.json").write_text(
             json.dumps({**pin, "scope": "test_organizations_only", "sessions": rows})
         )
-        print(f"{kind}: pinned {pin['judgeModel']} / {pin['judgePromptVersion']}, "
-              f"{len(rows)} sessions exported", file=sys.stderr)
+        print(
+            f"{kind}: pinned {pin['judgeModel']} / {pin['judgePromptVersion']}, "
+            f"{len(rows)} sessions exported",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

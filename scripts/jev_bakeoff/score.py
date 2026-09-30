@@ -35,7 +35,9 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from questions import DRIFT_QUESTIONS, groundedness_questions  # noqa: E402
 
-DATA_DIR = Path(os.environ.get("JEV_BAKEOFF_DATA", Path.home() / ".cache" / "ally-jev-bakeoff"))
+DATA_DIR = Path(
+    os.environ.get("JEV_BAKEOFF_DATA", Path.home() / ".cache" / "ally-jev-bakeoff")
+)
 URL = "https://api.typesafe.ai/v1/systemone"
 # Pinned, not jev-latest: a moving alias would make two runs incomparable.
 MODEL = os.environ.get("JEV_MODEL", "jev-1.13.0")
@@ -63,17 +65,25 @@ def speaker_line(t: dict) -> str:
 def drift_units(export: dict, window: int):
     for s in export["sessions"]:
         transcript = s["transcript"]
-        pos = {t["turn_index"]: i for i, t in enumerate(transcript) if t.get("role") == "client"}
+        pos = {
+            t["turn_index"]: i
+            for i, t in enumerate(transcript)
+            if t.get("role") == "client"
+        }
         for label in s["labels"]:
             i = pos.get(label["turn_index"])
             if i is None:
                 continue
             prev = transcript[:i]
-            counselor = next((t["text"] for t in reversed(prev) if t.get("role") != "client"), "")
+            counselor = next(
+                (t["text"] for t in reversed(prev) if t.get("role") != "client"), ""
+            )
             state = {
                 "language": s["language"],
                 "client_brief": (s.get("persona") or "")[:PERSONA_CHARS],
-                "recent_conversation": [speaker_line(t) for t in (prev[-window:] if window else prev)],
+                "recent_conversation": [
+                    speaker_line(t) for t in (prev[-window:] if window else prev)
+                ],
                 "turn_being_judged": {
                     "COUNSELOR": counselor,
                     "AI_CLIENT": transcript[i].get("text", ""),
@@ -111,18 +121,31 @@ async def ask(client: httpx.AsyncClient, state, questions) -> tuple[dict, float]
     raise RuntimeError(f"gave up after retries: HTTP {r.status_code}")
 
 
-async def run(kind: str, limit: int | None, concurrency: int, window: int, tag: str) -> None:
+async def run(
+    kind: str, limit: int | None, concurrency: int, window: int, tag: str
+) -> None:
     export = json.loads((DATA_DIR / f"{kind}.json").read_text())
     if export.get("scope") != "test_organizations_only":
-        raise SystemExit(f"{kind}.json is not a test-organization-only export; re-export it")
+        raise SystemExit(
+            f"{kind}.json is not a test-organization-only export; re-export it"
+        )
     out_path = DATA_DIR / f"{kind}{tag}.results.jsonl"
     done = set()
     if out_path.exists():
-        done = {json.loads(line)["unit"] for line in out_path.read_text().splitlines() if line}
+        done = {
+            json.loads(line)["unit"]
+            for line in out_path.read_text().splitlines()
+            if line
+        }
 
-    units = list(drift_units(export, window) if kind == "drift" else groundedness_units(export))
+    units = list(
+        drift_units(export, window) if kind == "drift" else groundedness_units(export)
+    )
     todo = [u for u in units if u[0] not in done][: limit or None]
-    print(f"{kind}: {len(units)} units, {len(done)} done, running {len(todo)}", file=sys.stderr)
+    print(
+        f"{kind}: {len(units)} units, {len(done)} done, running {len(todo)}",
+        file=sys.stderr,
+    )
 
     # Well under the published 1,200 req/min even at full concurrency.
     sem = asyncio.Semaphore(concurrency)
@@ -139,14 +162,27 @@ async def run(kind: str, limit: int | None, concurrency: int, window: int, tag: 
                         resp, dt = await ask(client, state, questions)
                     except Exception as e:  # keep going; the report counts gaps
                         failures += 1
-                        print(f"  {uid}: {type(e).__name__}: {str(e)[:120]}", file=sys.stderr)
+                        print(
+                            f"  {uid}: {type(e).__name__}: {str(e)[:120]}",
+                            file=sys.stderr,
+                        )
                         return
-                out.write(json.dumps({
-                    "unit": uid, "session": s["id"], "language": s["language"],
-                    "llm_model": s["llm_model"], "gold": gold,
-                    "answers": resp.get("answers", {}), "usage": resp.get("usage", {}),
-                    "jev_model": resp.get("model"), "latency_s": round(dt, 4),
-                }) + "\n")
+                out.write(
+                    json.dumps(
+                        {
+                            "unit": uid,
+                            "session": s["id"],
+                            "language": s["language"],
+                            "llm_model": s["llm_model"],
+                            "gold": gold,
+                            "answers": resp.get("answers", {}),
+                            "usage": resp.get("usage", {}),
+                            "jev_model": resp.get("model"),
+                            "latency_s": round(dt, 4),
+                        }
+                    )
+                    + "\n"
+                )
                 out.flush()
 
             await asyncio.gather(*(one(u) for u in todo))
@@ -158,13 +194,22 @@ def main() -> None:
     ap.add_argument("--only", choices=["drift", "groundedness"])
     ap.add_argument("--limit", type=int, help="max units per judge this run")
     ap.add_argument("--concurrency", type=int, default=8)
-    ap.add_argument("--window", type=int, default=6,
-                    help="drift: prior transcript lines Jev sees; 0 = all prior turns")
-    ap.add_argument("--tag", default="", help="results-file suffix, to keep runs side by side")
+    ap.add_argument(
+        "--window",
+        type=int,
+        default=6,
+        help="drift: prior transcript lines Jev sees; 0 = all prior turns",
+    )
+    ap.add_argument(
+        "--tag", default="", help="results-file suffix, to keep runs side by side"
+    )
     args = ap.parse_args()
     for kind in [args.only] if args.only else ["drift", "groundedness"]:
         if not (DATA_DIR / f"{kind}.json").exists():
-            print(f"{kind}: no export at {DATA_DIR}; run export_prod.py first", file=sys.stderr)
+            print(
+                f"{kind}: no export at {DATA_DIR}; run export_prod.py first",
+                file=sys.stderr,
+            )
             continue
         asyncio.run(run(kind, args.limit, args.concurrency, args.window, args.tag))
 

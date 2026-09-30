@@ -3,9 +3,27 @@ Pytest configuration and shared fixtures for utility function tests.
 """
 
 import os
+import warnings
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+# Suppress the specific DeprecationWarning from sarvamai
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    message="websockets.WebSocketClientProtocol is deprecated",
+)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    message=(
+        "websockets.legacy is deprecated; "
+        "see https://websockets.readthedocs.io/en/stable/howto/upgrade.html "
+        "for upgrade instructions"
+    ),
+)
+
 
 # Set test environment variables before importing anything
 os.environ.update(
