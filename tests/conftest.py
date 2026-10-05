@@ -12,16 +12,12 @@ import pytest
 warnings.filterwarnings(
     "ignore",
     category=DeprecationWarning,
-    message="websockets.WebSocketClientProtocol is deprecated",
+    message=".*WebSocketClientProtocol is deprecated.*",
 )
 warnings.filterwarnings(
     "ignore",
     category=DeprecationWarning,
-    message=(
-        "websockets.legacy is deprecated; "
-        "see https://websockets.readthedocs.io/en/stable/howto/upgrade.html "
-        "for upgrade instructions"
-    ),
+    message=".*websockets.legacy is deprecated.*",
 )
 
 
