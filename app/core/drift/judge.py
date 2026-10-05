@@ -103,6 +103,7 @@ async def judge_session(
     language: str,
     scenario_goal: Optional[str] = None,
     rubric: Optional[str] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> Tuple[DriftJudgmentResult, str]:
     """Run the drift judge over one whole session transcript.
 
@@ -110,6 +111,9 @@ async def judge_session(
     (DRIFT_JUDGE_PROMPT_CODE); callers should fetch it once (e.g. via
     AllyCoreService.get_prompts_by_codes) and pass it in to avoid re-fetching
     per session. Falls back to the inline DEFAULT_JUDGE_RUBRIC when None.
+
+    `scenario_session_id` is attribution only: it rides onto the call's
+    llm_usage row so the judge's cost lands on the session it judged.
 
     Returns the per-turn judgments, the code-derived session rollup, and THE
     MODEL THAT ACTUALLY RAN. The caller must store that second value as
@@ -155,6 +159,7 @@ async def judge_session(
         model=settings.DRIFT_JUDGE.MODEL,
         temperature=0,
         max_tokens=None,
+        scenario_session_id=scenario_session_id,
     )
     if meta.get("fell_back_from"):
         # Worth a warning rather than silence: the rows about to be written
@@ -185,6 +190,7 @@ async def judge_session_labels_only(
     language: str,
     scenario_goal: Optional[str] = None,
     rubric: Optional[str] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> Tuple[List[LeanTurnLabels], str]:
     """Judge ONLY the v2 labels, for turns already judged under the old rubric.
 
@@ -221,6 +227,7 @@ async def judge_session_labels_only(
         model=settings.DRIFT_JUDGE.MODEL,
         temperature=0,
         max_tokens=None,
+        scenario_session_id=scenario_session_id,
     )
     if meta.get("fell_back_from"):
         logger.warning(

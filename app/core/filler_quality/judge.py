@@ -179,6 +179,7 @@ async def judge_session(
     style_params: Optional[FillerStyleParams] = None,
     rubric: Optional[str] = None,
     window_plays: int = DEFAULT_REPEAT_WINDOW_PLAYS,
+    scenario_session_id: Optional[str] = None,
 ) -> Tuple[FillerJudgmentResult, str]:
     """Judge every filler played in one session.
 
@@ -189,6 +190,9 @@ async def judge_session(
     A session that played no fillers is not an error and costs no LLM call — it
     is the normal state of a fast session, and the caller needs to be able to
     tell it apart from a session the judge failed on.
+
+    ``scenario_session_id`` is attribution only: it rides onto the call's
+    llm_usage row so the judge's cost lands on the session it judged.
     """
     if not observations:
         # No LLM call on this path, so no model ran. The configured one is the
@@ -224,6 +228,7 @@ async def judge_session(
         # Uncapped, as this call always was: the output length is a
         # property of the input, not a choice.
         max_tokens=None,
+        scenario_session_id=scenario_session_id,
     )
     if meta.get("fell_back_from"):
         # These rows will carry a different judgeModel, so a trend that

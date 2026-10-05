@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -418,6 +418,20 @@ class AreasOfGrowth(BaseModel):
     )
 
 
+# The llm_usage task labels a /scenario/evaluate call may be filed under. A
+# closed set rather than a free string: the label is a cost-accounting key that
+# ally-be prices and groups by, so an arbitrary value is filed as the default
+# rather than passed through (see the validator below). Each value must also
+# exist in LLMTask (asserted in the tests) and in ally-be's LlmTask.
+ScenarioEvaluationUsageTask = Literal[
+    "scenario_evaluation",
+    "scenario_evaluation_language",
+]
+DEFAULT_SCENARIO_EVALUATION_USAGE_TASK: ScenarioEvaluationUsageTask = (
+    "scenario_evaluation"
+)
+
+
 class ScenarioEvaluationRequest(BaseModel):
     """
     Request model for the /scenario/evaluate endpoint.
@@ -521,6 +535,29 @@ class ScenarioEvaluationRequest(BaseModel):
             "evaluation, just without cost attribution."
         ),
     )
+    usage_task: Optional[ScenarioEvaluationUsageTask] = Field(
+        default=DEFAULT_SCENARIO_EVALUATION_USAGE_TASK,
+        description=(
+            "The llm_usage task this call is filed under: 'scenario_evaluation' "
+            "for a session's debrief, 'scenario_evaluation_language' when ally-be "
+            "re-runs it to regenerate the feedback in another language. Only "
+            "changes cost accounting, never the evaluation. Omitted, null or "
+            "any other value means 'scenario_evaluation'."
+        ),
+    )
+
+    @field_validator("usage_task", mode="before")
+    @classmethod
+    def _unknown_usage_task_is_the_default(
+        cls, value: Any
+    ) -> ScenarioEvaluationUsageTask:
+        # Lenient on purpose. This label only decides where the call's cost is
+        # filed, so rejecting an unexpected value would fail a learner's debrief
+        # over accounting. Null (ally-be sends absent optionals as an explicit
+        # null) and anything outside the closed set are filed as the default.
+        if value in get_args(ScenarioEvaluationUsageTask):
+            return value
+        return DEFAULT_SCENARIO_EVALUATION_USAGE_TASK
 
 
 class SupervisorMemoryUpdateItem(BaseModel):

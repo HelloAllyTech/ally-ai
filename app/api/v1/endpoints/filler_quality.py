@@ -50,6 +50,10 @@ class JudgeRequest(BaseModel):
     rubric: Optional[str] = None
     #: Recent-play window for repeat detection. Defaults to the player's own.
     repeat_window_plays: int = DEFAULT_REPEAT_WINDOW_PLAYS
+    #: The session being judged. Attribution only — carried onto the call's
+    #: llm_usage row so judge cost can be tied to a session. Optional, so a
+    #: caller that predates it is judged exactly as before.
+    scenario_session_id: Optional[str] = None
 
 
 class JudgeResponse(BaseModel):
@@ -76,6 +80,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             style_params=req.style_config,
             rubric=req.rubric,
             window_plays=req.repeat_window_plays,
+            scenario_session_id=req.scenario_session_id,
         )
     except RuntimeError as exc:
         # Missing key, or the model returned nothing parsable. Both are the

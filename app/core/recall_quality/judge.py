@@ -33,6 +33,7 @@ async def judge_recall(
     stance: Optional[str] = None,
     cue_tier: Optional[str] = None,
     rubric: Optional[str] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> Tuple[Optional[RecallJudgment], str]:
     """Judge one turn's recall. Returns (judgment, model that actually ran).
 
@@ -43,6 +44,10 @@ async def judge_recall(
     The second value is THE MODEL THAT ACTUALLY RAN, which the caller stores rather
     than its own setting: a fallback recorded under the configured model would
     pollute a pinned series.
+
+    `scenario_session_id` is the session the turn belongs to, and is
+    attribution only: it rides onto the call's llm_usage row so the judge's
+    cost lands on that session.
     """
     model_setting = settings.RECALL_QUALITY_JUDGE.MODEL
 
@@ -77,6 +82,7 @@ async def judge_recall(
         model=model_setting,
         temperature=0,
         max_tokens=None,
+        scenario_session_id=scenario_session_id,
     )
 
     if meta.get("fell_back_from"):

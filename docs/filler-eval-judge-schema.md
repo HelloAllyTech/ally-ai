@@ -20,7 +20,7 @@ None of that says whether the filler was any **good**. And the gap is not neutra
 4. **Roles stated explicitly:** the AI plays the CLIENT (judged); the human trainee is the COUNSELOR.
 5. **Most fillers have no findings.** "Hmm" is a correct, complete filler. A rubric that rewards finding fault marks a healthy session down, so the rubric spends most of its length on what is *not* a fault.
 6. **Judge each filler on its own**, using only what preceded it.
-7. Temperature 0, pinned model, structured output (`response_schema`), token usage emitted (`LLMTask.FILLER_JUDGE`).
+7. Temperature 0, pinned model, structured output (`response_schema`), token usage emitted (`LLMTask.FILLER_JUDGE`) — attributed to the session when the caller sends the optional `scenario_session_id` (§6).
 8. `judge_version = (judge_model, judge_prompt_version)` echoed in every response and stamped on every stored row.
 
 **Pinned means no substitute.** The judge runs with dispatch's `never_fallback`: when Gemini cannot run — no key, a dead credential, a retired model, capacity, a timeout — the call fails instead of running on OpenAI. A substitute would be worse than a wasted call here. ally-be picks sessions as unjudged under the configured model, so a session the fallback judged gets judged again on Gemini. ally-be also reads filler rates without a judge-model filter, so both judgments would count.
@@ -70,6 +70,8 @@ The finding is therefore kept and flagged `conditioned_out=true` rather than dro
 ## 6. Ownership
 
 Identical to the language judge. ally-be selects which sessions to judge, builds the observations from its own transcript plus the per-turn filler metadata ally-ai-learn records (`fillerDecision`, `fillerClipSource`, …), and persists the rows. This service performs no database access and no aggregation.
+
+The request may carry an optional `scenario_session_id`. It is attribution only: it rides onto the call's `llm_usage` row so the judge's cost lands on the session it judged, since a judge runs outside any LiveKit room and has no `room_id` to be tied by. Omitting it judges exactly as before.
 
 An empty observation list returns an empty result rather than a 400: a session that played no fillers is the normal state of a fast session, and the caller needs to record it as judged-and-nothing-to-judge rather than retry it forever.
 

@@ -4,6 +4,20 @@ Sends an ``llm_usage`` SQS message (wire shape mirrors turn_metrics:
 ``data.llm_usage = {...}``) to the queue ally-be consumes. Never blocks or
 fails the LLM call path. No-ops unless ``settings.LLM_USAGE.QUEUE_URL`` is set.
 
+Two optional token fields ride alongside the counts, both null when the call
+site has nothing to report:
+
+* ``cached_tokens`` — prompt tokens the provider served from its prompt cache.
+  For OpenAI and Gemini this is a SUBSET of ``prompt_tokens``, not an addition
+  to it: both report their prompt count inclusive of cache hits, so a consumer
+  pricing cache reads at a discount must take them out of the full-rate prompt
+  count rather than add them on top.
+* ``metadata`` — a small dict breaking a count down further, e.g. Gemini's
+  ``{"thoughts_tokens", "candidates_tokens"}`` or OpenAI's
+  ``{"reasoning_tokens"}``. Informational: ``completion_tokens`` already
+  includes every token billed at the output rate, so nothing in ``metadata``
+  is to be added to it.
+
 The FastAPI process has no SQS client by default, so we lazily create the
 shared singleton on first use (idempotent — reuses the worker's if present).
 """
@@ -11,7 +25,7 @@ shared singleton on first use (idempotent — reuses the worker's if present).
 import asyncio
 import json
 import time
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from app.core.config import settings
 from app.core.queue.sqs_queue_client import SQSQueueClient
@@ -41,6 +55,8 @@ def _build_body(
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
     scenario_session_id: Optional[str] = None,
+    cached_tokens: Optional[int] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
     env = None
     try:
@@ -61,11 +77,13 @@ def _build_body(
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
+                    "cached_tokens": cached_tokens,
                     "audio_ms": audio_ms,
                     "characters": characters,
                     "env": env,
                     "scenario_id": scenario_id,
                     "scenario_session_id": scenario_session_id,
+                    "metadata": metadata or None,
                 }
             },
         }
@@ -111,6 +129,8 @@ def emit_ai_usage(
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
     scenario_session_id: Optional[str] = None,
+    cached_tokens: Optional[int] = None,
+    metadata: Optional[Dict[str, Any]] = None,
     blocking: bool = False,
 ) -> None:
     """Best-effort emit for any AI service ('llm' | 'stt' | 'tts'). Never raises."""
@@ -141,6 +161,8 @@ def emit_ai_usage(
             room_id=room_id,
             scenario_id=scenario_id,
             scenario_session_id=scenario_session_id,
+            cached_tokens=cached_tokens,
+            metadata=metadata,
         )
         if blocking:
             _send_blocking(body)
@@ -159,6 +181,8 @@ def emit_llm_usage(
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
     scenario_session_id: Optional[str] = None,
+    cached_tokens: Optional[int] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Back-compat LLM helper (async). Forwards to emit_ai_usage(service='llm')."""
     if not usage:
@@ -175,6 +199,8 @@ def emit_llm_usage(
         room_id=room_id,
         scenario_id=scenario_id,
         scenario_session_id=scenario_session_id,
+        cached_tokens=cached_tokens,
+        metadata=metadata,
     )
 
 
@@ -186,6 +212,8 @@ def emit_llm_usage_blocking(
     room_id: Optional[str] = None,
     scenario_id: Optional[int] = None,
     scenario_session_id: Optional[str] = None,
+    cached_tokens: Optional[int] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Back-compat LLM helper (sync) for non-async call sites (e.g. drift judge)."""
     if not usage:
@@ -202,5 +230,7 @@ def emit_llm_usage_blocking(
         room_id=room_id,
         scenario_id=scenario_id,
         scenario_session_id=scenario_session_id,
+        cached_tokens=cached_tokens,
+        metadata=metadata,
         blocking=True,
     )

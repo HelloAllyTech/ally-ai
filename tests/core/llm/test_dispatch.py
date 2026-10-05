@@ -738,3 +738,311 @@ class TestFallbackIsVisible:
 
         assert meta["provider"] == "gemini"
         assert meta["fell_back_from"] == "anthropic"
+
+
+def _gemini_client_with_usage(usage_metadata):
+    response = SimpleNamespace(parsed=Answer(answer="a"), usage_metadata=usage_metadata)
+    return SimpleNamespace(
+        aio=SimpleNamespace(
+            models=SimpleNamespace(generate_content=AsyncMock(return_value=response))
+        )
+    )
+
+
+def _openai_client_with_usage(usage):
+    response = SimpleNamespace(
+        usage=usage,
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content='{"answer": "a"}'),
+                finish_reason="stop",
+            )
+        ],
+    )
+    return SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=AsyncMock(return_value=response))
+        )
+    )
+
+
+class TestUsageMeasurement:
+    """What the cost dashboard is told a call consumed.
+
+    The counts must describe what was BILLED, not what was answered: a token
+    priced at the output rate that never reaches `completion_tokens` is
+    invisible to every cost figure built on this row.
+    """
+
+    @pytest.mark.asyncio
+    async def test_gemini_thinking_is_counted_as_completion(self, both_keys):
+        """Gemini reports thought tokens apart from the answer but bills them
+        at the output rate, so completion is candidates + thoughts. The split
+        rides in metadata so the thinking share stays visible."""
+        client = _gemini_client_with_usage(
+            SimpleNamespace(
+                prompt_token_count=1000,
+                candidates_token_count=200,
+                thoughts_token_count=1500,
+                # Gemini's own total already includes the thoughts.
+                total_token_count=2700,
+                cached_content_token_count=None,
+            )
+        )
+        with (
+            patch.object(dispatch, "_get_gemini_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="gemini",
+                model="gemini-2.5-pro",
+                task="drift_judge",
+            )
+
+        kwargs = emit.call_args.kwargs
+        assert kwargs["usage"] == (1000, 1700, 2700)
+        assert kwargs["metadata"] == {
+            "thoughts_tokens": 1500,
+            "candidates_tokens": 200,
+        }
+        # Absent is reported as absent, not as a cache miss of zero.
+        assert kwargs["cached_tokens"] is None
+
+    @pytest.mark.asyncio
+    async def test_gemini_cached_tokens_are_reported_as_part_of_the_prompt(
+        self, both_keys
+    ):
+        client = _gemini_client_with_usage(
+            SimpleNamespace(
+                prompt_token_count=1000,
+                candidates_token_count=100,
+                thoughts_token_count=0,
+                total_token_count=1100,
+                cached_content_token_count=600,
+            )
+        )
+        with (
+            patch.object(dispatch, "_get_gemini_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="gemini", task="drift_judge"
+            )
+
+        kwargs = emit.call_args.kwargs
+        # The prompt count is left inclusive of the cache hit: cached_tokens is
+        # a subset of it, never an addition to it.
+        assert kwargs["usage"] == (1000, 100, 1100)
+        assert kwargs["cached_tokens"] == 600
+
+    @pytest.mark.asyncio
+    async def test_gemini_without_thinking_fields_is_unchanged(self, both_keys):
+        """An SDK response with no thoughts field (a model that does not
+        think) still emits exactly what it did before."""
+        client = _gemini_client_with_usage(
+            SimpleNamespace(
+                prompt_token_count=30,
+                candidates_token_count=10,
+                total_token_count=40,
+            )
+        )
+        with (
+            patch.object(dispatch, "_get_gemini_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="gemini", task="drift_judge"
+            )
+
+        kwargs = emit.call_args.kwargs
+        assert kwargs["usage"] == (30, 10, 40)
+        assert kwargs["metadata"] == {"thoughts_tokens": 0, "candidates_tokens": 10}
+        assert kwargs["cached_tokens"] is None
+
+    @pytest.mark.asyncio
+    async def test_openai_reasoning_is_not_counted_twice(self):
+        """OpenAI's completion_tokens ALREADY include reasoning. Adding
+        reasoning_tokens again would double-bill every reasoning-model call."""
+        client = _openai_client_with_usage(
+            SimpleNamespace(
+                prompt_tokens=800,
+                completion_tokens=500,
+                total_tokens=1300,
+                prompt_tokens_details=SimpleNamespace(cached_tokens=512),
+                completion_tokens_details=SimpleNamespace(reasoning_tokens=320),
+            )
+        )
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="openai",
+                model="gpt-5-mini",
+                task="drift_judge",
+            )
+
+        kwargs = emit.call_args.kwargs
+        assert kwargs["usage"] == (800, 500, 1300)
+        assert kwargs["cached_tokens"] == 512
+        assert kwargs["metadata"] == {"reasoning_tokens": 320}
+
+    @pytest.mark.asyncio
+    async def test_openai_without_details_reports_nothing_extra(self):
+        client = _openai_client_with_usage(
+            SimpleNamespace(prompt_tokens=8, completion_tokens=5, total_tokens=13)
+        )
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="openai",
+                model="gpt-4o-mini",
+                task="drift_judge",
+            )
+
+        kwargs = emit.call_args.kwargs
+        assert kwargs["usage"] == (8, 5, 13)
+        assert kwargs["cached_tokens"] is None
+        assert kwargs["metadata"] is None
+
+    @pytest.mark.asyncio
+    async def test_openai_zero_reasoning_carries_no_metadata(self):
+        """A non-reasoning model reports reasoning_tokens=0; a metadata blob on
+        every such row would be noise."""
+        client = _openai_client_with_usage(
+            SimpleNamespace(
+                prompt_tokens=8,
+                completion_tokens=5,
+                total_tokens=13,
+                prompt_tokens_details=SimpleNamespace(cached_tokens=0),
+                completion_tokens_details=SimpleNamespace(reasoning_tokens=0),
+            )
+        )
+        with (
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "openai-key"),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="openai",
+                model="gpt-4o-mini",
+                task="drift_judge",
+            )
+
+        kwargs = emit.call_args.kwargs
+        # Reported and zero is a measured miss — kept as 0, not dropped.
+        assert kwargs["cached_tokens"] == 0
+        assert kwargs["metadata"] is None
+
+
+class TestSessionAttribution:
+    """`scenario_session_id` must reach the usage row, whichever provider ran.
+
+    The judges have no room, so without it their cost cannot be tied to the
+    session they judged.
+    """
+
+    @pytest.mark.asyncio
+    async def test_reaches_the_emitter_on_gemini(self, both_keys):
+        client = _gemini_client_with_usage(
+            SimpleNamespace(
+                prompt_token_count=3, candidates_token_count=1, total_token_count=4
+            )
+        )
+        with (
+            patch.object(dispatch, "_get_gemini_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="gemini",
+                task="language_judge",
+                scenario_session_id="sess-123",
+            )
+
+        assert emit.call_args.kwargs["scenario_session_id"] == "sess-123"
+
+    @pytest.mark.asyncio
+    async def test_reaches_the_emitter_on_anthropic(self, both_keys):
+        client = SimpleNamespace(
+            messages=SimpleNamespace(
+                create=AsyncMock(return_value=anthropic_response(tool_input={}))
+            )
+        )
+        with (
+            patch.object(dispatch, "_get_anthropic_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="anthropic",
+                task="language_judge",
+                scenario_session_id="sess-123",
+            )
+
+        assert emit.call_args.kwargs["scenario_session_id"] == "sess-123"
+        # Anthropic semantics are untouched by this change.
+        assert emit.call_args.kwargs["cached_tokens"] is None
+        assert emit.call_args.kwargs["metadata"] is None
+
+    @pytest.mark.asyncio
+    async def test_survives_a_fallback_retry(self):
+        """The retried call is still the same session's cost."""
+        failing = AsyncMock(
+            side_effect=type("APIStatusError", (Exception,), {"status_code": 503})(
+                "boom"
+            )
+        )
+        client = _openai_client_with_usage(
+            SimpleNamespace(prompt_tokens=8, completion_tokens=5, total_tokens=13)
+        )
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+            patch.object(dispatch, "_get_openai_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="gemini",
+                task="language_judge",
+                scenario_session_id="sess-123",
+            )
+
+        assert failing.await_args.kwargs["scenario_session_id"] == "sess-123"
+        assert emit.call_args.kwargs["scenario_session_id"] == "sess-123"
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_none(self, both_keys):
+        """Every existing caller (the WhatsApp bot, the analytics agent) omits
+        it and emits exactly as before."""
+        client = _gemini_client_with_usage(
+            SimpleNamespace(
+                prompt_token_count=3, candidates_token_count=1, total_token_count=4
+            )
+        )
+        with (
+            patch.object(dispatch, "_get_gemini_client", return_value=client),
+            patch("app.core.llm_usage.emitter.emit_llm_usage_blocking") as emit,
+        ):
+            await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="gemini", task="whatsapp_rag_answer"
+            )
+
+        assert emit.call_args.kwargs["scenario_session_id"] is None

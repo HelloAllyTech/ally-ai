@@ -293,6 +293,7 @@ class SummaryService:
         live_notes: Optional[List[str]] = None,
         room_id: Optional[str] = None,
         scenario_session_id: Optional[str] = None,
+        usage_task: Optional[str] = None,
     ):
         """
         Generate scenario evaluation.
@@ -324,6 +325,9 @@ class SummaryService:
                 to attribute this call's llm_usage cost.
             scenario_session_id (Optional[str]): Scenario session id, used to
                 attribute this call's llm_usage cost. Preferred over room_id.
+            usage_task (Optional[str]): The llm_usage task label for this call
+                (`scenario_evaluation` or `scenario_evaluation_language`).
+                None means `scenario_evaluation`.
 
         Returns:
             Dict[str, Any]: Dictionary containing:
@@ -369,6 +373,7 @@ class SummaryService:
                 live_notes=live_notes,
                 room_id=room_id,
                 scenario_session_id=scenario_session_id,
+                usage_task=usage_task,
             )
 
             # Calculate processing time

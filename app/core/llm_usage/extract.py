@@ -1,6 +1,7 @@
 """Token-usage extraction helpers (never raise; return None when unavailable)."""
 
-from typing import Any, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any, Dict, Optional, Tuple
 
 
 def extract_usage_from_aimessage(
@@ -58,6 +59,63 @@ def normalize_callback_usage(cb: Any) -> Optional[Tuple[int, int, int]]:
     except Exception:
         return None
     return None
+
+
+def extract_usage_details(
+    cb: Any = None, response: Any = None
+) -> Tuple[Optional[int], Optional[Dict[str, int]]]:
+    """Return (cached_tokens, metadata) for a LangChain call, never raising.
+
+    Reads the same source the token counts come from — the usage callback when
+    it captured anything, else the AIMessage — so the detail always describes
+    the counts it travels with.
+
+    * ``cached_tokens``: LangChain's ``input_token_details.cache_read``, the
+      prompt tokens served from the provider's cache. A SUBSET of the prompt
+      count for both OpenAI and Gemini. None when the provider reported no
+      such detail, which is not the same as reporting 0.
+    * ``metadata``: ``{"reasoning_tokens": N}`` from
+      ``output_token_details.reasoning`` when N > 0, else None. Informational
+      only: LangChain's output count already includes reasoning for OpenAI and
+      thinking for Gemini, so nothing here is added to it.
+    """
+    try:
+        per_model = getattr(cb, "usage_metadata", None) if cb is not None else None
+        if per_model and isinstance(per_model, Mapping):
+            usages = list(per_model.values())
+        else:
+            usages = [getattr(response, "usage_metadata", None)]
+        usages = [u for u in usages if isinstance(u, Mapping)]
+
+        cached: Optional[int] = None
+        reasoning = 0
+        if usages:
+            for u in usages:
+                cache_read = (u.get("input_token_details") or {}).get("cache_read")
+                if isinstance(cache_read, int):
+                    cached = (cached or 0) + cache_read
+                thinking = (u.get("output_token_details") or {}).get("reasoning")
+                if isinstance(thinking, int):
+                    reasoning += thinking
+        else:
+            # Raw OpenAI shape, for a response LangChain did not normalise.
+            meta = getattr(response, "response_metadata", None)
+            meta = meta if isinstance(meta, Mapping) else {}
+            token_usage = meta.get("token_usage") or meta.get("usage") or {}
+            if isinstance(token_usage, Mapping):
+                prompt_details = token_usage.get("prompt_tokens_details") or {}
+                cache_read = prompt_details.get("cached_tokens")
+                if isinstance(cache_read, int):
+                    cached = cache_read
+                completion_details = token_usage.get("completion_tokens_details") or {}
+                thinking = completion_details.get("reasoning_tokens")
+                if isinstance(thinking, int):
+                    reasoning = thinking
+
+        metadata = {"reasoning_tokens": reasoning} if reasoning > 0 else None
+        return cached, metadata
+    except Exception:
+        return None, None
 
 
 def make_usage_callback() -> Optional[Any]:
