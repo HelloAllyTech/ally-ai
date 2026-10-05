@@ -557,14 +557,21 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 if _task:
                     from app.core.llm_usage.emitter import emit_llm_usage
                     from app.core.llm_usage.extract import (
+                        extract_usage_details,
                         extract_usage_from_aimessage,
                         normalize_callback_usage,
                     )
                     from app.core.llm_usage.tasks import resolve_model_name
 
-                    _usage = (
+                    _cb_usage = (
                         normalize_callback_usage(_usage_cb) if _usage_cb else None
-                    ) or extract_usage_from_aimessage(response)
+                    )
+                    _usage = _cb_usage or extract_usage_from_aimessage(response)
+                    # Cache hits and reasoning, read from the same source as
+                    # the counts above so the two always describe one call.
+                    _cached, _usage_meta = extract_usage_details(
+                        _usage_cb if _cb_usage else None, response
+                    )
                     emit_llm_usage(
                         provider="openai",
                         model=resolve_model_name(_invoked_llm),
@@ -573,6 +580,8 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                         room_id=kwargs.get("room_id"),
                         scenario_id=kwargs.get("scenario_id"),
                         scenario_session_id=kwargs.get("scenario_session_id"),
+                        cached_tokens=_cached,
+                        metadata=_usage_meta,
                     )
             except Exception:
                 # Never affects the result, but logged so a bug in this
@@ -749,14 +758,20 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         # Best-effort token-usage emission (bind_tools returns an AIMessage).
         try:
             from app.core.llm_usage.emitter import emit_llm_usage
-            from app.core.llm_usage.extract import extract_usage_from_aimessage
+            from app.core.llm_usage.extract import (
+                extract_usage_details,
+                extract_usage_from_aimessage,
+            )
             from app.core.llm_usage.tasks import LLMTask, resolve_model_name
 
+            cached, usage_meta = extract_usage_details(response=response)
             emit_llm_usage(
                 provider="openai",
                 model=resolve_model_name(dynamic_summary_client),
                 task=LLMTask.DYNAMIC_SUMMARY.value,
                 usage=extract_usage_from_aimessage(response),
+                cached_tokens=cached,
+                metadata=usage_meta,
             )
         except Exception:
             # Never affects the result, but logged so a bug in this
@@ -1408,6 +1423,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
         helpful_behaviours: Optional[List[str]] = None,
         unhelpful_behaviours: Optional[List[str]] = None,
         live_notes: Optional[List[str]] = None,
+        usage_task: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -1437,6 +1453,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
             live_notes (Optional[List[str]]): Coaching hints the supervisor
                 already sent this learner DURING the session, in order. Empty
                 for most sessions — live notes are opt-in per scenario.
+            usage_task (Optional[str]): The llm_usage task this call is filed
+                under. ally-be sends `scenario_evaluation_language` when it
+                re-runs the debrief to regenerate feedback in another
+                language; None means `scenario_evaluation`. Cost accounting
+                only — the evaluation itself is identical.
             **kwargs: Additional arguments for LLM invocation
 
         Returns:
@@ -1580,7 +1601,7 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 await self._invoke_llm(
                     formatted_prompt,
                     response_model,
-                    task=LLMTask.SCENARIO_EVALUATION.value,
+                    task=usage_task or LLMTask.SCENARIO_EVALUATION.value,
                     llm_override=self._client_for(
                         (
                             "scenario/scenario_evaluation_with_memory"

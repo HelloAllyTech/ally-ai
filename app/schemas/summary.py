@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -418,6 +418,20 @@ class AreasOfGrowth(BaseModel):
     )
 
 
+# The llm_usage task labels a /scenario/evaluate call may be filed under. A
+# closed set rather than a free string: the label is a cost-accounting key that
+# ally-be prices and groups by, so an arbitrary value would land as an
+# unpriced, unlabelled row instead of failing where it can be seen. Each value
+# must also exist in LLMTask (asserted in the tests) and in ally-be's LlmTask.
+ScenarioEvaluationUsageTask = Literal[
+    "scenario_evaluation",
+    "scenario_evaluation_language",
+]
+DEFAULT_SCENARIO_EVALUATION_USAGE_TASK: ScenarioEvaluationUsageTask = (
+    "scenario_evaluation"
+)
+
+
 class ScenarioEvaluationRequest(BaseModel):
     """
     Request model for the /scenario/evaluate endpoint.
@@ -521,6 +535,26 @@ class ScenarioEvaluationRequest(BaseModel):
             "evaluation, just without cost attribution."
         ),
     )
+    usage_task: Optional[ScenarioEvaluationUsageTask] = Field(
+        default=DEFAULT_SCENARIO_EVALUATION_USAGE_TASK,
+        description=(
+            "The llm_usage task this call is filed under: 'scenario_evaluation' "
+            "for a session's debrief, 'scenario_evaluation_language' when ally-be "
+            "re-runs it to regenerate the feedback in another language. Only "
+            "changes cost accounting, never the evaluation. Omitted or null "
+            "means 'scenario_evaluation'."
+        ),
+    )
+
+    @field_validator("usage_task")
+    @classmethod
+    def _null_usage_task_is_the_default(
+        cls, value: Optional[ScenarioEvaluationUsageTask]
+    ) -> ScenarioEvaluationUsageTask:
+        # ally-be sends absent optionals as an explicit null, so null has to
+        # mean "the default" rather than reach the emitter as a missing task,
+        # which would drop the row.
+        return value or DEFAULT_SCENARIO_EVALUATION_USAGE_TASK
 
 
 class SupervisorMemoryUpdateItem(BaseModel):

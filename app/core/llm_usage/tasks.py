@@ -9,6 +9,12 @@ class LLMTask(str, Enum):
     SUMMARY = "summary"
     DYNAMIC_SUMMARY = "dynamic_summary"
     SCENARIO_EVALUATION = "scenario_evaluation"
+    # The same debrief call re-run by ally-be to regenerate a session's
+    # feedback in another language, on demand, after the original debrief.
+    # Separate so a session's second (and third...) debrief reads as what it
+    # is rather than inflating the cost of the debrief itself. ally-be picks
+    # the label per request via ScenarioEvaluationRequest.usage_task.
+    SCENARIO_EVALUATION_LANGUAGE = "scenario_evaluation_language"
     COUNSELOR_ANALYSIS = "counselor_analysis"
     USER_IDENTIFICATION = "user_identification"
     CONTENT_ENHANCE = "content_enhance"

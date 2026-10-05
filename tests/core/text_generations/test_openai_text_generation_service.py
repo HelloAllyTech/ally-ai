@@ -1228,6 +1228,63 @@ class TestInvokeLlmUsageAttribution:
         assert mock_emit.call_args.kwargs["room_id"] is None
         assert mock_emit.call_args.kwargs["scenario_session_id"] is None
 
+    @pytest.mark.asyncio
+    async def test_cache_hits_and_reasoning_reach_the_emitter(
+        self, text_generation_service
+    ):
+        """The debrief (and every other _invoke_llm task) reports its cached
+        prompt tokens and reasoning detail, read from the same usage the
+        counts come from."""
+        override_model = MagicMock()
+        override_model.model_name = "gpt-5-mini"
+        mock_response = MagicMock()
+        mock_response.content = "Test response"
+        mock_response.usage_metadata = {
+            "input_tokens": 800,
+            "output_tokens": 500,
+            "total_tokens": 1300,
+            "input_token_details": {"cache_read": 512},
+            "output_token_details": {"reasoning": 320},
+        }
+        override_model.ainvoke = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.llm_usage.emitter.emit_llm_usage") as mock_emit:
+            await text_generation_service._invoke_llm(
+                "Test prompt",
+                llm_override=override_model,
+                task="scenario_evaluation",
+                scenario_session_id="sess-123",
+            )
+
+        kwargs = mock_emit.call_args.kwargs
+        # OpenAI's output count already includes reasoning: not added again.
+        assert kwargs["usage"] == (800, 500, 1300)
+        assert kwargs["cached_tokens"] == 512
+        assert kwargs["metadata"] == {"reasoning_tokens": 320}
+
+    @pytest.mark.asyncio
+    async def test_no_usage_detail_sends_nulls(self, text_generation_service):
+        override_model = MagicMock()
+        override_model.model_name = "gpt-4o-mini"
+        mock_response = MagicMock()
+        mock_response.content = "Test response"
+        mock_response.usage_metadata = {
+            "input_tokens": 8,
+            "output_tokens": 5,
+            "total_tokens": 13,
+        }
+        override_model.ainvoke = AsyncMock(return_value=mock_response)
+
+        with patch("app.core.llm_usage.emitter.emit_llm_usage") as mock_emit:
+            await text_generation_service._invoke_llm(
+                "Test prompt", llm_override=override_model, task="nudge"
+            )
+
+        kwargs = mock_emit.call_args.kwargs
+        assert kwargs["usage"] == (8, 5, 13)
+        assert kwargs["cached_tokens"] is None
+        assert kwargs["metadata"] is None
+
 
 class TestGenerateScenarioEvaluationUsageAttribution:
     """room_id / scenario_session_id passed to generate_scenario_evaluation
@@ -1288,6 +1345,45 @@ class TestGenerateScenarioEvaluationUsageAttribution:
         assert mock_invoke.await_args.kwargs.get("room_id") is None
         assert mock_invoke.await_args.kwargs.get("scenario_session_id") is None
         assert result["positives"] == ["Good rapport building"]
+
+    @pytest.mark.asyncio
+    async def test_usage_task_labels_the_call(
+        self, text_generation_service, sample_chat_messages
+    ):
+        """ally-be re-runs the debrief to regenerate feedback in another
+        language; that run is filed under its own task label."""
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages,
+                language_code="hi",
+                usage_task="scenario_evaluation_language",
+                scenario_session_id="sess-123",
+            )
+
+        kwargs = mock_invoke.await_args.kwargs
+        assert kwargs["task"] == "scenario_evaluation_language"
+        # Consumed here, not forwarded as a stray kwarg.
+        assert "usage_task" not in kwargs
+        assert kwargs["scenario_session_id"] == "sess-123"
+
+    @pytest.mark.asyncio
+    async def test_usage_task_defaults_to_scenario_evaluation(
+        self, text_generation_service, sample_chat_messages
+    ):
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages, usage_task=None
+            )
+
+        assert mock_invoke.await_args.kwargs["task"] == "scenario_evaluation"
 
 
 class TestWantsTranslatedFeedback:

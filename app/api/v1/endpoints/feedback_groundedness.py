@@ -30,6 +30,10 @@ class GroundednessRequest(BaseModel):
     claims: List[dict] = Field(default_factory=list)
     language: str = "en"
     rubric: Optional[str] = None
+    # The session whose feedback is being judged. Attribution only — carried
+    # onto the call's llm_usage row so judge cost can be tied to a session.
+    # Optional, so a caller that predates it is judged exactly as before.
+    scenario_session_id: Optional[str] = None
 
 
 class GroundednessResponse(BaseModel):
@@ -64,6 +68,7 @@ async def judge(req: GroundednessRequest) -> GroundednessResponse:
             req.claims,  # type: ignore[arg-type]
             req.language,
             rubric=req.rubric,
+            scenario_session_id=req.scenario_session_id,
         )
     except Exception as exc:  # noqa: BLE001 - surface as 500, keep caller decoupled
         logger.exception("[groundedness] judge failed")

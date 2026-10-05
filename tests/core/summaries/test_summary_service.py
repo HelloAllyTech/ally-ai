@@ -379,3 +379,38 @@ class TestSummaryService:
         call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
         assert call_args[1]["room_id"] is None
         assert call_args[1]["scenario_session_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_threads_usage_task(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": [],
+            "positives": [],
+            "emotional_movement": [],
+            "skill_coverage": [],
+        }
+
+        await summary_service.generate_scenario_evaluation(
+            sample_chat_messages, usage_task="scenario_evaluation_language"
+        )
+
+        call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
+        assert call_args[1]["usage_task"] == "scenario_evaluation_language"
+
+    @pytest.mark.asyncio
+    async def test_generate_scenario_evaluation_usage_task_defaults_to_none(
+        self, summary_service, mock_text_generation_service, sample_chat_messages
+    ):
+        """None here means the generator's own default, scenario_evaluation."""
+        mock_text_generation_service.generate_scenario_evaluation.return_value = {
+            "improvements": [],
+            "positives": [],
+            "emotional_movement": [],
+            "skill_coverage": [],
+        }
+
+        await summary_service.generate_scenario_evaluation(sample_chat_messages)
+
+        call_args = mock_text_generation_service.generate_scenario_evaluation.call_args
+        assert call_args[1]["usage_task"] is None

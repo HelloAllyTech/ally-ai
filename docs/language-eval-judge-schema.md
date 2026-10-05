@@ -14,7 +14,7 @@
 4. **Roles stated explicitly:** the AI plays the CLIENT (judged); the human trainee is the COUNSELOR (input, subject to STT noise).
 5. **No transcript echo** in output — evidence quotes are short spans; `user_text`/`ai_text` evidence rows are reconstructed at persistence time by ally-be.
 6. **Judge each AI turn given only what preceded it** (anti-halo instruction + few-shots that discriminate within one transcript).
-7. Temperature 0, pinned model, structured output (`response_schema`), token usage emitted (`LLMTask.LANGUAGE_JUDGE`).
+7. Temperature 0, pinned model, structured output (`response_schema`), token usage emitted (`LLMTask.LANGUAGE_JUDGE`) — attributed to the session when the caller sends the optional `scenario_session_id` (§4.1).
 8. `judge_version = (judge_model, judge_prompt_version)` echoed in every response and stamped on every stored row.
 
 ---
@@ -151,7 +151,8 @@ LOCKED CONTENT EXISTS: {yes/no}                 # v2 disclosure ledger present
     "engine": "SIMULATION",
     "locked_content_exists": false
   },
-  "rubric": "<resolved prompt-management text; optional, falls back to inline default>"
+  "rubric": "<resolved prompt-management text; optional, falls back to inline default>",
+  "scenario_session_id": "<uuid; optional — attribution only, carried onto the llm_usage row>"
 }
 ```
 

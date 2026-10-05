@@ -44,6 +44,10 @@ class RecallQualityRequest(BaseModel):
     # drove this selection at all, which is context for a weak choice.
     cue_tier: Optional[str] = None
     rubric: Optional[str] = None
+    # The session this turn belongs to. Attribution only — carried onto the
+    # call's llm_usage row so judge cost can be tied to a session. Optional, so
+    # a caller that predates it is judged exactly as before.
+    scenario_session_id: Optional[str] = None
 
 
 class RecallQualityResponse(BaseModel):
@@ -76,6 +80,7 @@ async def judge(request: RecallQualityRequest) -> RecallQualityResponse:
             stance=request.stance,
             cue_tier=request.cue_tier,
             rubric=request.rubric,
+            scenario_session_id=request.scenario_session_id,
         )
     except Exception:
         logger.exception("[recall_quality] judge failed")

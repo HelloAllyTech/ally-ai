@@ -326,15 +326,50 @@ def _get_openai_client():
 
 
 def _emit_usage(
-    provider: str, model: str, task: Optional[str], usage: Tuple[int, int, int]
+    provider: str,
+    model: str,
+    task: Optional[str],
+    usage: Tuple[int, int, int],
+    *,
+    cached_tokens: Optional[int] = None,
+    metadata: Optional[Dict[str, int]] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> None:
-    """Best-effort token-usage emission for the cost-by-model/task dashboard."""
+    """Best-effort token-usage emission for the cost-by-model/task dashboard.
+
+    `usage` is (prompt, completion, total), where completion is EVERY token
+    billed at the output rate — a provider that reports thinking apart from
+    the answer has it folded in by the caller. `cached_tokens` is the part of
+    `prompt` served from the provider's cache (a subset, never an addition).
+    `scenario_session_id` ties the cost to the session it was spent on; the
+    judges have no room, so without it their spend has no session to land on.
+    """
     try:
         from app.core.llm_usage.emitter import emit_llm_usage_blocking
 
-        emit_llm_usage_blocking(provider=provider, model=model, task=task, usage=usage)
+        emit_llm_usage_blocking(
+            provider=provider,
+            model=model,
+            task=task,
+            usage=usage,
+            scenario_session_id=scenario_session_id,
+            cached_tokens=cached_tokens,
+            metadata=metadata,
+        )
     except Exception:  # noqa: BLE001 — usage accounting never fails a request
         logger.debug("llm usage emission skipped", exc_info=True)
+
+
+def _count(value: Any) -> Optional[int]:
+    """A reported token count as an int, or None when the field was absent.
+
+    None and 0 mean different things to the consumer — "not reported" against
+    "reported, and none" — so absence is preserved rather than coerced to 0.
+    `bool` is excluded because it is an int subclass and never a count.
+    """
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    return None
 
 
 async def _generate_anthropic(
@@ -346,6 +381,7 @@ async def _generate_anthropic(
     system: Optional[str],
     max_tokens: Optional[int],
     task: Optional[str],
+    scenario_session_id: Optional[str] = None,
 ) -> TSchema:
     """
     Structured output from Claude via a single FORCED tool call.
@@ -393,6 +429,7 @@ async def _generate_anthropic(
             model,
             task,
             (prompt_tokens, completion_tokens, prompt_tokens + completion_tokens),
+            scenario_session_id=scenario_session_id,
         )
 
     for block in getattr(response, "content", None) or []:
@@ -420,6 +457,7 @@ async def _generate_gemini(
     system: Optional[str],
     max_tokens: Optional[int],
     task: Optional[str],
+    scenario_session_id: Optional[str] = None,
 ) -> TSchema:
     """
     Structured output from Gemini via `response_schema`, as the analytics agent does.
@@ -451,7 +489,15 @@ async def _generate_gemini(
     um = getattr(response, "usage_metadata", None)
     if um is not None:
         prompt_tokens = int(getattr(um, "prompt_token_count", 0) or 0)
-        completion_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
+        candidates_tokens = int(getattr(um, "candidates_token_count", 0) or 0)
+        # Thinking is billed at the OUTPUT rate but reported apart from the
+        # answer, so `candidates_token_count` alone undercounts every call that
+        # thinks — and the 2.5 series thinks by default. It is folded into
+        # completion here, and the split travels in metadata so the thinking
+        # share stays visible rather than merely priced.
+        thoughts_tokens = int(getattr(um, "thoughts_token_count", 0) or 0)
+        completion_tokens = candidates_tokens + thoughts_tokens
+        # total_token_count already includes thoughts, so it is used as given.
         total_tokens = int(getattr(um, "total_token_count", 0) or 0) or (
             prompt_tokens + completion_tokens
         )
@@ -460,6 +506,13 @@ async def _generate_gemini(
             model,
             task,
             (prompt_tokens, completion_tokens, total_tokens),
+            # Part of prompt_token_count, not in addition to it.
+            cached_tokens=_count(getattr(um, "cached_content_token_count", None)),
+            metadata={
+                "thoughts_tokens": thoughts_tokens,
+                "candidates_tokens": candidates_tokens,
+            },
+            scenario_session_id=scenario_session_id,
         )
 
     parsed = getattr(response, "parsed", None)
@@ -483,6 +536,7 @@ async def _generate_openai(
     system: Optional[str],
     max_tokens: Optional[int],
     task: Optional[str],
+    scenario_session_id: Optional[str] = None,
 ) -> TSchema:
     """
     Structured output from OpenAI via a json_schema response format.
@@ -531,15 +585,29 @@ async def _generate_openai(
     usage = getattr(response, "usage", None)
     if usage is not None:
         prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        # Already includes reasoning tokens — unlike Gemini, OpenAI counts them
+        # inside completion_tokens, so they are NOT added again here.
         completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
         total_tokens = int(getattr(usage, "total_tokens", 0) or 0) or (
             prompt_tokens + completion_tokens
         )
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        completion_details = getattr(usage, "completion_tokens_details", None)
+        reasoning_tokens = _count(getattr(completion_details, "reasoning_tokens", None))
         _emit_usage(
             PROVIDER_OPENAI,
             model,
             task,
             (prompt_tokens, completion_tokens, total_tokens),
+            # Part of prompt_tokens, not in addition to it.
+            cached_tokens=_count(getattr(prompt_details, "cached_tokens", None)),
+            # Informational only: the breakdown of a completion count that
+            # already contains it. Omitted when zero, which is every
+            # non-reasoning model.
+            metadata=(
+                {"reasoning_tokens": reasoning_tokens} if reasoning_tokens else None
+            ),
+            scenario_session_id=scenario_session_id,
         )
 
     choices = getattr(response, "choices", None) or []
@@ -587,6 +655,7 @@ async def generate_structured(
     schema: Type[TSchema],
     prompt: str,
     task: Optional[str] = None,
+    scenario_session_id: Optional[str] = None,
     provider: Optional[str] = None,
     model: Optional[str] = None,
     temperature: float = 0.0,
@@ -601,6 +670,11 @@ async def generate_structured(
         schema: Pydantic model the output must conform to.
         prompt: The user-role prompt content.
         task: LLMTask value for cost accounting. Omit to skip emission.
+        scenario_session_id: The scenario session this call's cost belongs
+            to, carried onto its llm_usage row. Optional and attribution
+            only — it never changes the call. The judges pass it through
+            from ally-be; a call with no session (the WhatsApp bot, the
+            analytics agent) leaves it None.
         provider: 'anthropic' | 'gemini' (aliases accepted). None resolves from
             `model`, then the configured default.
         model: Explicit model id. Honoured only when it belongs to the resolved
@@ -652,6 +726,7 @@ async def generate_structured(
             system=system,
             max_tokens=max_tokens,
             task=task,
+            scenario_session_id=scenario_session_id,
         )
 
     try:

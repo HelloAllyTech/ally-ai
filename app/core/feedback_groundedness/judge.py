@@ -26,6 +26,7 @@ async def judge_feedback(
     claims: List[FeedbackClaim],
     language: str,
     rubric: Optional[str] = None,
+    scenario_session_id: Optional[str] = None,
 ) -> Tuple[List[ClaimJudgment], str]:
     """Judge one session's feedback claims against its transcript.
 
@@ -39,6 +40,9 @@ async def judge_feedback(
     configured model would pollute a pinned series. On the paths where no call
     is made it is the configured model — the honest answer to "what would have
     judged this".
+
+    `scenario_session_id` is attribution only: it rides onto the call's
+    llm_usage row so the judge's cost lands on the session it judged.
     """
     if not claims or not transcript:
         return [], settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL
@@ -58,6 +62,7 @@ async def judge_feedback(
         # Uncapped, as this call always was: the output length is a
         # property of the input, not a choice.
         max_tokens=None,
+        scenario_session_id=scenario_session_id,
     )
     if meta.get("fell_back_from"):
         # These rows will carry a different judgeModel, so a trend that

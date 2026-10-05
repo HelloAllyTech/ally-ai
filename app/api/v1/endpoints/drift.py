@@ -33,6 +33,10 @@ class JudgeRequest(BaseModel):
     scenario_goal: Optional[str] = None
     # Static rubric from prompt management; falls back to the inline default.
     rubric: Optional[str] = None
+    # The session being judged. Attribution only — carried onto the call's
+    # llm_usage row so judge cost can be tied to a session. Optional, so a
+    # caller that predates it is judged exactly as before.
+    scenario_session_id: Optional[str] = None
 
 
 class JudgeResponse(BaseModel):
@@ -56,6 +60,7 @@ async def judge(req: JudgeRequest) -> JudgeResponse:
             language=req.language or "en",
             scenario_goal=req.scenario_goal,
             rubric=req.rubric,
+            scenario_session_id=req.scenario_session_id,
         )
     except Exception as e:  # noqa: BLE001 - surface as 500, keep caller decoupled
         logger.error(f"drift judge failed: {e}")
@@ -100,6 +105,7 @@ async def judge_labels(req: JudgeRequest) -> LeanJudgeResponse:
             language=req.language or "en",
             scenario_goal=req.scenario_goal,
             rubric=req.rubric,
+            scenario_session_id=req.scenario_session_id,
         )
     except Exception as e:  # noqa: BLE001 - surface as 500, keep caller decoupled
         logger.error(f"lean drift judge failed: {e}")

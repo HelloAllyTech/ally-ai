@@ -4,6 +4,7 @@ Tests for summary endpoints.
 
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.schemas.summary import DynamicSummaryNoteResponse, Tag
@@ -498,3 +499,85 @@ class TestScenarioEvaluationEndpoint(BaseAPITest):
         # Test DELETE (should fail)
         response = client.delete("/api/v1/summary/scenario/evaluate")
         assert response.status_code == 405
+
+
+_EVALUATION_RESULT = {
+    "challenge_description": "Test challenge description",
+    "areas_of_growth": [],
+    "improvements": [],
+    "positives": [],
+    "emotional_movement": [],
+    "skill_coverage": [],
+    "supervisor_note": "note",
+    "memory_update": {
+        "focus_areas": [],
+        "trajectory": "trajectory",
+        "next_time": "next_time",
+    },
+}
+
+
+class TestScenarioEvaluationUsageTask(BaseAPITest):
+    """`usage_task` picks the llm_usage label for the debrief call: the
+    session's debrief, or ally-be's re-run of it in another language."""
+
+    def _post(self, client, sample_chat_messages, **extra):
+        with patch(
+            "app.core.summaries.summary_service.SummaryService."
+            "generate_scenario_evaluation"
+        ) as mock_generate_evaluation:
+            mock_generate_evaluation.return_value = dict(_EVALUATION_RESULT)
+            response = client.post(
+                "/api/v1/summary/scenario/evaluate",
+                json={"chat_history": sample_chat_messages, **extra},
+            )
+        return response, mock_generate_evaluation
+
+    @pytest.mark.parametrize(
+        "usage_task", ["scenario_evaluation", "scenario_evaluation_language"]
+    )
+    def test_allowed_values_are_threaded_to_the_service(
+        self, client: TestClient, mock_summary_service, sample_chat_messages, usage_task
+    ):
+        response, mock_generate = self._post(
+            client, sample_chat_messages, usage_task=usage_task
+        )
+
+        assert response.status_code == 200
+        assert mock_generate.call_args.kwargs["usage_task"] == usage_task
+
+    def test_omitted_means_scenario_evaluation(
+        self, client: TestClient, mock_summary_service, sample_chat_messages
+    ):
+        """An ally-be that predates the field is labelled exactly as before."""
+        response, mock_generate = self._post(client, sample_chat_messages)
+
+        assert response.status_code == 200
+        assert mock_generate.call_args.kwargs["usage_task"] == "scenario_evaluation"
+
+    def test_null_means_scenario_evaluation(
+        self, client: TestClient, mock_summary_service, sample_chat_messages
+    ):
+        """ally-be sends absent optionals as explicit nulls; that must not fail
+        the debrief or reach the emitter as a missing task (which drops the
+        row)."""
+        response, mock_generate = self._post(
+            client, sample_chat_messages, usage_task=None
+        )
+
+        assert response.status_code == 200
+        assert mock_generate.call_args.kwargs["usage_task"] == "scenario_evaluation"
+
+    @pytest.mark.parametrize("usage_task", ["nudge", "drift_judge", "anything"])
+    def test_other_values_are_rejected(
+        self, client: TestClient, mock_summary_service, sample_chat_messages, usage_task
+    ):
+        """The label is a cost-accounting key. Any other value — even a real
+        task label — would file the debrief's spend somewhere it does not
+        belong."""
+        response, mock_generate = self._post(
+            client, sample_chat_messages, usage_task=usage_task
+        )
+
+        assert response.status_code == 422
+        mock_generate.assert_not_called()
