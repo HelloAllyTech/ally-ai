@@ -1,0 +1,4 @@
+{
+  "name": "Helpline Copilot Turn",
+  "description": "Drafts two or three tentative, validating reply options for the helpline listener to edit after each talker message, tags each with a helping skill, names the conversation stage, and optionally gives the listener one coaching nudge. Staff-only: the listener decides what is sent."
+}

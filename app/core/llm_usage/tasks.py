@@ -57,6 +57,12 @@ class LLMTask(str, Enum):
     WHATSAPP_RAG_ANSWER = "whatsapp_rag_answer"
     WHATSAPP_QUERY_TRANSLATE = "whatsapp_query_translate"
     WHATSAPP_CRISIS_CLASSIFY = "whatsapp_crisis_classify"
+    # Text helpline copilot. Two labels because they differ in volume and shape: the
+    # risk classifier runs on every talker message with a tiny output, the turn call
+    # runs once per (debounced) talker turn and writes the suggestions. Must have the
+    # matching members in ally-be's LlmTask enum, or these rows arrive unlabelled.
+    HELPLINE_RISK_CLASSIFY = "helpline_risk_classify"
+    HELPLINE_COPILOT_TURN = "helpline_copilot_turn"
 
 
 def resolve_model_name(model: Any) -> str:

@@ -116,6 +116,26 @@ class KnowledgeAgentSettings(BaseModel):
     PROMPT_VERSION: str = Field("v1")
 
 
+class HelplineSettings(BaseModel):
+    """Text-helpline copilot (risk classifier + suggestion/nudge turn).
+
+    Defaults only: ally-be's prompt management can override provider, model and
+    temperature per prompt, and those arrive on the request. ally-be enforces the
+    latency budget (3 s risk, 6 s turn), not this service, so the token caps here are
+    what keep both calls inside it.
+    """
+
+    # Cheap and fast on purpose: the risk classifier runs on EVERY talker message and
+    # its answer is one flag, a verbatim phrase and a number.
+    RISK_MODEL: str = Field("gpt-4o-mini")
+    # A verdict is ~40 tokens of JSON. Note for whoever points the prompt at a
+    # reasoning-tier model (gpt-5, o-series, Gemini 2.5): hidden reasoning is billed
+    # against this cap and 200 will truncate to nothing — raise it with the model.
+    RISK_MAX_TOKENS: int = Field(200)
+    TURN_MODEL: str = Field("gpt-4o-mini")
+    TURN_MAX_TOKENS: int = Field(900)
+
+
 class DriftJudgeSettings(BaseModel):
     """Conversation drift judge (see drift-metrics-spec.md). Gemini for now."""
 
@@ -350,6 +370,7 @@ class AppSettings(BaseSettings):
     KNOWLEDGE_AGENT: KnowledgeAgentSettings = Field(
         default_factory=KnowledgeAgentSettings
     )
+    HELPLINE: HelplineSettings = Field(default_factory=HelplineSettings)
     DRIFT_JUDGE: DriftJudgeSettings = Field(default_factory=DriftJudgeSettings)
     LANGUAGE_JUDGE: LanguageJudgeSettings = Field(default_factory=LanguageJudgeSettings)
     FILLER_JUDGE: FillerJudgeSettings = Field(default_factory=FillerJudgeSettings)
