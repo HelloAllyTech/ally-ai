@@ -254,9 +254,11 @@ async def test_judge_session_labels_only_actually_runs(monkeypatch):
     # The response schema must be the LEAN one, or the saving evaporates.
     assert captured["schema"] is LeanJudgeOutput
     assert "LABELS ONLY" in captured["prompt"]
-    # Gemini stays the SELECTED model — routing through dispatch buys a
-    # fallback, it does not move the judge off Gemini.
+    # Gemini stays the SELECTED model, and the ONLY one: routing through
+    # dispatch must not buy a fallback onto another provider, whose labels the
+    # pinned backfill would ignore and re-judge.
     assert captured["provider"] == "gemini"
+    assert captured["never_fallback"] is True
     # Uncapped: one element per turn, so a reply-sized cap truncates the array
     # on a long session and surfaces as a schema failure.
     assert captured["max_tokens"] is None
