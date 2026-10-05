@@ -96,6 +96,8 @@ async def copilot_turn(
             rolling_summary=payload.rolling_summary,
             language=payload.language,
             include_nudge=payload.include_nudge,
+            risk_level=payload.risk_level,
+            risk_subject=payload.risk_subject,
             prompts=payload.prompts,
         )
         return HelplineTurnResponse(**result)

@@ -54,6 +54,64 @@ _NUDGE_REQUESTED = (
 )
 _NUDGE_NOT_REQUESTED = "Leave `nudge` as an empty string."
 
+# gpt-4o-mini skipped the direct safety question on "everyone would be better off
+# without me" in live checks even with the rule above it, so when ally-be's own screen
+# has already flagged the chat the prompt says so outright.
+_RISK_NOT_FLAGGED = (
+    "The platform's risk screen has not flagged this conversation. Still apply the "
+    "safety rule above if you notice risk yourself."
+)
+_RISK_FLAGGED = (
+    "The platform's risk screen HAS flagged this conversation ({level}{about}). Your "
+    "FIRST suggestion must be tagged harm and ask directly about safety as described "
+    "above. If the listener has already asked and the talker has answered in the last "
+    "two messages, ask the next safety question instead (a plan, the means, when, "
+    "whether they have tried before, who could be with them right now). If someone "
+    "is harming them, ask whether they will be safe and what they could do if things "
+    "get worse."
+)
+
+
+def talker_script_language(
+    language: Optional[str], messages: Sequence[Dict[str, str]]
+) -> str:
+    """The language name the turn prompt asks for, pinned to the talker's script.
+
+    Telling the model "follow the talker's script" was not enough: in live checks
+    gpt-4.1-mini answered romanised Hindi in Devanagari. So the script is measured
+    here from the talker's own recent messages and named outright.
+    """
+    name = language_name(language)
+    code = (language or "en").strip().lower().split("-")[0]
+    if code == "en":
+        return name
+    latin = native = 0
+    for turn in list(messages)[-6:]:
+        if turn.get("role") != "talker":
+            continue
+        for ch in turn.get("content") or "":
+            if not ch.isalpha():
+                continue
+            if "a" <= ch.lower() <= "z":
+                latin += 1
+            else:
+                native += 1
+    if latin and latin > native:
+        return (
+            f"{name}, written in Latin letters (romanised {name}) exactly as the "
+            "talker writes it, not in the native script"
+        )
+    return f"{name}, in its native script"
+
+
+def risk_instruction(risk_level: Optional[str], risk_subject: Optional[str]) -> str:
+    """The sentence that tells the turn prompt whether ally-be flagged risk."""
+    level = (risk_level or "NONE").upper()
+    if level not in ("ELEVATED", "HIGH"):
+        return _RISK_NOT_FLAGGED
+    about = ", about someone else the talker knows" if risk_subject == "OTHER" else ""
+    return _RISK_FLAGGED.format(level=level.lower(), about=about)
+
 
 def language_name(language: Optional[str]) -> str:
     """A human name for a language code, tolerating region tags ('hi-IN') and case."""
@@ -125,6 +183,8 @@ def build_turn_prompt(
     rolling_summary: str = "",
     language: Optional[str] = "en",
     include_nudge: bool = False,
+    risk_level: Optional[str] = "NONE",
+    risk_subject: Optional[str] = "",
     prompts: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Assemble the copilot-turn prompt, honouring any ally-be override."""
@@ -141,5 +201,7 @@ def build_turn_prompt(
         rolling_summary=summary or "(none yet)",
         language=(language or "en"),
         language_name=language_name(language),
+        talker_language=talker_script_language(language, messages),
         nudge_instruction=_NUDGE_REQUESTED if include_nudge else _NUDGE_NOT_REQUESTED,
+        risk_instruction=risk_instruction(risk_level, risk_subject),
     )

@@ -61,6 +61,16 @@ class HelplineTurnRequest(BaseModel):
     include_nudge: bool = Field(
         False, description="Whether to also return a coaching nudge for the listener."
     )
+    risk_level: Literal["NONE", "ELEVATED", "HIGH"] = Field(
+        "NONE",
+        description=(
+            "The highest risk ally-be's screen has flagged in this chat. When not NONE "
+            "the first suggestion must ask directly about safety."
+        ),
+    )
+    risk_subject: Literal["SELF", "OTHER", "UNCLEAR", ""] = Field(
+        "", description="Who the flagged risk is about, when the classifier said."
+    )
     prompts: Optional[Dict[str, Any]] = Field(
         None, description="ally-be prompt overrides, keyed by prompt code."
     )

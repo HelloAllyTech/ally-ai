@@ -14,6 +14,8 @@ from app.core.helpline.prompt import (
     build_turn_prompt,
     format_conversation,
     language_name,
+    risk_instruction,
+    talker_script_language,
 )
 from app.core.helpline.schemas import SKILL_KEYS, STAGES
 from app.prompts.resolver import load_template
@@ -192,3 +194,60 @@ class TestTurnPrompt:
         assert build_turn_prompt(self.MESSAGES, language="mr", prompts=prompts) == (
             "CUSTOM mr"
         )
+
+
+class TestRiskInstruction:
+    def test_no_flag_still_asks_the_model_to_watch_for_risk(self):
+        text = risk_instruction("NONE", "")
+        assert "has not flagged" in text
+        assert "safety rule" in text
+
+    def test_a_flag_makes_the_first_suggestion_a_safety_question(self):
+        text = risk_instruction("HIGH", "SELF")
+        assert "HAS flagged" in text and "(high)" in text
+        assert "FIRST suggestion must be tagged harm" in text
+
+    def test_a_flag_about_someone_else_says_so(self):
+        assert "someone else" in risk_instruction("ELEVATED", "OTHER")
+
+    def test_unknown_levels_count_as_no_flag(self):
+        assert "has not flagged" in risk_instruction(None, None)
+        assert "has not flagged" in risk_instruction("bogus", "")
+
+    def test_the_turn_prompt_carries_it(self):
+        messages = [{"role": "talker", "content": "everyone would be better off"}]
+        flagged = build_turn_prompt(messages, risk_level="HIGH")
+        unflagged = build_turn_prompt(messages)
+        assert "HAS flagged" in flagged
+        assert "has not flagged" in unflagged
+
+
+class TestTalkerScriptLanguage:
+    def test_english_is_just_english(self):
+        assert talker_script_language("en", []) == "English"
+
+    def test_romanised_hindi_is_pinned_to_latin_letters(self):
+        messages = [{"role": "talker", "content": "meri naukri chali gayi hai"}]
+        assert "Latin letters" in talker_script_language("hi", messages)
+
+    def test_devanagari_hindi_stays_in_native_script(self):
+        messages = [{"role": "talker", "content": "मेरी नौकरी चली गई है"}]
+        assert "native script" in talker_script_language("hi", messages)
+
+    def test_only_the_talkers_script_counts(self):
+        messages = [
+            {
+                "role": "listener",
+                "content": "Namaste, main yahan hoon aur sun raha hoon",
+            },
+            {"role": "talker", "content": "मुझे नींद नहीं आती"},
+        ]
+        assert "native script" in talker_script_language("hi", messages)
+
+    def test_tamil_in_tamil_script(self):
+        messages = [{"role": "talker", "content": "எனக்கு தூக்கம் வரவில்லை"}]
+        assert talker_script_language("ta", messages) == "Tamil, in its native script"
+
+    def test_the_turn_prompt_names_the_script(self):
+        messages = [{"role": "talker", "content": "mujhe bahut akela lagta hai"}]
+        assert "romanised Hindi" in build_turn_prompt(messages, language="hi")

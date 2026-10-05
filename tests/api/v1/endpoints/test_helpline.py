@@ -255,6 +255,8 @@ class TestTurnEndpoint(_ResolvedKeyAPITest):
             "rolling_summary": "Worried about exam results.",
             "language": "ta",
             "include_nudge": True,
+            "risk_level": "NONE",
+            "risk_subject": "",
             "prompts": prompts,
         }
 
@@ -270,8 +272,33 @@ class TestTurnEndpoint(_ResolvedKeyAPITest):
             "rolling_summary": "",
             "language": "en",
             "include_nudge": False,
+            "risk_level": "NONE",
+            "risk_subject": "",
             "prompts": None,
         }
+
+    def test_the_risk_flag_is_passed_through(self, client: TestClient):
+        with patch(f"{SERVICE}.copilot_turn", new_callable=AsyncMock) as mock:
+            mock.return_value = turn_result(nudge="")
+            response = client.post(
+                TURN_URL,
+                json={
+                    "messages": TURN_PAYLOAD["messages"],
+                    "risk_level": "HIGH",
+                    "risk_subject": "OTHER",
+                },
+            )
+
+        assert response.status_code == 200
+        assert mock.call_args.kwargs["risk_level"] == "HIGH"
+        assert mock.call_args.kwargs["risk_subject"] == "OTHER"
+
+    def test_an_unknown_risk_level_is_rejected(self, client: TestClient):
+        response = client.post(
+            TURN_URL,
+            json={"messages": TURN_PAYLOAD["messages"], "risk_level": "SEVERE"},
+        )
+        assert response.status_code == 422
 
     def test_an_empty_suggestion_list_is_a_normal_200(self, client: TestClient):
         # Everything may be filtered out; the caller must not backfill it.

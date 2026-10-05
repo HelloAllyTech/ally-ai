@@ -701,7 +701,7 @@ class TestTurnCallShape:
         assert kwargs["task"] == LLMTask.HELPLINE_COPILOT_TURN.value
         assert kwargs["task"] == "helpline_copilot_turn"
         assert kwargs["schema"] is HelplineCopilotTurn
-        assert kwargs["model"] == settings.HELPLINE.TURN_MODEL == "gpt-4o-mini"
+        assert kwargs["model"] == settings.HELPLINE.TURN_MODEL == "gpt-4.1-mini"
         assert kwargs["max_tokens"] == settings.HELPLINE.TURN_MAX_TOKENS == 900
         assert kwargs["temperature"] > 0
 

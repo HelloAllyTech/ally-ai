@@ -294,6 +294,8 @@ class HelplineCopilotService:
         rolling_summary: str = "",
         language: str = "en",
         include_nudge: bool = False,
+        risk_level: str = "NONE",
+        risk_subject: str = "",
         prompts: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
@@ -322,6 +324,8 @@ class HelplineCopilotService:
             rolling_summary=rolling_summary,
             language=language,
             include_nudge=include_nudge,
+            risk_level=risk_level,
+            risk_subject=risk_subject,
             prompts=prompts,
         )
         if not prompt:

@@ -132,7 +132,10 @@ class HelplineSettings(BaseModel):
     # reasoning-tier model (gpt-5, o-series, Gemini 2.5): hidden reasoning is billed
     # against this cap and 200 will truncate to nothing — raise it with the model.
     RISK_MAX_TOKENS: int = Field(200)
-    TURN_MODEL: str = Field("gpt-4o-mini")
+    # gpt-4.1-mini, not 4o-mini: in live checks 4o-mini dropped the direct safety
+    # question the prompt requires after "everyone would be better off without me".
+    # ~3 s per turn, inside ally-be's 6 s budget.
+    TURN_MODEL: str = Field("gpt-4.1-mini")
     TURN_MAX_TOKENS: int = Field(900)
 
 
