@@ -569,15 +569,14 @@ class TestScenarioEvaluationUsageTask(BaseAPITest):
         assert mock_generate.call_args.kwargs["usage_task"] == "scenario_evaluation"
 
     @pytest.mark.parametrize("usage_task", ["nudge", "drift_judge", "anything"])
-    def test_other_values_are_rejected(
+    def test_other_values_file_as_the_default(
         self, client: TestClient, mock_summary_service, sample_chat_messages, usage_task
     ):
-        """The label is a cost-accounting key. Any other value — even a real
-        task label — would file the debrief's spend somewhere it does not
-        belong."""
+        """The label only files the cost. An unexpected value must never fail
+        the learner's debrief, so it is filed under the default label."""
         response, mock_generate = self._post(
             client, sample_chat_messages, usage_task=usage_task
         )
 
-        assert response.status_code == 422
-        mock_generate.assert_not_called()
+        assert response.status_code == 200
+        assert mock_generate.call_args.kwargs["usage_task"] == "scenario_evaluation"

@@ -104,11 +104,10 @@ class TestScenarioEvaluationUsageTask:
             == "scenario_evaluation"
         )
 
-    def test_rejects_any_other_label(self):
-        import pytest
-        from pydantic import ValidationError
-
+    def test_any_other_label_files_as_the_default(self):
         from app.schemas.summary import ScenarioEvaluationRequest
 
-        with pytest.raises(ValidationError):
-            ScenarioEvaluationRequest(chat_history=[], usage_task="nudge")
+        assert (
+            ScenarioEvaluationRequest(chat_history=[], usage_task="nudge").usage_task
+            == "scenario_evaluation"
+        )
