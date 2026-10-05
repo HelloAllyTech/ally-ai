@@ -201,7 +201,10 @@ def _is_configured(provider: str) -> bool:
 
 
 def resolve_target(
-    provider: Optional[str] = None, model: Optional[str] = None
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    *,
+    never_fallback: bool = False,
 ) -> Tuple[str, str, Optional[str]]:
     """
     Decide which (provider, model) will actually run.
@@ -221,6 +224,12 @@ def resolve_target(
     a tuple, so which model answered a question could change with an unrelated edit
     to that tuple — and the whole point of reporting `fell_back_from` is that the
     substitution is explainable afterwards.
+
+    With `never_fallback`, a requested provider with no key raises instead of
+    being substituted — the same refusal `generate_structured` applies to a
+    runtime failure. A missing key is the WORST case to substitute silently for
+    a pinned caller: it is not one failed call but every call until someone
+    notices, each one paid for on a model whose result is then discarded.
     """
     requested = canonical_provider(provider) or infer_provider_from_model(model)
     default_provider = (
@@ -231,6 +240,12 @@ def resolve_target(
 
     if _is_configured(target):
         return target, _resolve_model(target, model), None
+
+    if never_fallback:
+        raise LLMInvocationFailedException(
+            f"Provider {target} has no API key configured, and this call refuses "
+            "to run on a substitute model."
+        )
 
     ordered = (
         FALLBACK_PROVIDER,
@@ -692,10 +707,14 @@ async def generate_structured(
             validation failure rather than as "too long". Anthropic has no way
             to express it and gets UNCAPPED_ANTHROPIC_MAX_TOKENS instead.
 
-        never_fallback: Refuse to retry elsewhere when the selected provider
-            fails. For a call whose whole point is exercising ONE named model,
-            where a substitute would make the result a lie rather than a
-            degradation.
+        never_fallback: Refuse to run anywhere but the selected provider —
+            neither substituting for a missing key nor retrying elsewhere after
+            a failure; the call fails instead. For a call whose whole point is
+            exercising ONE named model, where a substitute would make the result
+            a lie rather than a degradation. The quality judges set it: their
+            rows are pinned to a judge model downstream, so a substitute's
+            judgment is not comparable and the session gets judged again on the
+            pinned model anyway — paying for it twice.
 
     Returns:
         (parsed, meta) where meta is {"provider", "model", "fell_back_from"}
@@ -709,7 +728,9 @@ async def generate_structured(
         LLMInvocationFailedException: If no provider is configured, the SDK is
             missing, or the provider returned nothing usable.
     """
-    resolved_provider, resolved_model, fell_back_from = resolve_target(provider, model)
+    resolved_provider, resolved_model, fell_back_from = resolve_target(
+        provider, model, never_fallback=never_fallback
+    )
 
     meta: Dict[str, Any] = {
         "provider": resolved_provider,

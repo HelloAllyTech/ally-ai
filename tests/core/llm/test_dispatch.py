@@ -585,12 +585,30 @@ class TestRetryAfterFailure:
                 )
 
     @pytest.mark.asyncio
-    async def test_never_fallback_refuses_the_retry(self):
-        failing = AsyncMock(side_effect=self._err(503))
+    @pytest.mark.parametrize(
+        "error",
+        [
+            *(
+                type("APIStatusError", (Exception,), {"status_code": status})(
+                    f"boom {status}"
+                )
+                for status in (401, 403, 404, 408, 429, 500, 503)
+            ),
+            type("ReadTimeout", (Exception,), {})("timed out"),
+            type("APIConnectionError", (Exception,), {})("reset"),
+        ],
+        ids=lambda e: getattr(e, "status_code", type(e).__name__),
+    )
+    async def test_never_fallback_refuses_the_retry(self, error):
+        """Every failure the retry would otherwise catch — dead key, retired
+        model, capacity, timeout — fails the call instead, and the fallback
+        provider is never called."""
+        failing = AsyncMock(side_effect=error)
+        fallback = AsyncMock()
         with (
             patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
             patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
-            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing, "openai": fallback}),
         ):
             with pytest.raises(LLMInvocationFailedException):
                 await dispatch.generate_structured(
@@ -600,6 +618,66 @@ class TestRetryAfterFailure:
                     model="gemini-2.5-pro",
                     never_fallback=True,
                 )
+        assert failing.await_count == 1
+        fallback.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_never_fallback_refuses_a_missing_key_substitute(self):
+        """`resolve_target` substitutes OpenAI when the selected provider has
+        no key at all. For a pinned caller that is every call until someone
+        notices, each on a model whose result is discarded — so it fails
+        before any provider is called."""
+        gemini = AsyncMock()
+        openai = AsyncMock()
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", None),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": gemini, "openai": openai}),
+        ):
+            with pytest.raises(LLMInvocationFailedException) as exc:
+                await dispatch.generate_structured(
+                    schema=Answer,
+                    prompt="q",
+                    provider="gemini",
+                    model="gemini-2.5-pro",
+                    never_fallback=True,
+                )
+
+        assert "gemini" in str(exc.value)
+        gemini.assert_not_awaited()
+        openai.assert_not_awaited()
+
+    def test_resolve_target_refuses_a_substitute_only_when_asked(self):
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", None),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+        ):
+            # The default is unchanged: the WhatsApp bot still degrades rather
+            # than leaving a worker without an answer.
+            assert dispatch.resolve_target("gemini", "gemini-2.5-pro")[2] == "gemini"
+            with pytest.raises(LLMInvocationFailedException):
+                dispatch.resolve_target("gemini", "gemini-2.5-pro", never_fallback=True)
+
+    @pytest.mark.asyncio
+    async def test_never_fallback_does_not_change_a_healthy_call(self):
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch, "_get_gemini_client", return_value=gemini_client()),
+        ):
+            parsed, meta = await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="gemini",
+                model="gemini-2.5-pro",
+                never_fallback=True,
+            )
+
+        assert parsed.answer == "a"
+        assert meta == {
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "fell_back_from": None,
+        }
 
     @pytest.mark.asyncio
     async def test_does_not_retry_the_provider_that_just_failed(self):

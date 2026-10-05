@@ -62,6 +62,10 @@ async def judge_retrieval(
         prompt=prompt,
         task=LLMTask.RAG_QUALITY_JUDGE.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=settings.RAG_QUALITY_JUDGE.MODEL,
         temperature=0,
         # Uncapped, like its sibling judges: the output length is a property of

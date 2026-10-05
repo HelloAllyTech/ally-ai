@@ -23,6 +23,8 @@ None of that says whether the filler was any **good**. And the gap is not neutra
 7. Temperature 0, pinned model, structured output (`response_schema`), token usage emitted (`LLMTask.FILLER_JUDGE`) — attributed to the session when the caller sends the optional `scenario_session_id` (§6).
 8. `judge_version = (judge_model, judge_prompt_version)` echoed in every response and stamped on every stored row.
 
+**Pinned means no substitute.** The judge runs with dispatch's `never_fallback`: when Gemini cannot run — no key, a dead credential, a retired model, capacity, a timeout — the call fails instead of running on OpenAI. A substitute would be worse than a wasted call here. ally-be picks sessions as unjudged under the configured model, so a session the fallback judged gets judged again on Gemini. ally-be also reads filler rates without a judge-model filter, so both judgments would count.
+
 ## 3. Enums (frozen for v1)
 
 ### 3.1 Dimensions

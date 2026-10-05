@@ -57,6 +57,10 @@ async def judge_feedback(
         prompt=prompt,
         task=LLMTask.FEEDBACK_GROUNDEDNESS_JUDGE.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=settings.FEEDBACK_GROUNDEDNESS_JUDGE.MODEL,
         temperature=0,
         # Uncapped, as this call always was: the output length is a

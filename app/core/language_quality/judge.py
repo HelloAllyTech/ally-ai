@@ -8,12 +8,14 @@ is never asked for layers, rates, or session verdicts.
 
 Gemini stays the selected model; this module no longer holds a Gemini client.
 The call goes through ``app.core.llm.dispatch.generate_structured``, which picks
-the SDK from the resolved model and falls back to OpenAI when the selected
-provider cannot run — safe for a judge because ``judgeModel`` is stored per row
-and is part of the row's uniqueness key, so a judgment from a different model
-lands as its own series rather than contaminating the pinned one. Dispatch is
-imported inside the function, so this module and ``schemas`` still import with
-no provider SDK installed and no key configured.
+the SDK from the resolved model, with ``never_fallback``: when Gemini cannot run
+the judgment fails rather than running on another provider. A substitute's rows
+would land as their own series (``judgeModel`` is part of the row's uniqueness
+key), but language scores are only comparable within one judge model, and
+ally-be selects sessions as unjudged under the pinned model — so the session
+would be judged again on Gemini and the substitute's call paid for nothing.
+Dispatch is imported inside the function, so this module and ``schemas`` still
+import with no provider SDK installed and no key configured.
 """
 
 from __future__ import annotations
@@ -170,6 +172,10 @@ async def judge_session(
         prompt=prompt,
         task=LLMTask.LANGUAGE_JUDGE.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=settings.LANGUAGE_JUDGE.MODEL,
         temperature=0,
         # Uncapped, as this call always was: the output length is a

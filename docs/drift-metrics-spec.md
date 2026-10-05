@@ -306,7 +306,7 @@ Recovery-latency curves, hazard/survival plots, guardrail precision/recall. They
 
 ## Config & defaults (calibrate against the seed set, then freeze)
 
-Judge: temperature 0, **pinned model version**, structured JSON output, 2–3 per-language few-shots including garbled-STT and in-character-distress negatives plus turn-by-turn discrimination within one transcript, version-controlled prompts. Tunables: K = 2 consecutive, coherence drift cutoff = `degrading` (i.e. `degrading` or worse counts), attribution look-back = 3 turns (the span the judge considers when deciding `stt_cascade` vs `llm_direct`), whole-transcript length cap ≈ 30–40 turns before chunking. All are starting hypotheses.
+Judge: temperature 0, **pinned model version** (no fallback to another provider: a call Gemini cannot serve fails and is retried later on Gemini, rather than producing a judgment the pinned series would ignore), structured JSON output, 2–3 per-language few-shots including garbled-STT and in-character-distress negatives plus turn-by-turn discrimination within one transcript, version-controlled prompts. Tunables: K = 2 consecutive, coherence drift cutoff = `degrading` (i.e. `degrading` or worse counts), attribution look-back = 3 turns (the span the judge considers when deciding `stt_cascade` vs `llm_direct`), whole-transcript length cap ≈ 30–40 turns before chunking. All are starting hypotheses.
 
 **Judge model: Gemini for now (decided), benchmark and expand later.** Start with a pinned Gemini model as the judge — its strong Indic coverage fits Tamil/Telugu/Bengali, which is where the hard calls are. This is the initial choice, not a permanent lock-in. Two conditions still hold:
 

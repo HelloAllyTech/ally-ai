@@ -75,6 +75,10 @@ async def judge_recall(
         prompt=prompt,
         task=LLMTask.RECALL_QUALITY_JUDGE.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=model_setting,
         temperature=0,
         max_tokens=None,
