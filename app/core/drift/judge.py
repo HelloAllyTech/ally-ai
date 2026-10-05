@@ -7,10 +7,11 @@ The session rollup (drifted / first-drift turn / attribution mix) is derived in
 Gemini is the selected model (``DRIFT_JUDGE__MODEL``) and stays so. What changed
 is that this module no longer holds a Gemini client: the call goes through
 ``app.core.llm.dispatch.generate_structured``, which picks the SDK from the
-resolved model and falls back to OpenAI when the selected provider cannot run.
-The dispatch module is imported inside the functions rather than at module
-scope, so this module and ``schemas`` can still be imported without any
-provider SDK installed or key configured.
+resolved model. It is called with ``never_fallback`` — when Gemini cannot run,
+the judgment fails rather than running on another provider (see
+``judge_session``). The dispatch module is imported inside the functions rather
+than at module scope, so this module and ``schemas`` can still be imported
+without any provider SDK installed or key configured.
 """
 
 from __future__ import annotations
@@ -117,17 +118,17 @@ async def judge_session(
     would silently pollute a pinned series instead of forming its own.
 
     Runs through ``generate_structured`` rather than holding its own Gemini
-    client. Two things come with that, neither of which changes what a judgment
-    says:
+    client, which stops the call blocking the event loop: it was a synchronous
+    SDK call inside an ``async def`` endpoint, so one judge held the whole worker
+    for the duration.
 
-    * An OpenAI fallback if Gemini is unreachable. Safe here specifically
-      because `judgeModel` is stored on every row and is part of the row's
-      uniqueness key, so a judgment produced by a different model lands as its
-      own series instead of contaminating the pinned one — the same mechanism a
-      deliberate re-judge already relies on.
-    * The call stops blocking the event loop. It was a synchronous SDK call
-      inside an ``async def`` endpoint, so one judge held the whole worker for
-      the duration.
+    It does NOT take dispatch's OpenAI fallback (``never_fallback``). A
+    substitute's rows would not contaminate the pinned series — `judgeModel` is
+    part of their uniqueness key — but they would not count toward it either:
+    ally-be selects sessions as unjudged under the pinned (model, version), so a
+    session judged by the fallback is judged again on Gemini, and the first
+    judgment was paid for and then ignored. Failing lets the caller retry the
+    same session on the pinned model instead.
 
     Gemini remains the SELECTED model (`DRIFT_JUDGE__MODEL`), and `max_tokens`
     stays uncapped as it was: this output is one element per turn, so a cap
@@ -147,6 +148,10 @@ async def judge_session(
         prompt=prompt,
         task=LLMTask.DRIFT_JUDGE.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=settings.DRIFT_JUDGE.MODEL,
         temperature=0,
         max_tokens=None,
@@ -209,6 +214,10 @@ async def judge_session_labels_only(
         prompt=prompt,
         task=LLMTask.DRIFT_JUDGE_LABELS.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=settings.DRIFT_JUDGE.MODEL,
         temperature=0,
         max_tokens=None,

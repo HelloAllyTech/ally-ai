@@ -17,6 +17,8 @@
 7. Temperature 0, pinned model, structured output (`response_schema`), token usage emitted (`LLMTask.LANGUAGE_JUDGE`).
 8. `judge_version = (judge_model, judge_prompt_version)` echoed in every response and stamped on every stored row.
 
+**Pinned means no substitute.** The judge runs with dispatch's `never_fallback`: when Gemini cannot run — no key, a dead credential, a retired model, capacity, a timeout — the call fails instead of running on OpenAI. Language scores are only comparable within one `judge_version`, and ally-be selects sessions as unjudged under the pinned model, so a substitute's judgment would be paid for, ignored by every pinned view, and redone on Gemini.
+
 ---
 
 ## 2. Enums (the frozen typology)

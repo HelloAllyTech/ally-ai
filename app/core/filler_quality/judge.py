@@ -7,12 +7,14 @@ rule. The LLM is never asked for repeat facts, rates, or a session verdict.
 
 Gemini stays the selected model; this module no longer holds a Gemini client.
 The call goes through ``app.core.llm.dispatch.generate_structured``, which picks
-the SDK from the resolved model and falls back to OpenAI when the selected
-provider cannot run — safe for a judge because ``judgeModel`` is stored per row
-and is part of the row's uniqueness key, so a judgment from a different model
-lands as its own series rather than contaminating the pinned one. Dispatch is
-imported inside the function, so this module and ``schemas`` still import with
-no provider SDK installed and no key configured.
+the SDK from the resolved model, with ``never_fallback``: when Gemini cannot run
+the judgment fails rather than running on another provider. For this judge a
+substitute is worse than a wasted call: ally-be picks sessions as unjudged under
+the configured model (which it reads from this endpoint), so a fallback-judged
+session is judged again — and its filler rates are read without a judge-model
+filter, so both rows would count. Dispatch is imported inside the function, so
+this module and ``schemas`` still import with no provider SDK installed and no
+key configured.
 """
 
 from __future__ import annotations
@@ -213,6 +215,10 @@ async def judge_session(
         prompt=prompt,
         task=LLMTask.FILLER_JUDGE.value,
         provider=PROVIDER_GEMINI,
+        # Pinned: no substitute model, for a missing key or a failed call.
+        # ally-be selects work by the pinned judge model, so a substitute's
+        # judgment would be paid for and then judged again on Gemini.
+        never_fallback=True,
         model=settings.FILLER_JUDGE.MODEL,
         temperature=0,
         # Uncapped, as this call always was: the output length is a
