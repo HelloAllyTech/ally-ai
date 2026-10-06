@@ -84,7 +84,7 @@ def talker_script_language(
     name = language_name(language)
     code = (language or "en").strip().lower().split("-")[0]
     if code == "en":
-        return name
+        return _english_chat_language(messages)
     latin = native = 0
     for turn in list(messages)[-6:]:
         if turn.get("role") != "talker":
@@ -102,6 +102,51 @@ def talker_script_language(
             "talker writes it, not in the native script"
         )
     return f"{name}, in its native script"
+
+
+# Common romanised-Hindi words. A talker who picked English on the consent screen often
+# types Hinglish anyway ("haan, bas thak gayi hoon"); live testing on 2026-10-06 got an
+# English-only draft back for exactly that. Two distinct hits in the talker's recent
+# messages is the signal — one could be a name or a loan word.
+_HINGLISH_MARKERS = frozenset(
+    "hai hain hoon hu nahi nahin mein mujhe mujhko kya kyun kyon bahut bohot "
+    "haan nahi bas sab kuch koi raha rahi rahe tha thi kar karna kiya gaya gayi "
+    "aap tum main mera meri mere apna apni yaar ghar pe par lekin aur bhi".split()
+)
+_SCRIPT_RANGES = (
+    ("\u0900", "\u097f", "Hindi or Marathi, in Devanagari"),
+    ("\u0b80", "\u0bff", "Tamil, in Tamil script"),
+    ("\u0c80", "\u0cff", "Kannada, in Kannada script"),
+)
+
+
+def _english_chat_language(messages: Sequence[Dict[str, str]]) -> str:
+    """For an English chat: English, unless the talker clearly writes otherwise."""
+    script_counts = [0] * len(_SCRIPT_RANGES)
+    markers: set[str] = set()
+    for turn in list(messages)[-6:]:
+        if turn.get("role") != "talker":
+            continue
+        content = turn.get("content") or ""
+        for ch in content:
+            for index, (low, high, _) in enumerate(_SCRIPT_RANGES):
+                if low <= ch <= high:
+                    script_counts[index] += 1
+        for word in content.lower().replace(",", " ").replace(".", " ").split():
+            if word.strip("!?'\"") in _HINGLISH_MARKERS:
+                markers.add(word.strip("!?'\""))
+    best = max(range(len(script_counts)), key=lambda i: script_counts[i])
+    if script_counts[best] >= 4:
+        return (
+            f"{_SCRIPT_RANGES[best][2]} — the same language and script the talker is "
+            "writing in (the chat was opened in English)"
+        )
+    if len(markers) >= 2:
+        return (
+            "Hinglish — romanised Hindi mixed with English, in Latin letters, the way "
+            "the talker is writing (the chat was opened in English)"
+        )
+    return "English"
 
 
 def risk_instruction(risk_level: Optional[str], risk_subject: Optional[str]) -> str:

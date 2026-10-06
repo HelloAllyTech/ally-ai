@@ -206,3 +206,63 @@ def test_reason_codes_are_stable_strings():
         "diagnosis",
     )
     assert (safety.MEDICATION, safety.EMPATHY_CLAIM) == ("medication", "empathy_claim")
+
+
+class TestSafetyQuestionsAboutMeans:
+    """A harm-tagged question may name and ask about the talker's own means.
+
+    Regression for 2026-10-06: the filter dropped "You mentioned taking sleeping pills
+    last night. Have you thought about how or when…?" — the one draft that asked about
+    the plan — because "taking … pills" read as medication advice.
+    """
+
+    MEANS_QUESTION = (
+        "You mentioned taking sleeping pills last night. Have you thought about how "
+        "or when you might end your life?"
+    )
+
+    def test_a_harm_question_about_pills_is_kept(self):
+        assert unsafe_reason(self.MEANS_QUESTION, "harm") is None
+
+    def test_the_same_text_under_another_skill_is_still_dropped(self):
+        assert unsafe_reason(self.MEANS_QUESTION, "feelings") == MEDICATION
+        assert unsafe_reason(self.MEANS_QUESTION) == MEDICATION
+
+    def test_a_harm_question_in_hinglish_naming_sleeping_pills_is_kept(self):
+        text = "Aapne neend ki goliyan ikatthi ki hain. Kya woh abhi aapke paas hain?"
+        assert unsafe_reason(text, "harm") is None
+        assert unsafe_reason(text, "empathy") == MEDICATION
+
+    def test_asking_to_put_the_means_away_is_kept(self):
+        text = "Could you get rid of the pills for tonight, or give them to someone?"
+        assert unsafe_reason(text, "harm") is None
+
+    def test_a_dosage_is_dropped_even_in_a_harm_question(self):
+        text = "How many of the 50 mg tablets do you have with you?"
+        assert unsafe_reason(text, "harm") == MEDICATION
+
+    def test_a_named_drug_is_dropped_even_in_a_harm_question(self):
+        text = "Is it sertraline that you have saved up?"
+        assert unsafe_reason(text, "harm") == MEDICATION
+
+    def test_recommending_medication_is_dropped_even_in_a_harm_question(self):
+        text = "You should take your medicine as prescribed, shouldn't you?"
+        assert unsafe_reason(text, "harm") == MEDICATION
+
+    def test_a_harm_statement_without_a_question_gets_the_full_set(self):
+        text = "You mentioned taking sleeping pills last night."
+        assert unsafe_reason(text, "harm") == MEDICATION
+
+    def test_other_guards_still_apply_to_harm_questions(self):
+        text = "I won't tell anyone. Are you thinking of taking the pills?"
+        assert unsafe_reason(text, "harm") == CONFIDENTIALITY
+
+    def test_filter_suggestions_uses_the_skill_key(self):
+        kept, dropped = filter_suggestions(
+            [
+                {"text": self.MEANS_QUESTION, "skill_key": "harm"},
+                {"text": self.MEANS_QUESTION, "skill_key": "feelings"},
+            ]
+        )
+        assert [s["skill_key"] for s in kept] == ["harm"]
+        assert dropped == {MEDICATION: 1}

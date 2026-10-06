@@ -251,3 +251,34 @@ class TestTalkerScriptLanguage:
     def test_the_turn_prompt_names_the_script(self):
         messages = [{"role": "talker", "content": "mujhe bahut akela lagta hai"}]
         assert "romanised Hindi" in build_turn_prompt(messages, language="hi")
+
+
+class TestEnglishChatLanguage:
+    def test_plain_english_stays_english(self):
+        messages = [{"role": "talker", "content": "I feel so tired of everything"}]
+        assert talker_script_language("en", messages) == "English"
+
+    def test_hinglish_in_an_english_chat_is_mirrored(self):
+        messages = [
+            {"role": "talker", "content": "haan, sach mein. bas thak gayi hoon sab se"}
+        ]
+        assert "Hinglish" in talker_script_language("en", messages)
+
+    def test_one_hindi_looking_word_is_not_enough(self):
+        messages = [{"role": "talker", "content": "my exam is at the main campus"}]
+        assert talker_script_language("en", messages) == "English"
+
+    def test_devanagari_in_an_english_chat_is_mirrored(self):
+        messages = [{"role": "talker", "content": "मुझे नींद नहीं आती"}]
+        assert "Devanagari" in talker_script_language("en", messages)
+
+    def test_tamil_in_an_english_chat_is_mirrored(self):
+        messages = [{"role": "talker", "content": "எனக்கு தூக்கம் வரவில்லை"}]
+        assert "Tamil" in talker_script_language("en", messages)
+
+    def test_only_the_talker_counts(self):
+        messages = [
+            {"role": "listener", "content": "aap kaisa mehsoos kar rahe hain?"},
+            {"role": "talker", "content": "I am okay I guess"},
+        ]
+        assert talker_script_language("en", messages) == "English"

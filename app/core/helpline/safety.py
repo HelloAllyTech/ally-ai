@@ -190,7 +190,7 @@ _PSYCH_DRUGS = (
     r"zolpidem|ambien|lithium|olanzapine|quetiapine|risperidone|aripiprazole|"
     r"haloperidol|clozapine|valproate|lamotrigine|propranolol|gabapentin|"
     r"tramadol|codeine|morphine|benzodiazepines?|benzos?|ssris?|antidepressants?|"
-    r"antipsychotics?|sedatives?|tranquili[sz]ers?|sleeping pills?|sleeping tablets?|"
+    r"antipsychotics?|sedatives?|tranquili[sz]ers?|"
     r"opioids?|mood stabili[sz]ers?|melatonin"
 )
 
@@ -199,34 +199,59 @@ _PSYCH_DRUGS = (
 # not dropped on its own — only recommending one is.
 _OTC_DRUGS = r"paracetamol|acetaminophen|ibuprofen|aspirin|painkillers?"
 
-_MEDICATION_ALWAYS_PATTERNS = _compile(
+_DOSE_AND_DRUG_PATTERNS = _compile(
     [
         r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|µg|ug|ml|milligrams?|micrograms?|millilitres?|"
         r"milliliters?)\b",
         r"\b(?:" + _PSYCH_DRUGS + r")\b",
         r"\b(?:dose|doses|dosage|dosages|prescription|prescribed|prescribe)\b",
-        # Devanagari: milligram, antidepressant, sleeping pills
+        # Devanagari: milligram, antidepressant
         r"\d+\s*(?:एमजी|मिलीग्राम)",
         r"एंटी\s*डिप्रेस\S*",
+    ]
+)
+
+# "Sleeping pills" by name. Dropped in an ordinary suggestion, but NOT in a direct
+# safety question: a talker who says they have saved up sleeping pills must be asked
+# about them, and the question has to be able to name them.
+_SLEEPING_PILL_PATTERNS = _compile(
+    [
+        r"\bsleeping (?:pills?|tablets?)\b",
         r"नींद\s*की\s*(?:गोली|गोलियां|दवा|दवाई)",
         r"\bnee?nd\s*(?:ki|ke)\s*(?:goli|dawai|dawa|tablet)\w*",
     ]
 )
 
+_MEDICATION_ALWAYS_PATTERNS = (*_DOSE_AND_DRUG_PATTERNS, *_SLEEPING_PILL_PATTERNS)
+
 # Dropped only as ADVICE: the generic nouns (medicine, pills, tablets, dawai) — or an
 # over-the-counter drug — with a verb of taking / starting / stopping, or an instruction
 # to get some.
-_MEDICATION_ADVICE_PATTERNS = _compile(
+_MEDICATION_NOUNS = (
+    r"\b(?:medication|medications|medicine|medicines|meds|pills?|tablets?|"
+    r"capsules?|drugs?|" + _OTC_DRUGS + r")\b"
+)
+
+# Recommending medication. Dropped everywhere, safety questions included.
+_MEDICATION_RECOMMENDATION_PATTERNS = _compile(
     [
         r"\b(?:you (?:should|could|can|might want to|may want to|ought to|need to|"
         r"must|have to|'d better|had better)|try|consider|start|stop|skip|increase|"
-        r"decrease|double|get|ask (?:your|a) (?:doctor|gp|psychiatrist)(?: for)?|"
-        r"take|taking|keep taking|continue)\b[^.?!]{0,40}?"
-        r"\b(?:medication|medications|medicine|medicines|meds|pills?|tablets?|"
-        r"capsules?|drugs?|" + _OTC_DRUGS + r")\b",
+        r"decrease|double|ask (?:your|a) (?:doctor|gp|psychiatrist)(?: for)?)\b"
+        r"[^.?!]{0,40}?" + _MEDICATION_NOUNS,
         r"\b(?:medication|medications|medicine|medicines|meds|pills?|tablets?)\b"
         r"[^.?!]{0,30}?\b(?:would help|will help|might help|can help|could help|"
         r"may help|works? best|is the answer)\b",
+    ]
+)
+
+# Taking, getting or continuing medication. Advice in an ordinary suggestion — but in a
+# direct safety question the same words ask about the talker's means ("Are you thinking
+# of taking them tonight?"), which is exactly what must survive.
+_MEDICATION_ADVICE_PATTERNS = _compile(
+    [
+        r"\b(?:get|take|taking|keep taking|continue)\b[^.?!]{0,40}?"
+        + _MEDICATION_NOUNS,
         # Devanagari: "dawai lo / leni chahiye / goli kha lo / dawai shuru kijiye"
         r"(?:दवा|दवाई|दवाइयां|गोली|गोलियां|टैबलेट|औषध|गोळी|गोळ्या)\S*\s+"
         r"(?:\S+\s+){0,2}?(?:लो|लें|ले\s+लो|लीजिए|लीजिये|लेनी|लेना|लेते|खा\s+लो|खाओ|"
@@ -264,17 +289,49 @@ _EMPATHY_CLAIM_PATTERNS = _compile(
 _CATEGORY_PATTERNS: Sequence[Tuple[str, Sequence[re.Pattern[str]]]] = (
     (CONFIDENTIALITY, _CONFIDENTIALITY_PATTERNS),
     (DIAGNOSIS, _DIAGNOSIS_PATTERNS),
-    (MEDICATION, (*_MEDICATION_ALWAYS_PATTERNS, *_MEDICATION_ADVICE_PATTERNS)),
+    (
+        MEDICATION,
+        (
+            *_MEDICATION_ALWAYS_PATTERNS,
+            *_MEDICATION_RECOMMENDATION_PATTERNS,
+            *_MEDICATION_ADVICE_PATTERNS,
+        ),
+    ),
+    (EMPATHY_CLAIM, _EMPATHY_CLAIM_PATTERNS),
+)
+
+# For a direct safety question about means. Live testing (2026-10-06) caught the full
+# set dropping the copilot's best draft — "You mentioned sleeping pills. Have you
+# thought about how or when…?" — because "taking … pills" read as advice. A question
+# tagged `harm` keeps every other guard: no dosage or drug name, no recommending
+# medication, no secrecy promise, no diagnosis.
+_SAFETY_QUESTION_PATTERNS: Sequence[Tuple[str, Sequence[re.Pattern[str]]]] = (
+    (CONFIDENTIALITY, _CONFIDENTIALITY_PATTERNS),
+    (DIAGNOSIS, _DIAGNOSIS_PATTERNS),
+    (MEDICATION, (*_DOSE_AND_DRUG_PATTERNS, *_MEDICATION_RECOMMENDATION_PATTERNS)),
     (EMPATHY_CLAIM, _EMPATHY_CLAIM_PATTERNS),
 )
 
 
-def unsafe_reason(text: str) -> Optional[str]:
-    """The reason code `text` must be dropped for as a suggestion, else None."""
+def _is_safety_question(text: str, skill_key: Optional[str]) -> bool:
+    return skill_key == "harm" and "?" in (text or "")
+
+
+def unsafe_reason(text: str, skill_key: Optional[str] = None) -> Optional[str]:
+    """The reason code `text` must be dropped for as a suggestion, else None.
+
+    A `harm`-tagged question is checked against the safety-question set, which lets it
+    name and ask about the talker's own means; everything else gets the full set.
+    """
     normalised = _normalise(text)
     if not normalised:
         return None
-    for reason, patterns in _CATEGORY_PATTERNS:
+    categories = (
+        _SAFETY_QUESTION_PATTERNS
+        if _is_safety_question(text, skill_key)
+        else _CATEGORY_PATTERNS
+    )
+    for reason, patterns in categories:
         if any(p.search(normalised) for p in patterns):
             return reason
     return None
@@ -302,7 +359,7 @@ def filter_suggestions(
     kept: List[Dict[str, str]] = []
     dropped: Dict[str, int] = {}
     for suggestion in suggestions:
-        reason = unsafe_reason(suggestion.get("text", ""))
+        reason = unsafe_reason(suggestion.get("text", ""), suggestion.get("skill_key"))
         if reason is None:
             kept.append(suggestion)
         else:
