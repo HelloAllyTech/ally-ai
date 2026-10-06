@@ -60,6 +60,9 @@ something Ally-specific.
 
 - `app/core/` — service logic: `conversations/`, `summaries/`, `text_generations/`,
   `reference_documents/`, `transcriptions/`, `queue/`, `vector_db/`.
+- `app/core/helpline/` — text-helpline copilot (risk classifier + listener suggestions,
+  served at `/helpline/risk` and `/helpline/turn`); `safety.py` filters every generated
+  suggestion. Staff-only output: nothing here is ever shown to a talker.
 - `app/api/v1/endpoints/` — HTTP surface. Entry: `app/main.py`.
 - `app/prompts/` — file-based, loaded dynamically.
 - `app/migrations/` — Weaviate schema migrations, `NNN-description.py`.

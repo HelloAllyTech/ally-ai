@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     drift,
     feedback_groundedness,
     filler_quality,
+    helpline,
     knowledge_agent,
     knowledge_chunk,
     language_quality,
@@ -47,6 +48,7 @@ api_router.include_router(
     prefix="/knowledge-agent",
     tags=["knowledge_agent"],
 )
+api_router.include_router(helpline.router, prefix="/helpline", tags=["helpline"])
 api_router.include_router(drift.router, prefix="/drift", tags=["drift"])
 api_router.include_router(
     feedback_groundedness.router,

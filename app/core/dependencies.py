@@ -11,6 +11,7 @@ from app.core.conversations.conversation_service import ConversationService
 from app.core.embeddings.base import BaseEmbeddingService
 from app.core.embeddings.openai_embedding_client import OpenAIEmbeddingClient
 from app.core.embeddings.openai_embedding_service import OpenAIEmbeddingService
+from app.core.helpline.service import HelplineCopilotService
 from app.core.knowledge_agent.agent import KnowledgeAgentService
 from app.core.knowledge_base.corpus import KbCorpus, collection_for
 from app.core.knowledge_base.knowledge_chunk_service import KnowledgeChunkService
@@ -257,6 +258,23 @@ async def get_knowledge_agent_service() -> KnowledgeAgentService:
     do with a passage. Taking a corpus here would imply generality that does not exist.
     """
     return _get_knowledge_agent_service_cached()
+
+
+@lru_cache(maxsize=1)
+def _get_helpline_copilot_service_cached() -> HelplineCopilotService:
+    return HelplineCopilotService()
+
+
+# Dependency for the text-helpline copilot (risk classifier + listener suggestions)
+async def get_helpline_copilot_service() -> HelplineCopilotService:
+    """
+    Returns an instance of HelplineCopilotService.
+
+    Stateless and holds no connection — it only calls the LLM dispatcher — so there is
+    nothing to inject. Still a dependency, rather than a module-level instance, so a
+    test can swap it with `app.dependency_overrides` or patch the class.
+    """
+    return _get_helpline_copilot_service_cached()
 
 
 @lru_cache(maxsize=1)

@@ -1,0 +1,4 @@
+{
+  "name": "Helpline Risk Classifier",
+  "description": "Reads each message a person sends on the text helpline and decides whether it signals risk of suicide, self-harm or serious harm (to them, from others, or to someone they describe), so the listener and supervisors are alerted. Written for a person in distress, not a worker; biased towards false positives on purpose."
+}
