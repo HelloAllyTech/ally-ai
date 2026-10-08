@@ -11,6 +11,7 @@ from app.core.queue.transcription_request_handler import (
     PipelineStageError,
     TranscriptionRequestHandler,
 )
+from app.core.transcriptions.utils.exceptions import TranscriptionFailedException
 
 
 class TestTranscriptionHandler:
@@ -398,3 +399,44 @@ class TestTranscriptionHandler:
         kwargs = mock_ally_core_service.process_transcript.await_args.kwargs
         assert kwargs["chat_id"] == 777
         assert kwargs["error"] == "bad news"
+
+    @pytest.mark.asyncio
+    async def test_process_transcription_request_all_providers_fail_creates_placeholder(
+        self, handler
+    ):
+        # When all STT providers fail (bad audio), it must NOT be an error.
+        # Instead, it creates a placeholder transcript and proceeds, so the chat
+        # is marked SUCCESS with a visible "[Transcription failed]" message
+        # instead of failing/disappearing.
+        message_data = {
+            "message_type": MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST,
+            "audio_url": "http://example.com/bad.wav",
+            "chat_id": 456,
+            "sample_rate": 8000,
+            "timestamp": 1,
+        }
+        # This is the specific exception string from FallbackTranscriptionService
+        # when all its providers are exhausted.
+        fail_exception = TranscriptionFailedException(
+            "All 3 transcription provider(s) failed for chat_id 456"
+        )
+        handler.transcription_service.transcribe_audio_from_url = AsyncMock(
+            side_effect=fail_exception
+        )
+
+        handler._process_transcription_result = AsyncMock(return_value=True)
+        handler._send_error_response = AsyncMock()
+
+        # Act
+        handled = await handler.process_transcription_request(message_data)
+
+        # Assert: the message is handled (not left for redrive).
+        assert handled is True
+        # Assert: it does NOT send an error.
+        handler._send_error_response.assert_not_awaited()
+        # Assert: it DOES proceed to the next step with a placeholder.
+        handler._process_transcription_result.assert_awaited_once()
+        call = handler._process_transcription_result.await_args
+        result_message = call.args[0]
+        assert result_message.chat_id == 456
+        assert result_message.segments_text == "[Transcription failed]"

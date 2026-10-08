@@ -21,6 +21,9 @@ from app.core.transcriptions.services import (
 )
 from app.core.transcriptions.utils.logger import get_logger
 from app.core.transcriptions.utils.phi_events import PHIEvents
+from app.core.transcriptions.utils.exceptions import (
+    TranscriptionFailedException,
+)
 from app.core.transcriptions.utils.phi_logger import PHILogEvent, phi_logger
 from app.schemas.common import ChatMessage
 
@@ -211,6 +214,23 @@ class TranscriptionRequestHandler:
                 )
                 # Snapshot synchronously (no await) — safe against concurrent msgs.
                 stt_provider, stt_attempts = self._snapshot_stt_signals()
+            except TranscriptionFailedException as e:
+                # When all STT providers fail, it is a deterministic failure on
+                # this audio, not a transient error. Instead of failing the chat,
+                # produce a placeholder transcript so the user sees an explicit
+                # "[Transcription failed]" message and the recording is preserved
+                # for review (instead of being deleted on a SUCCESS-but-empty).
+                stt_provider, stt_attempts = self._snapshot_stt_signals()
+                if "All " in str(e) and " transcription provider(s) failed" in str(e):
+                    logger.warning(
+                        f"All transcription providers failed for chat_id={chat_id} "
+                        f"correlation_id={correlation_id}; proceeding with "
+                        f"placeholder transcript: {e}"
+                    )
+                    segments_text = "[Transcription failed]"
+                else:
+                    # Any other transcription failure is still an error.
+                    raise PipelineStageError(PipelineStage.TRANSCRIBE, str(e)) from e
             except Exception as e:
                 # Capture the failed-provider trail before unwinding.
                 stt_provider, stt_attempts = self._snapshot_stt_signals()
