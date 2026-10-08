@@ -200,21 +200,52 @@ class TranscriptionRequestHandler:
                 f"Transcribing audio for chat_id: {chat_id} "
                 f"correlation_id={correlation_id}"
             )
-            try:
-                _, segments_text = (
-                    await self.transcription_service.transcribe_audio_from_url(
-                        audio_url=request.audio_url,
-                        chat_id=request.chat_id,
-                        sample_rate=request.sample_rate,
-                        is_linear16_encoded=bool(request.is_linear16_encoded),
+
+            max_attempts = 3
+            attempt_delay = 2  # seconds
+            last_exception = None
+
+            for attempt in range(max_attempts):
+                try:
+                    _, segments_text = (
+                        await self.transcription_service.transcribe_audio_from_url(
+                            audio_url=request.audio_url,
+                            chat_id=request.chat_id,
+                            sample_rate=request.sample_rate,
+                            is_linear16_encoded=bool(request.is_linear16_encoded),
+                        )
                     )
-                )
-                # Snapshot synchronously (no await) — safe against concurrent msgs.
-                stt_provider, stt_attempts = self._snapshot_stt_signals()
-            except Exception as e:
-                # Capture the failed-provider trail before unwinding.
-                stt_provider, stt_attempts = self._snapshot_stt_signals()
-                raise PipelineStageError(PipelineStage.TRANSCRIBE, str(e)) from e
+                    # Snapshot synchronously (no await) — safe against concurrent msgs.
+                    stt_provider, stt_attempts = self._snapshot_stt_signals()
+                    last_exception = None
+                    break  # Success
+                except Exception as e:
+                    last_exception = e
+                    # Capture the failed-provider trail before unwinding.
+                    stt_provider, stt_attempts = self._snapshot_stt_signals()
+                    if attempt < max_attempts - 1:
+                        logger.warning(
+                            "Transcription attempt %s failed for chat_id %s. "
+                            "Retrying in %ss... correlation_id=%s",
+                            attempt + 1,
+                            chat_id,
+                            attempt_delay,
+                            correlation_id,
+                        )
+                        await asyncio.sleep(attempt_delay)
+                    else:
+                        logger.error(
+                            "All %s transcription attempts failed for "
+                            "chat_id %s. correlation_id=%s",
+                            max_attempts,
+                            chat_id,
+                            correlation_id,
+                        )
+
+            if last_exception:
+                raise PipelineStageError(
+                    PipelineStage.TRANSCRIBE, str(last_exception)
+                ) from last_exception
 
             # An empty transcript is a failure, not a success. STT can return
             # nothing without raising (silent/garbled audio, wrong sample rate, a

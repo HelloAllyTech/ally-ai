@@ -398,3 +398,33 @@ class TestTranscriptionHandler:
         kwargs = mock_ally_core_service.process_transcript.await_args.kwargs
         assert kwargs["chat_id"] == 777
         assert kwargs["error"] == "bad news"
+
+    @pytest.mark.asyncio
+    async def test_process_transcription_request_retries_on_failure(self, handler):
+        # Arrange
+        message_data = {
+            "message_type": MessageType.TRANSCRIBE_AND_SUMMARIZE_REQUEST,
+            "audio_url": "http://example.com",
+            "chat_id": 123,
+            "sample_rate": 8000,
+            "timestamp": 1,
+        }
+        handler.transcription_service.transcribe_audio_from_url = AsyncMock(
+            side_effect=[
+                Exception("transient error"),
+                Exception("transient error"),
+                (None, "transcribed text"),
+            ]
+        )
+        handler._process_transcription_result = AsyncMock(return_value=True)
+        handler._send_error_response = AsyncMock()
+
+        # Act
+        await handler.process_transcription_request(message_data)
+
+        # Assert
+        assert (
+            handler.transcription_service.transcribe_audio_from_url.await_count == 3
+        )
+        handler._process_transcription_result.assert_awaited_once()
+        handler._send_error_response.assert_not_awaited()
