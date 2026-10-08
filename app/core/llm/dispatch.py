@@ -189,6 +189,24 @@ def infer_provider_from_model(model: Optional[str]) -> Optional[str]:
     return None
 
 
+def is_gemini_3_or_later(model: Optional[str]) -> bool:
+    """
+    Gemini 3 onwards: Google deprecated custom sampling (temperature, top_p, top_k)
+    and thinking_budget, and models after Gemini 3 reject them with a 400. The
+    ``-latest`` aliases count because they move to the newest model without the id
+    changing. Mirrors ally-be's ``isGemini3OrLater``.
+    """
+    if not model:
+        return False
+    name = model.strip().lower().removeprefix("models/")
+    if not name.startswith("gemini-"):
+        return False
+    if name.endswith("-latest"):
+        return True
+    match = re.match(r"^gemini-(\d+)", name)
+    return bool(match) and int(match.group(1)) >= 3
+
+
 def _is_configured(provider: str) -> bool:
     """Whether a provider has a usable API key."""
     if provider == PROVIDER_ANTHROPIC:
@@ -482,10 +500,13 @@ async def _generate_gemini(
     client = _get_gemini_client()
 
     config_kwargs: Dict[str, Any] = {
-        "temperature": temperature,
         "response_mime_type": "application/json",
         "response_schema": schema,
     }
+    # Gemini 3+ deprecated custom sampling; a caller's temperature (even the 0 a
+    # judge asks for) is dropped rather than sent to a model that ignores or 400s it.
+    if not is_gemini_3_or_later(model):
+        config_kwargs["temperature"] = temperature
     # Omitted entirely when the caller passes None, rather than substituted with
     # a default. A judge emits one element per conversational turn, so a cap
     # sized for a chat reply truncates the array mid-object on a long session —

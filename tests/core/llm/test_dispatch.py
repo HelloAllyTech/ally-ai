@@ -324,6 +324,43 @@ class TestGeminiPath:
         assert emit.call_args.kwargs["usage"] == (30, 10, 40)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "model,sent", [("gemini-2.5-flash", 0.2), ("gemini-3-flash-preview", None)]
+    )
+    async def test_omits_temperature_for_gemini_3(self, both_keys, model, sent):
+        """Gemini 3+ deprecated custom sampling; later models 400 on it."""
+        response = SimpleNamespace(parsed=Answer(answer="a"), usage_metadata=None)
+        generate = AsyncMock(return_value=response)
+        client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        with patch.object(dispatch, "_get_gemini_client", return_value=client):
+            await dispatch.generate_structured(
+                schema=Answer,
+                prompt="q",
+                provider="gemini",
+                model=model,
+                temperature=0.2,
+            )
+
+        assert generate.call_args.kwargs["config"].temperature == sent
+
+    @pytest.mark.parametrize(
+        "model,expected",
+        [
+            ("gemini-2.5-pro", False),
+            ("gemini-3-pro-preview", True),
+            ("models/gemini-3.6-flash", True),
+            ("gemini-flash-latest", True),
+            ("gpt-4o", False),
+            (None, False),
+        ],
+    )
+    def test_is_gemini_3_or_later(self, model, expected):
+        assert dispatch.is_gemini_3_or_later(model) is expected
+
+    @pytest.mark.asyncio
     async def test_uses_the_async_client(self, both_keys):
         """The call must go through client.aio, not the blocking client.
 

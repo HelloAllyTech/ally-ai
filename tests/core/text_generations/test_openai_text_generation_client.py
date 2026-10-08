@@ -110,3 +110,17 @@ class TestOpenAITextGenerationClient:
                 api_key="test-api-key",
                 organization="test-org-id",
             )
+
+
+class TestGeminiOverrideTemperature:
+    """Gemini 3+ deprecated custom sampling; a prompt-level temperature must not
+    reach it, and langchain's own 0.7 default must not either."""
+
+    @pytest.mark.parametrize(
+        "model,sent", [("gemini-2.5-flash", 0.3), ("gemini-3-flash-preview", None)]
+    )
+    def test_temperature_only_for_models_that_take_it(self, model, sent):
+        with patch.object(client_module.settings.GEMINI, "API_KEY", "gemini-key"):
+            llm = client_module._build_gemini_client(model, 0.3)
+
+        assert llm.temperature == sent
