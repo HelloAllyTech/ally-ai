@@ -98,6 +98,43 @@ class TestSplitTextByLength:
         assert len(result) == 1
         assert result[0] == text
 
+    def test_split_text_by_length_handles_non_timestamp_digits_correctly(self):
+        """
+        Test that lines with digits that are not timestamps are not incorrectly
+        added to the overlap.
+        """
+        text_with_number = (
+            "[00:00:01] Counselor: Hello, how are you today?\n"
+            "Client: I am fine, thank you. I am 25 years old.\n"
+            "[00:00:03] Counselor: Tell me more about that.\n"
+            "Client: It was a good day."
+        )
+        chunks = split_text_by_length(text_with_number, max_words=17)
+
+        # With the bug, the line with "25 years old" would be duplicated
+        # in the overlap of the next chunk. We expect it to appear only
+        # once in the combined output.
+        # Reconstruct the text from chunks, but be careful about
+        # legitimate overlap. The line with a real timestamp should
+        # create overlap, but the line with "25 years old" should not.
+
+        # Let's trace:
+        # 1. "Counselor: Hello, how are you today?" (7 words)
+        # 2. "Client: I am fine, thank you. I am 25 years old." (11 words) -> split
+        # chunk1 = "[00:00:01] Counselor: Hello, how are you today?"
+        # 3. "Counselor: Tell me more about that." (6 words) -> 11+6 > 17, so split
+        # chunk2 = "Client: I am fine, thank you. I am 25 years old."
+        # chunk3 = "[00:00:03] Counselor: Tell me more about that.\\n"
+        #          "Client: It was a good day."
+
+        # Overlap:
+        # chunk1 has a timestamp line. It gets added to the start of chunk2.
+        # chunk2 (original) has a number but should not be treated as a
+        # timestamp. So it should not be added to chunk3.
+
+        # With the bug, chunks[2] would start with the "25 years old" line.
+        assert "I am 25 years old" not in chunks[2]
+
 
 class TestOpenAITextGenerationService:
     """Test cases for OpenAITextGenerationService."""

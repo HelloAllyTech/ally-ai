@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+import re
 import time
 from typing import Any, Dict, List, Optional, Type, Union, cast
 
@@ -247,6 +248,8 @@ MAX_SUMMARY_INPUT_WORDS = 8000
 # Word size of each chunk fed to the condense (map) step.
 SUMMARY_CONDENSE_CHUNK_WORDS = 2000
 
+_TIMESTAMP_REGEX = re.compile(r"\[\d{1,2}:\d{2}(:\d{2})?\]")
+
 
 @tool
 def generate_dynamic_summary(
@@ -362,7 +365,7 @@ def split_text_by_length(text: str, max_words: int = MAX_WORDS_PER_CHUNK) -> Lis
             # This helps maintain context between chunks
             overlap_lines = []
             for line in reversed(current_lines[-3:]):  # Last 3 lines
-                if any(char.isdigit() for char in line):  # Likely contains timestamp
+                if _TIMESTAMP_REGEX.search(line):  # Likely contains timestamp
                     overlap_lines.insert(0, line)
                 if count_words("\n".join(overlap_lines)) > CHUNK_OVERLAP_WORDS:
                     break
