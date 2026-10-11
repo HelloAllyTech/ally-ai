@@ -80,6 +80,21 @@ something Ally-specific.
 - **Service-to-service auth is `X-API-Key`**, not the client JWT.
 - **Python 3.12+.** Not the system Python on most machines.
 
+## Local Development
+
+To run the service locally, you need Docker and docker-compose. The local environment includes Weaviate and LocalStack (for SQS).
+
+1.  **Set up environment variables:**
+    Copy the `.env.example` file to `.env` and fill in the required values.
+    ```bash
+    cp .env.example .env
+    ```
+
+2.  **Start the services:**
+    ```bash
+    docker-compose up -d
+    ```
+
 ## Commands
 
 ```bash
