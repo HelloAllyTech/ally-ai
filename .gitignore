@@ -37,8 +37,8 @@ venv.bak/
 .venv/
 
 # dotenv files (for local environment variables)
-.env
-.env.*
+.env*
+!.env.example
 !env_sample
 
 # Secrets / certs / dumps (never commit)
