@@ -3,6 +3,7 @@ from typing import Optional
 from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
+from app.core.llm.dispatch import is_gemini_3_or_later
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -61,7 +62,9 @@ def _build_gemini_client(model: str, temperature: Optional[float]):
         )
         return None
     kwargs = {"model": model, "google_api_key": settings.GEMINI.API_KEY}
-    if temperature is not None:
+    # Gemini 3+ deprecated custom sampling. Leaving it unset (not None) matters:
+    # langchain-google-genai only drops its own 0.7 default for an unset field.
+    if temperature is not None and not is_gemini_3_or_later(model):
         kwargs["temperature"] = temperature
     logger.info(
         "Building override Gemini client (model=%s, temperature=%s)",

@@ -1,12 +1,26 @@
-"""Tests for MessageProcessor."""
-
 import asyncio
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.core.queue.message_processor import MessageProcessor
+
+
+class SimpleAsyncMock:
+    def __init__(self):
+        self._calls = []
+
+    async def __call__(self, *args, **kwargs):
+        self._calls.append((args, kwargs))
+
+    @property
+    def call_count(self):
+        return len(self._calls)
+
+    def assert_awaited_once_with(self, *args, **kwargs):
+        assert self.call_count == 1
+        assert self._calls[0] == (args, kwargs)
 
 
 class TestMessageProcessor:
@@ -231,15 +245,30 @@ class TestMessageProcessor:
         mock_queue_service.delete_message.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_poll_queue_processes_all_messages_concurrently(
-        self, message_processor, mock_queue_service, mock_handler
-    ):
+    async def test_poll_queue_processes_all_messages_concurrently(self):
         """Test polling queue and processing multiple messages."""
+        mock_queue_service = MagicMock()
         messages = [
             {"receipt_handle": f"rh-{i}", "body": {"chat_id": f"c-{i}"}}
             for i in range(3)
         ]
-        mock_queue_service.receive_messages.return_value = messages
+        mock_queue_service.receive_messages = AsyncMock(return_value=messages)
+        mock_queue_service.delete_message = SimpleAsyncMock()
+        # The method under test logs queue depth, so the mock needs get_queue_depth
+        mock_queue_service.get_queue_depth = AsyncMock(return_value={})
+
+        mock_handler = SimpleAsyncMock()
+
+        message_processor = MessageProcessor(
+            queue_service=mock_queue_service,
+            handler=mock_handler,
+            queue_url="https://example-queue",
+            max_messages=10,
+            wait_time_seconds=20,
+            visibility_timeout=30,
+            polling_interval=0,
+            delete_after_processing=True,
+        )
 
         await message_processor.poll_queue()
 
@@ -252,9 +281,9 @@ class TestMessageProcessor:
         )
 
         # Handler called for each message
-        assert mock_handler.await_count == 3
+        assert mock_handler.call_count == 3
         # Deletion attempted for each message
-        assert mock_queue_service.delete_message.await_count == 3
+        assert mock_queue_service.delete_message.call_count == 3
 
     @pytest.mark.asyncio
     async def test_poll_queue_no_messages_received(
