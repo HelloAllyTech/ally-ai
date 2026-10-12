@@ -52,5 +52,13 @@ aws logs tail /ecs/ally-prd-cntr-core-ai --follow
 
 - **Weaviate migrations are ordered and immutable.** Follow the `NNN-description.py`
   convention in `app/migrations/`; never renumber or edit one that has shipped.
-- **Prompt defaults are pushed separately.** `make sync-prompts` publishes this repo's
-  default prompts to ally-be's prompt management; a release does not do it for you.
+- **A release pushes the prompt defaults itself.** The image's start command (`Dockerfile`
+  `CMD`) runs `scripts/sync_prompts.py` before the API starts, so every deploy publishes
+  this repo's default prompts to ally-be's prompt management — `v1.21.0` brought the new
+  helpline prompts to production with no manual step. In that default command the chain is
+  `&&` and the script exits 1 when `ALLY_CORE__ENDPOINT`/`ALLY_CORE__API_KEY` are unset or
+  ally-be rejects the sync, so a failed sync stops the API from starting (the ECS task
+  definitions live in AWS, not here — check them before relying on that). Local compose
+  (`docker-compose.local.yml`) continues past a failed sync instead, which is why a local
+  ally-be can hold older prompts than the code. `make sync-prompts` pushes defaults
+  without a deploy.
