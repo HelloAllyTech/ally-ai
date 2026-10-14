@@ -10,9 +10,10 @@ Both providers are driven with structured output rather than free-text-then-pars
 they reach it differently, and that difference is the whole reason this module exists:
 
   * Gemini takes a ``response_schema`` directly and returns a parsed object.
-  * Anthropic has NO equivalent. Structured output goes through a single tool the model
-    is FORCED
-    to call, and the tool's input is the structured payload.
+  * Anthropic, on the models that accept one, goes through a single tool the model is
+    FORCED to call, and the tool's input is the structured payload. The newest Claude
+    models reject a forced tool, and take the schema as ``output_config.format``
+    instead.
 
 Calls are made on each SDK's ASYNC client. The older analytics agent uses the blocking
 Gemini client inside an async endpoint, which stalls the event loop for the duration of
@@ -87,6 +88,56 @@ UNCAPPED_ANTHROPIC_MAX_TOKENS = 16384
 # appears in the request and in the returned tool_use block, and the response parser
 # looks for it.
 _STRUCTURED_TOOL_NAME = "emit_result"
+
+# Claude models known to accept a forced `tool_choice` (`any` / `tool`).
+#
+# Claude Opus 5.5, Sonnet 5.5, Fable 5.1 and Mythos 5.1 reject one with a 400
+# ("tool_choice: type 'tool' and 'any' are not supported for this model"), and
+# nothing suggests the releases after them will take it back. So these name the
+# models that DO accept it: 3.x and 4.x, the bare 5 of each line (`claude-opus-5`,
+# not `claude-opus-5-5`), and Haiku 5.5, each with an optional date snapshot.
+# Mirrors ally-be's `claudeModelAcceptsForcedToolChoice`.
+_FORCED_TOOL_CHOICE_CLAUDE_MODELS = (
+    re.compile(r"^claude-3"),
+    re.compile(r"^claude-(opus|sonnet|haiku)-4(-|$)"),
+    re.compile(r"^claude-(opus|sonnet|fable|mythos)-5(-\d{8})?$"),
+    re.compile(r"^claude-haiku-5-5(-\d{8})?$"),
+)
+
+# Claude models known to accept a custom `temperature`.
+#
+# Opus 4.7 and 4.8, Opus 5 and 5.5, Sonnet 5, Fable 5 and 5.1 (and Mythos)
+# reject `temperature` outright with a 400; Sonnet 5.5 and Haiku 5.5 reject any
+# non-default value, so leaving it out is the only safe request. These name the
+# models that DO accept it: 3.x, Opus and Sonnet 4.0 to 4.6, and Haiku 4.5.
+# Mirrors ally-be's `modelSupportsTemperature`.
+_TEMPERATURE_CLAUDE_MODELS = (
+    re.compile(r"^claude-3"),
+    re.compile(r"^claude-(opus|sonnet)-4(-[0-6])?(-\d{8})?$"),
+    re.compile(r"^claude-haiku-4-5(-\d{8})?$"),
+)
+
+
+def claude_accepts_forced_tool_choice(model: Optional[str]) -> bool:
+    """
+    Whether a Claude model accepts a forced `tool_choice`. An allowlist, so an
+    unrecognised model — including the next release — answers False and gets
+    `output_config.format` instead, which every model that rejects a forced
+    tool supports.
+    """
+    name = (model or "").strip().lower()
+    return any(p.match(name) for p in _FORCED_TOOL_CHOICE_CLAUDE_MODELS)
+
+
+def claude_accepts_temperature(model: Optional[str]) -> bool:
+    """
+    Whether a Claude model accepts a custom `temperature`. An allowlist, so an
+    unrecognised model answers False: guessing wrong that way costs the
+    caller's tuning, guessing wrong the other way costs the call.
+    """
+    name = (model or "").strip().lower()
+    return any(p.match(name) for p in _TEMPERATURE_CLAUDE_MODELS)
+
 
 # HTTP statuses that mean the PROVIDER is unusable rather than the request being
 # wrong, so the same call is worth one attempt somewhere else.
@@ -417,22 +468,35 @@ async def _generate_anthropic(
     scenario_session_id: Optional[str] = None,
 ) -> TSchema:
     """
-    Structured output from Claude via a single FORCED tool call.
+    Structured output from Claude, enforced by the API rather than requested in prose.
 
-    Anthropic has no `response_schema` equivalent, and asking for JSON in the prose
-    prompt gets JSON most of the time — which is the worst failure rate to have, because
-    the occasional prose preamble or trailing explanation only shows up under load.
-    Declaring the schema as a tool and setting `tool_choice` to that tool makes the
-    model's only available move to emit conforming arguments, so validity is enforced by
-    the API rather than hoped for.
+    Asking for JSON in the prose prompt gets JSON most of the time — which is the worst
+    failure rate to have, because the occasional prose preamble or trailing explanation
+    only shows up under load. So the schema always travels as a constraint, by one of
+    two routes:
+
+      * A single FORCED tool call, on the models that accept one. Declaring the schema
+        as a tool and setting `tool_choice` to that tool makes the model's only
+        available move to emit conforming arguments. This is the request these models
+        have always received.
+      * `output_config.format` (structured outputs) everywhere else. Claude Opus 5.5,
+        Sonnet 5.5, Fable 5.1 and Mythos 5.1 reject a forced tool with a 400, and every
+        one of them supports structured outputs, which constrains the reply itself to
+        the schema. The SDK's `transform_schema` closes every object
+        (`additionalProperties: false`, which the API requires) and moves numeric
+        bounds into descriptions; the bounds are still enforced by the
+        `model_validate` below.
     """
     client = _get_anthropic_client()
+    forced_tool = claude_accepts_forced_tool_choice(model)
 
     kwargs: Dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens or UNCAPPED_ANTHROPIC_MAX_TOKENS,
-        "temperature": temperature,
-        "tools": [
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if forced_tool:
+        kwargs["tools"] = [
             {
                 "name": _STRUCTURED_TOOL_NAME,
                 "description": (
@@ -441,10 +505,17 @@ async def _generate_anthropic(
                 ),
                 "input_schema": schema.model_json_schema(),
             }
-        ],
-        "tool_choice": {"type": "tool", "name": _STRUCTURED_TOOL_NAME},
-        "messages": [{"role": "user", "content": prompt}],
-    }
+        ]
+        kwargs["tool_choice"] = {"type": "tool", "name": _STRUCTURED_TOOL_NAME}
+    else:
+        from anthropic import transform_schema  # imported lazily; optional dependency
+
+        kwargs["output_config"] = {
+            "format": {"type": "json_schema", "schema": transform_schema(schema)}
+        }
+    # From Opus 4.7 on, a custom temperature is a 400 — even the 0 the judges ask for.
+    if claude_accepts_temperature(model):
+        kwargs["temperature"] = temperature
     if system:
         kwargs["system"] = system
 
@@ -465,16 +536,29 @@ async def _generate_anthropic(
             scenario_session_id=scenario_session_id,
         )
 
+    stop_reason = getattr(response, "stop_reason", None)
     for block in getattr(response, "content", None) or []:
-        if getattr(block, "type", None) == "tool_use" and (
-            getattr(block, "name", None) == _STRUCTURED_TOOL_NAME
+        block_type = getattr(block, "type", None)
+        if (
+            forced_tool
+            and block_type == "tool_use"
+            and getattr(block, "name", None) == _STRUCTURED_TOOL_NAME
         ):
             return schema.model_validate(block.input)
+        # Structured outputs puts the JSON in the first text block; any thinking
+        # blocks come before it. A turn cut off at max_tokens holds a truncated
+        # object, and a refusal holds no object at all, so neither is parsed.
+        if (
+            not forced_tool
+            and block_type == "text"
+            and stop_reason not in ("max_tokens", "refusal")
+        ):
+            return schema.model_validate_json(block.text)
 
-    # Reachable when the model hits max_tokens mid-tool-call, which truncates the block.
-    stop_reason = getattr(response, "stop_reason", None)
+    # Reachable when the model hits max_tokens mid-tool-call, which truncates the
+    # block, or mid-object under structured outputs; or when it declines.
     logger.error(
-        "Anthropic returned no usable tool_use block (stop_reason=%s)", stop_reason
+        "Anthropic returned no usable structured output (stop_reason=%s)", stop_reason
     )
     raise LLMInvocationFailedException(
         f"Claude returned no structured output (stop_reason={stop_reason})."
@@ -578,8 +662,9 @@ async def _generate_openai(
     Structured output from OpenAI via a json_schema response format.
 
     The third distinct mechanism in this module, which is the reason the module
-    exists: Gemini takes a `response_schema`, Anthropic needs a forced tool, and
-    OpenAI takes a JSON Schema on `response_format`. None of the three
+    exists: Gemini takes a `response_schema`, Anthropic a forced tool or
+    `output_config.format` depending on the model, and OpenAI takes a JSON Schema
+    on `response_format`. None of the three
     translates to the others, and a caller should not have to know which one ran.
 
     `strict` is deliberately NOT set. Strict mode requires every property to be

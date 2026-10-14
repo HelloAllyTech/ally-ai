@@ -149,14 +149,27 @@ class TestResolveTarget:
         assert "no llm provider is configured" in str(exc.value).lower()
 
 
-def anthropic_response(*, tool_input=None, stop_reason="tool_use", usage=(11, 7)):
+def anthropic_response(
+    *,
+    tool_input=None,
+    text=None,
+    thinking=False,
+    stop_reason="tool_use",
+    usage=(11, 7),
+):
     content = []
+    if thinking:
+        # What Opus 5.5 / Sonnet 5.5 return ahead of the answer: thinking is on by
+        # default there, and its text is empty unless display is set.
+        content.append(SimpleNamespace(type="thinking", thinking=""))
     if tool_input is not None:
         content.append(
             SimpleNamespace(
                 type="tool_use", name=dispatch._STRUCTURED_TOOL_NAME, input=tool_input
             )
         )
+    if text is not None:
+        content.append(SimpleNamespace(type="text", text=text))
     return SimpleNamespace(
         content=content,
         stop_reason=stop_reason,
@@ -279,6 +292,190 @@ class TestAnthropicPath:
             with pytest.raises(LLMInvocationFailedException):
                 await dispatch.generate_structured(
                     schema=Answer, prompt="q", provider="anthropic"
+                )
+
+
+def anthropic_client(response):
+    return SimpleNamespace(
+        messages=SimpleNamespace(create=AsyncMock(return_value=response))
+    )
+
+
+async def sent_to_anthropic(model, response, **over):
+    """The request kwargs, and the parsed result, for one call on `model`."""
+    client = anthropic_client(response)
+    with patch.object(dispatch, "_get_anthropic_client", return_value=client):
+        parsed, _meta = await dispatch.generate_structured(
+            schema=Answer, prompt="q", provider="anthropic", model=model, **over
+        )
+    return client.messages.create.await_args.kwargs, parsed
+
+
+class TestClaudeModelRules:
+    """Newer Claude models reject two fields the older ones took.
+
+    From Opus 4.7 on, `temperature` is a 400 (Sonnet 5.5 and Haiku 5.5 take only
+    the default), and the judges send 0 on every call. Opus 5.5, Sonnet 5.5,
+    Fable 5.1 and Mythos 5.1 also reject a forced `tool_choice`, the mechanism
+    this module used for every Claude structured output. Both rules are
+    allowlists, so a model released after this was written takes the safe side.
+    """
+
+    @pytest.mark.parametrize(
+        "model, expected",
+        [
+            ("claude-3-5-sonnet-20241022", True),
+            ("claude-opus-4-1-20250805", True),
+            ("claude-sonnet-4-5", True),
+            ("claude-opus-4-6", True),
+            ("claude-sonnet-4-6", True),
+            ("claude-haiku-4-5-20251001", True),
+            (" Claude-Sonnet-4-6 ", True),
+            ("claude-opus-4-7", False),
+            ("claude-opus-4-8", False),
+            ("claude-opus-5", False),
+            ("claude-opus-5-5", False),
+            ("claude-sonnet-5", False),
+            ("claude-sonnet-5-5", False),
+            ("claude-haiku-5-5", False),
+            ("claude-fable-5-1", False),
+            ("claude-mythos-5-1", False),
+            ("claude-opus-6", False),
+            (None, False),
+        ],
+    )
+    def test_claude_accepts_temperature(self, model, expected):
+        assert dispatch.claude_accepts_temperature(model) is expected
+
+    @pytest.mark.parametrize(
+        "model, expected",
+        [
+            ("claude-3-5-sonnet-20241022", True),
+            ("claude-sonnet-4-6", True),
+            ("claude-opus-4-7", True),
+            ("claude-opus-4-8", True),
+            ("claude-haiku-4-5-20251001", True),
+            ("claude-opus-5", True),
+            ("claude-sonnet-5", True),
+            ("claude-fable-5", True),
+            ("claude-haiku-5-5", True),
+            ("claude-opus-5-5", False),
+            ("claude-sonnet-5-5", False),
+            ("claude-fable-5-1", False),
+            ("claude-mythos-5-1", False),
+            ("claude-opus-6", False),
+            (None, False),
+        ],
+    )
+    def test_claude_accepts_forced_tool_choice(self, model, expected):
+        assert dispatch.claude_accepts_forced_tool_choice(model) is expected
+
+    @pytest.mark.asyncio
+    async def test_claude_sonnet_4_6_keeps_the_forced_tool_and_the_temperature(
+        self, both_keys
+    ):
+        """The request these models always received, unchanged."""
+        kwargs, parsed = await sent_to_anthropic(
+            "claude-sonnet-4-6", anthropic_response(tool_input={"answer": "a"})
+        )
+
+        assert kwargs["tool_choice"] == {
+            "type": "tool",
+            "name": dispatch._STRUCTURED_TOOL_NAME,
+        }
+        assert kwargs["temperature"] == 0.0
+        assert "output_config" not in kwargs
+        assert parsed == Answer(answer="a")
+
+    @pytest.mark.asyncio
+    async def test_claude_opus_4_7_keeps_the_forced_tool_but_drops_temperature(
+        self, both_keys
+    ):
+        kwargs, parsed = await sent_to_anthropic(
+            "claude-opus-4-7", anthropic_response(tool_input={"answer": "a"})
+        )
+
+        assert kwargs["tool_choice"]["type"] == "tool"
+        assert "temperature" not in kwargs
+        assert parsed == Answer(answer="a")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "claude-sonnet-5-5",
+            "claude-opus-5-5",
+            "claude-fable-5-1",
+            "claude-mythos-5-1",
+            # Unrecognised — including whatever ships next.
+            "claude-opus-6",
+        ],
+    )
+    async def test_rejecting_models_get_structured_outputs_and_no_temperature(
+        self, both_keys, model
+    ):
+        from anthropic import transform_schema
+
+        kwargs, parsed = await sent_to_anthropic(
+            model,
+            anthropic_response(
+                text='{"answer": "Ask directly.", "confidence": 0.8}',
+                thinking=True,
+                stop_reason="end_turn",
+            ),
+            temperature=0.3,
+        )
+
+        assert "tool_choice" not in kwargs
+        assert "tools" not in kwargs
+        assert "temperature" not in kwargs
+        assert kwargs["output_config"] == {
+            "format": {"type": "json_schema", "schema": transform_schema(Answer)}
+        }
+        # The API requires every object closed.
+        assert (
+            kwargs["output_config"]["format"]["schema"]["additionalProperties"] is False
+        )
+        # The thinking block ahead of the answer is skipped, not parsed.
+        assert parsed == Answer(answer="Ask directly.", confidence=0.8)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("stop_reason", ["max_tokens", "refusal"])
+    async def test_structured_output_cut_off_or_declined_is_a_failure(
+        self, both_keys, stop_reason
+    ):
+        """A truncated object is not parsed into a partial one, and a refusal has
+        no object at all; both fail with the reason in the message."""
+        client = anthropic_client(
+            anthropic_response(text='{"answer": "Ask di', stop_reason=stop_reason)
+        )
+
+        with patch.object(dispatch, "_get_anthropic_client", return_value=client):
+            with pytest.raises(LLMInvocationFailedException) as exc:
+                await dispatch.generate_structured(
+                    schema=Answer,
+                    prompt="q",
+                    provider="anthropic",
+                    model="claude-sonnet-5-5",
+                )
+
+        assert stop_reason in str(exc.value)
+
+    @pytest.mark.asyncio
+    async def test_structured_output_schema_violation_is_a_failure(self, both_keys):
+        client = anthropic_client(
+            anthropic_response(
+                text='{"confidence": "not-a-number"}', stop_reason="end_turn"
+            )
+        )
+
+        with patch.object(dispatch, "_get_anthropic_client", return_value=client):
+            with pytest.raises(LLMInvocationFailedException):
+                await dispatch.generate_structured(
+                    schema=Answer,
+                    prompt="q",
+                    provider="anthropic",
+                    model="claude-sonnet-5-5",
                 )
 
 
@@ -427,9 +624,9 @@ def gemini_client():
 class TestOpenAiPath:
     """The third structured-output mechanism in this module.
 
-    Gemini takes a response_schema, Anthropic needs a forced tool, OpenAI takes
-    a JSON Schema on response_format. None translates to the others, which is
-    the reason the dispatch module exists at all.
+    Gemini takes a response_schema, Anthropic a forced tool or output_config,
+    OpenAI takes a JSON Schema on response_format. None translates to the
+    others, which is the reason the dispatch module exists at all.
     """
 
     @pytest.mark.asyncio
