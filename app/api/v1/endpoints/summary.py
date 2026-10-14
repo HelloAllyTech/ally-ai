@@ -188,7 +188,7 @@ async def generate_scenario_evaluation(
             ),
         )
         return ScenarioEvaluationResponse(**evaluation_response)
-    except CounselorTrainingAnalysisFailedException:
+    except CounselorTrainingAnalysisFailedException as e:
         logger.exception(
             "scenario/evaluate failed: CounselorTrainingAnalysisFailedException "
             "(chat_history_len=%d, need_memory=%s, has_previous_memory=%s)",
@@ -197,8 +197,8 @@ async def generate_scenario_evaluation(
             request.previous_memory is not None,
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Counselor training analysis generation failed",
+            status_code=e.status_code,
+            detail=str(e),
         )
     except Exception as e:
         logger.exception(

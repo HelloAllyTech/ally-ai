@@ -29,6 +29,7 @@ from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
     IdentifyUserFailedException,
     LLMInvocationFailedException,
+    LLMTokenLimitExceededException,
     NudgeGenerationFailedException,
     SummaryNoteFailedException,
 )
@@ -543,6 +544,11 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     await asyncio.sleep(backoff)
 
                 except Exception as e:
+                    if (
+                        "length limit was reached" in str(e)
+                        or "finish_reason: length" in str(e)
+                    ):
+                        raise LLMTokenLimitExceededException() from e
                     logger.exception(
                         "_invoke_llm: unexpected %s during llm.ainvoke "
                         "(output_class=%s): %s",

@@ -34,6 +34,7 @@ from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
     IdentifyUserFailedException,
     LLMInvocationFailedException,
+    LLMTokenLimitExceededException,
     NudgeGenerationFailedException,
     SummaryNoteFailedException,
 )
@@ -295,6 +296,23 @@ class TestOpenAITextGenerationService:
 
         # Service wraps APIConnectionError with a generic message
         assert "openai api error" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_invoke_llm_length_finish_reason_error(
+        self, text_generation_service, mock_client
+    ):
+        """Test LLM invocation with length finish reason error."""
+        # Setup mocks
+        mock_client.ainvoke = AsyncMock(
+            side_effect=Exception(
+                "Could not parse response content as the length limit was reached"
+            )
+        )
+        text_generation_service.model = mock_client
+
+        # Execute and assert
+        with pytest.raises(LLMTokenLimitExceededException):
+            await text_generation_service._invoke_llm("Test prompt")
 
     @pytest.mark.asyncio
     async def test_generate_nudge_success(self, text_generation_service):

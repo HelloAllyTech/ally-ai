@@ -124,6 +124,20 @@ class LLMInvocationFailedException(BaseCustomException):
         super().__init__(message, status_code)
 
 
+
+class LLMTokenLimitExceededException(LLMInvocationFailedException):
+    """
+    Raised when the LLM response is truncated due to token limits.
+    """
+
+    def __init__(
+        self,
+        message="LLM response truncated due to token limit",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    ) -> None:
+        super().__init__(message, status_code)
+
+
 class SummaryNoteFailedException(BaseCustomException):
     """
     Raised when summary note generation fails.

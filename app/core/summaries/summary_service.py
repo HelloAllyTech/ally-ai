@@ -8,6 +8,7 @@ from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
     CounselorTrainingAnalysisFailedException,
     LLMInvocationFailedException,
+    LLMTokenLimitExceededException,
     SummarizationFailedException,
     SummaryNoteFailedException,
 )
@@ -406,6 +407,22 @@ class SummaryService:
 
             return result
 
+        except LLMTokenLimitExceededException as e:
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            logger.warning(
+                "LLM token limit exceeded during scenario evaluation "
+                "(chat_history_len=%d, need_memory=%s, chat_id=%s, "
+                "processing_time_ms=%d): %s",
+                len(chat_history),
+                need_memory,
+                chat_id,
+                processing_time_ms,
+                str(e),
+            )
+            raise CounselorTrainingAnalysisFailedException(
+                "The conversation is too long to generate an analysis. "
+                "Please try with a shorter conversation."
+            ) from e
         except LLMInvocationFailedException as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
 
