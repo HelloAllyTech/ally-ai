@@ -1167,6 +1167,34 @@ class TestOpenAITextGenerationService:
                     sample_chat_messages
                 )
 
+    @pytest.mark.asyncio
+    async def test_invoke_llm_length_finish_reason_error(
+        self, text_generation_service, mock_client
+    ):
+        """Test LLM invocation with LengthFinishReasonError."""
+        # Create a mock exception that has the same type name as the one we
+        # want to catch. We can't import the real one because it's deeply
+        # nested inside a vendor library.
+        class LengthFinishReasonError(Exception):
+            pass
+
+        # Setup mocks
+        mock_client.ainvoke = AsyncMock(
+            side_effect=LengthFinishReasonError(
+                "Could not parse response content as the length limit was reached"
+            )
+        )
+        text_generation_service.model = mock_client
+        # Keep the retry path fast in tests (no real backoff sleeps).
+        text_generation_service._LLM_BACKOFF_BASE_SECONDS = 0
+        text_generation_service._LLM_BACKOFF_JITTER_SECONDS = 0
+
+        # Execute and assert
+        with pytest.raises(LLMInvocationFailedException) as exc_info:
+            await text_generation_service._invoke_llm("Test prompt")
+
+        assert "model output was too long" in str(exc_info.value).lower()
+
 
 def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
     """Build a minimal valid ScenarioEvaluation for prompt-inspection tests.
