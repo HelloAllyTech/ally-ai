@@ -1580,10 +1580,9 @@ class TestBuildSupervisorNoteSection:
         )
         assert "Worked on pacing last time." in section
 
-    def test_empty_supervisor_memory_is_interpolated_as_empty(self):
+    def test_empty_supervisor_memory_uses_default_text(self):
         section = _build_supervisor_note_section(supervisor_memory="")
-        assert "No previous sessions with this learner yet." not in section
-        assert "What you know about their journey so far:\n```\n\n```" in section
+        assert "No previous sessions with this learner yet." in section
 
     def test_missing_live_notes_states_none_were_given(self):
         # Must read as a fact, not a blank: otherwise the note starts

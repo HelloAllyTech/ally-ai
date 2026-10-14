@@ -171,7 +171,7 @@ def _build_supervisor_note_section(
         LEARNER_NAME=(learner_name or "").strip() or "there",
         SUPERVISOR_MEMORY=(
             supervisor_memory.strip()
-            if supervisor_memory is not None
+            if supervisor_memory
             else "No previous sessions with this learner yet."
         ),
         LIVE_NOTES=_format_live_notes(live_notes),
