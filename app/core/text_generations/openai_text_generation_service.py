@@ -543,6 +543,22 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                     await asyncio.sleep(backoff)
 
                 except Exception as e:
+                    # The `LengthFinishReasonError` from LangChain indicates a
+                    # truncated response; the vanilla error is opaque and gets
+                    # wrapped in a generic LLMInvocationFailedException that
+                    # loses the "why". Catch it by name (it's not exported)
+                    # and raise a clearer error that ally-be can show an admin.
+                    if type(e).__name__ == "LengthFinishReasonError":
+                        logger.warning(
+                            "_invoke_llm: model output was too long and could "
+                            "not be parsed (output_class=%s): %s",
+                            output_class.__name__ if output_class else None,
+                            str(e),
+                        )
+                        raise LLMInvocationFailedException(
+                            "The model output was too long and could not be parsed."
+                        ) from e
+
                     logger.exception(
                         "_invoke_llm: unexpected %s during llm.ainvoke "
                         "(output_class=%s): %s",
