@@ -10,6 +10,7 @@ from weaviate.exceptions import (
     AuthenticationFailedException,
     WeaviateConnectionError,
     WeaviateInsertManyAllFailedError,
+    UnexpectedStatusCodeError,
 )
 
 from app.core.config import settings
@@ -217,9 +218,14 @@ class WeaviateDB(VectorDB):
             # Return the UUID of the created document
             return str(result_id)
 
+        except UnexpectedStatusCodeError as e:
+            logger.exception(
+                f"Failed to create document due to unexpected status code: {e}"
+            )
+            raise VectorDBInsertFailedException("Failed to create document") from e
         except Exception as e:
             logger.exception(f"Failed to create document: {type(e).__name__}")
-            raise VectorDBInsertFailedException("Failed to create document")
+            raise VectorDBInsertFailedException("Failed to create document") from e
 
     async def create_documents_bulk(
         self,

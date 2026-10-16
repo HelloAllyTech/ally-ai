@@ -4,10 +4,12 @@ from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+import httpx
 from weaviate.exceptions import (
     AuthenticationFailedException,
     WeaviateConnectionError,
     WeaviateInsertManyAllFailedError,
+    UnexpectedStatusCodeError,
 )
 
 from app.core.vector_db.weaviate import WeaviateDB, _build_property_filter
@@ -191,6 +193,34 @@ class TestWeaviateDB:
             await weaviate_db.create_document(
                 collection_name, document_data, vector, document_id
             )
+
+    @pytest.mark.asyncio
+    async def test_create_document_unexpected_status_code_error(
+        self, weaviate_db, mock_collection, caplog
+    ):
+        """Test document creation failure due to UnexpectedStatusCodeError."""
+        # Setup mocks
+        collection_name = "test_collection"
+        document_data = {"content": "test content"}
+        vector = [0.1, 0.2, 0.3]
+        document_id = str(uuid4())
+
+        mock_response = httpx.Response(
+            500, json={"error": "Internal Server Error"}
+        )
+        mock_collection.data.insert.side_effect = UnexpectedStatusCodeError(
+            "Invalid status code", mock_response
+        )
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        # Execute and assert
+        with pytest.raises(
+            VectorDBInsertFailedException, match="Failed to create document"
+        ):
+            await weaviate_db.create_document(
+                collection_name, document_data, vector, document_id
+            )
+        assert "Failed to create document due to unexpected status code" in caplog.text
 
     @pytest.mark.asyncio
     async def test_get_document_by_id_success(self, weaviate_db, mock_collection):
