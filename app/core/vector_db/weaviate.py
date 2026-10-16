@@ -692,24 +692,29 @@ class WeaviateDB(VectorDB):
                         else:
                             query_filters = property_filter
 
-            total = 0
-            categories = {}
-            # Single aggregation call that gets both total count and category breakdown
+            # Aggregation calls: one for total count, one for category breakdown.
             async with self._semaphore:
-                # Use near_vector for aggregation (more reliable than near_text)
-                agg_result = await collection.aggregate.near_vector(
+                # Get total count. This is a separate call because a grouped aggregation
+                # omits any documents where the grouped-by property is not set.
+                total_agg_result = await collection.aggregate.near_vector(
+                    near_vector=vector,
+                    filters=query_filters,
+                    distance=settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD,
+                )
+                total = total_agg_result.total_count
+
+                # Get category breakdown
+                cat_agg_result = await collection.aggregate.near_vector(
                     near_vector=vector,
                     filters=query_filters,
                     distance=settings.REFERENCE_DOCUMENTS_DISTANCE_THRESHOLD,
                     group_by="category",
                 )
-                # Get category breakdown
                 categories = {}
-                for group in agg_result.groups:
+                for group in cat_agg_result.groups:
                     category_name = group.grouped_by.value
                     category_count = group.total_count
                     categories[category_name] = category_count
-                    total += category_count
 
             # Execute the main query with the appropriate parameters
             async with self._semaphore:
