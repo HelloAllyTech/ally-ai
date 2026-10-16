@@ -445,14 +445,18 @@ class TestWeaviateDB:
         query = "test query"
         vector = [0.1, 0.2, 0.3]
 
-        # Mock aggregation result
+        # Mock aggregation results
+        mock_total_agg_result = MagicMock()
+        mock_total_agg_result.total_count = 5
         mock_group = MagicMock()
         mock_group.grouped_by.value = "category1"
         mock_group.total_count = 5
-
-        mock_agg_result = MagicMock()
-        mock_agg_result.groups = [mock_group]
-        mock_collection.aggregate.near_vector.return_value = mock_agg_result
+        mock_cat_agg_result = MagicMock()
+        mock_cat_agg_result.groups = [mock_group]
+        mock_collection.aggregate.near_vector.side_effect = [
+            mock_total_agg_result,
+            mock_cat_agg_result,
+        ]
 
         # Mock search result
         mock_obj = MagicMock()
@@ -490,10 +494,15 @@ class TestWeaviateDB:
         vector = [0.1, 0.2, 0.3]
         filters = {"category": "test_category", "id": str(uuid4())}
 
-        # Mock aggregation result
-        mock_agg_result = MagicMock()
-        mock_agg_result.groups = []
-        mock_collection.aggregate.near_vector.return_value = mock_agg_result
+        # Mock aggregation results
+        mock_total_agg_result = MagicMock()
+        mock_total_agg_result.total_count = 0
+        mock_cat_agg_result = MagicMock()
+        mock_cat_agg_result.groups = []
+        mock_collection.aggregate.near_vector.side_effect = [
+            mock_total_agg_result,
+            mock_cat_agg_result,
+        ]
 
         # Mock search result
         mock_result = MagicMock()
@@ -524,10 +533,15 @@ class TestWeaviateDB:
         vector = [0.1, 0.2, 0.3]
         filters = {"tags": ["tag1", "tag2"]}
 
-        # Mock aggregation result
-        mock_agg_result = MagicMock()
-        mock_agg_result.groups = []
-        mock_collection.aggregate.near_vector.return_value = mock_agg_result
+        # Mock aggregation results
+        mock_total_agg_result = MagicMock()
+        mock_total_agg_result.total_count = 0
+        mock_cat_agg_result = MagicMock()
+        mock_cat_agg_result.groups = []
+        mock_collection.aggregate.near_vector.side_effect = [
+            mock_total_agg_result,
+            mock_cat_agg_result,
+        ]
 
         # Mock search result
         mock_result = MagicMock()
@@ -573,10 +587,15 @@ class TestWeaviateDB:
         query = "test query"
         vector = [0.1, 0.2, 0.3]
 
-        # Mock aggregation result
-        mock_agg_result = MagicMock()
-        mock_agg_result.groups = []
-        mock_collection.aggregate.near_vector.return_value = mock_agg_result
+        # Mock aggregation results
+        mock_total_agg_result = MagicMock()
+        mock_total_agg_result.total_count = 0
+        mock_cat_agg_result = MagicMock()
+        mock_cat_agg_result.groups = []
+        mock_collection.aggregate.near_vector.side_effect = [
+            mock_total_agg_result,
+            mock_cat_agg_result,
+        ]
 
         # Mock search result
         mock_obj = MagicMock()
@@ -785,6 +804,64 @@ class TestWeaviateDB:
             await weaviate_db.delete_by_filter(
                 "KnowledgeChunk", {"document_id": "doc-1"}
             )
+
+    @pytest.mark.asyncio
+    async def test_search_documents_total_is_correct_if_uncategorized_docs_exist(
+        self, weaviate_db, mock_collection
+    ):
+        """The total is taken from a grouped aggregation, which omits uncategorized
+        documents. This test confirms that the total is correct after the fix."""
+        collection_name = "test_collection"
+        query = "test query"
+        vector = [0.1, 0.2, 0.3]
+        weaviate_db.embedding_service.embed.return_value = vector
+
+        # Mock aggregation results
+        # 1. For total count (ungrouped)
+        mock_total_agg_result = MagicMock()
+        mock_total_agg_result.total_count = 3
+        # 2. For category breakdown (grouped)
+        mock_group_categorized = MagicMock()
+        mock_group_categorized.grouped_by.value = "category1"
+        mock_group_categorized.total_count = 2
+        mock_cat_agg_result = MagicMock()
+        mock_cat_agg_result.groups = [mock_group_categorized]
+
+        mock_collection.aggregate.near_vector.side_effect = [
+            mock_total_agg_result,
+            mock_cat_agg_result,
+        ]
+
+        # Mock search result with three documents, one uncategorized
+        doc1_id, doc2_id, doc3_id = str(uuid4()), str(uuid4()), str(uuid4())
+        mock_obj1 = MagicMock(
+            uuid=doc1_id,
+            properties={"content": "categorized 1", "category": "category1"},
+            metadata=MagicMock(distance=0.2),
+        )
+        mock_obj2 = MagicMock(
+            uuid=doc2_id,
+            properties={"content": "categorized 2", "category": "category1"},
+            metadata=MagicMock(distance=0.3),
+        )
+        mock_obj3 = MagicMock(
+            uuid=doc3_id,
+            properties={"content": "uncategorized"},
+            metadata=MagicMock(distance=0.4),
+        )
+        mock_result = MagicMock()
+        mock_result.objects = [mock_obj1, mock_obj2, mock_obj3]
+        mock_collection.query.near_vector.return_value = mock_result
+
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        # Execute
+        result = await weaviate_db.search_documents(collection_name, query)
+
+        # Assert: total is now 3
+        assert len(result["documents"]) == 3
+        assert result["total"] == 3
+        assert result["categories"] == {"category1": 2}
 
 
 class TestBuildPropertyFilter:
