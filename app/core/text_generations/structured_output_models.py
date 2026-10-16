@@ -605,8 +605,13 @@ class ScenarioEvaluation(BaseModel):
             "on framed as consequences rather than mistakes, and one concrete thing "
             "to try next session, closing with an invitation to reply. Anchored to "
             "at most two specific transcript moments using [[msg:ID]] markers. "
-            "150-250 words of flowing prose, not a bulleted list. This is the only "
-            "field in which message IDs may appear."
+            "150-250 words of flowing prose, not a bulleted list, organised by "
+            "these section markers, each on its own line and written exactly "
+            "like this in English whatever language the note is in: "
+            "'## [what_worked]', '## [what_it_cost]', '## [try_next]', "
+            "'## [closing]'. The app turns each marker into a heading; a note "
+            "without them reaches the learner as one unbroken paragraph. This "
+            "is the only field in which message IDs may appear."
         )
     )
     memory_update: SupervisorMemoryUpdate = Field(
@@ -637,5 +642,17 @@ class ScenarioEvaluationWithMemory(ScenarioEvaluation):
             "with previous context, tracking the evolving therapeutic relationship, "
             "client "
             "progress, patterns, and therapeutic interventions over time."
+        )
+    )
+
+
+class SupervisorNoteRepair(BaseModel):
+    """A debrief note rearranged into the app's sections, keeping its words."""
+
+    supervisor_note: str = Field(
+        description=(
+            "The same note, rearranged under the markers '## [what_worked]', "
+            "'## [what_it_cost]', '## [try_next]' and '## [closing]', each on "
+            "its own line, in English."
         )
     )

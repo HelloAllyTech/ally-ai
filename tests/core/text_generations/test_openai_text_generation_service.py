@@ -1172,6 +1172,7 @@ class TestOpenAITextGenerationService:
         self, text_generation_service, mock_client
     ):
         """Test LLM invocation with LengthFinishReasonError."""
+
         # Create a mock exception that has the same type name as the one we
         # want to catch. We can't import the real one because it's deeply
         # nested inside a vendor library.
@@ -1220,9 +1221,11 @@ def _make_scenario_evaluation(supervisor_note=None, memory_update=None):
         ],
         supervisor_note=supervisor_note
         or (
-            "Good rapport building came through in this session. Try asking "
-            "more open-ended questions next time. Reply if you'd like to talk "
-            "through any of it."
+            "Good session today.\n\n## [what_worked]\nGood rapport building "
+            "came through in this session.\n\n## [what_it_cost]\nClosed "
+            "questions kept the client's answers short.\n\n## [try_next]\n"
+            "Try asking more open-ended questions next time.\n\n## [closing]\n"
+            "Reply if you'd like to talk through any of it."
         ),
         memory_update=memory_update
         or SupervisorMemoryUpdate(
@@ -1907,3 +1910,134 @@ class TestCondenseForSummary:
         assert isinstance(result, str)
         assert "alpha" in result  # raw content preserved on fallback
         text_generation_service._invoke_llm.assert_awaited()
+
+
+class TestSupervisorNoteSections:
+    """2026-10-16: some debriefs reached learners as one paragraph because the
+    note came back without its section markers and nothing checked."""
+
+    @pytest.fixture
+    def text_generation_service(self):
+        with patch(
+            "app.core.text_generations.openai_text_generation_service.settings"
+        ) as mock_settings:
+            mock_settings.LLM.MAX_CONCURRENT_LLM_CALLS = 10
+            return OpenAITextGenerationService(MagicMock(), AsyncMock())
+
+    @pytest.fixture
+    def sample_chat_messages(self):
+        return [
+            ChatMessage(
+                id="msg-1", role="counselor", content="How are you feeling today?"
+            ),
+            ChatMessage(
+                id="msg-2", role="client", content="I'm feeling anxious about work."
+            ),
+        ]
+
+    def test_missing_note_sections_reads_markers_like_the_app(self):
+        from app.core.text_generations.supervisor_note_sections import (
+            missing_note_sections,
+        )
+
+        assert (
+            missing_note_sections(
+                "Hi.\n## [what_worked]\nA\n**[what_it_cost]**\nB\n[try_next]: C"
+            )
+            == []
+        )
+        # Inline marker opening a line of prose counts, as in the app.
+        assert (
+            missing_note_sections(
+                "## [what_worked] A\n## [what_it_cost] B\n## [try_next] C"
+            )
+            == []
+        )
+        assert missing_note_sections(
+            "Kriti, it was great to see you invite Kavya to share her thoughts."
+        ) == ["what_worked", "what_it_cost", "try_next"]
+        assert missing_note_sections(None) == [
+            "what_worked",
+            "what_it_cost",
+            "try_next",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_note_without_markers_is_repaired_once_keeping_its_anchors(
+        self, text_generation_service, sample_chat_messages
+    ):
+        from app.core.text_generations.structured_output_models import (
+            SupervisorNoteRepair,
+        )
+
+        paragraph = (
+            "Kriti, inviting Kavya to share [[msg:m1]] worked well. Dismissing "
+            "her discomfort cost you. Try asking what she thinks. I'm here."
+        )
+        repaired = SupervisorNoteRepair(
+            supervisor_note=(
+                "Kriti,\n## [what_worked]\nInviting Kavya to share [[msg:m1]] "
+                "worked well.\n## [what_it_cost]\nDismissing her discomfort "
+                "cost you.\n## [try_next]\nTry asking what she thinks.\n"
+                "## [closing]\nI'm here."
+            )
+        )
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            side_effect=[
+                _make_scenario_evaluation(supervisor_note=paragraph),
+                repaired,
+            ],
+        ) as mock_invoke:
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+        assert mock_invoke.await_count == 2
+        repair_prompt = mock_invoke.await_args_list[1].args[0]
+        assert "## [what_worked], ## [what_it_cost], ## [try_next]" in repair_prompt
+        assert paragraph in repair_prompt
+        assert mock_invoke.await_args_list[1].args[1] is SupervisorNoteRepair
+        note = result["supervisor_note"]
+        assert "## [what_worked]" in note and "## [try_next]" in note
+        # The anchor is still remapped to the real message id.
+        assert "[[msg:msg-1]]" in note
+
+    @pytest.mark.asyncio
+    async def test_a_sectioned_note_is_not_touched(
+        self, text_generation_service, sample_chat_messages
+    ):
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            return_value=_make_scenario_evaluation(),
+        ) as mock_invoke:
+            await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+        assert mock_invoke.await_count == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("second", ["boom", "still a paragraph"])
+    async def test_a_failed_or_useless_repair_keeps_the_original(
+        self, text_generation_service, sample_chat_messages, second
+    ):
+        from app.core.text_generations.structured_output_models import (
+            SupervisorNoteRepair,
+        )
+
+        paragraph = "Kriti, that went well. Next time ask more. I'm here."
+        effect = (
+            Exception("model down")
+            if second == "boom"
+            else SupervisorNoteRepair(supervisor_note=second)
+        )
+        with patch.object(
+            text_generation_service,
+            "_invoke_llm",
+            side_effect=[_make_scenario_evaluation(supervisor_note=paragraph), effect],
+        ):
+            result = await text_generation_service.generate_scenario_evaluation(
+                sample_chat_messages
+            )
+        assert result["supervisor_note"] == paragraph

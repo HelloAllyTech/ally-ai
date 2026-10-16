@@ -24,7 +24,9 @@ from app.core.text_generations.structured_output_models import (
     StructuredDiarization,
     StructuredIdentifyUsers,
     StructuredSummaryNote,
+    SupervisorNoteRepair,
 )
+from app.core.text_generations.supervisor_note_sections import missing_note_sections
 from app.exceptions.custom_exceptions import (
     ContentEnhancementFailedException,
     IdentifyUserFailedException,
@@ -1428,6 +1430,64 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
 
         return totals
 
+    async def _ensure_note_sections(
+        self,
+        note: str,
+        prompts: Optional[Dict[str, Any]] = None,
+        llm_override: Optional[Any] = None,
+        task: Optional[str] = None,
+        **kwargs,
+    ) -> str:
+        """Return the note with the app's section markers, repairing it once.
+
+        The app shows a note without ``## [what_worked]`` and its siblings as
+        one unbroken paragraph. Until 2026-10-16 nothing checked, so a model
+        that drifted (or a prompt variant that crowded the markers out) reached
+        the learner as a wall of text. A note missing any labelled marker gets
+        one rearranging call that keeps its words; if that call fails, or still
+        lacks a marker, the original note stands — a paragraph is a worse
+        debrief than sections, but never worse than none.
+        """
+        missing = missing_note_sections(note)
+        if not missing:
+            return note
+        logger.info(
+            "[DEBRIEF_SECTIONS] supervisor note missing %s; repairing once",
+            ",".join(missing),
+        )
+        try:
+            repaired = cast(
+                SupervisorNoteRepair,
+                await self._invoke_llm(
+                    load_and_format(
+                        "shared/supervisor_note_repair",
+                        prompts=prompts,
+                        MISSING_SECTIONS=", ".join(f"## [{key}]" for key in missing),
+                        NOTE=note,
+                    ),
+                    SupervisorNoteRepair,
+                    task=task or LLMTask.SCENARIO_EVALUATION.value,
+                    llm_override=llm_override,
+                    **kwargs,
+                ),
+            )
+        except Exception as error:  # noqa: BLE001 — the debrief must not fail here
+            logger.warning(
+                "[DEBRIEF_SECTIONS] repair failed, keeping the original note: %s",
+                type(error).__name__,
+            )
+            return note
+        fixed = (getattr(repaired, "supervisor_note", None) or "").strip()
+        still_missing = missing_note_sections(fixed)
+        if not fixed or still_missing:
+            logger.warning(
+                "[DEBRIEF_SECTIONS] repair still missing %s, keeping the original note",
+                ",".join(still_missing) or "everything",
+            )
+            return note
+        logger.info("[DEBRIEF_SECTIONS] supervisor note repaired")
+        return fixed
+
     async def generate_scenario_evaluation(
         self,
         chat_history: List[ChatMessage],
@@ -1615,20 +1675,21 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 "(response_model=%s)",
                 response_model.__name__,
             )
+            evaluation_llm = self._client_for(
+                (
+                    "scenario/scenario_evaluation_with_memory"
+                    if need_memory
+                    else "scenario/scenario_evaluation"
+                ),
+                prompts,
+            )
             response = cast(
                 response_model,
                 await self._invoke_llm(
                     formatted_prompt,
                     response_model,
                     task=usage_task or LLMTask.SCENARIO_EVALUATION.value,
-                    llm_override=self._client_for(
-                        (
-                            "scenario/scenario_evaluation_with_memory"
-                            if need_memory
-                            else "scenario/scenario_evaluation"
-                        ),
-                        prompts,
-                    ),
+                    llm_override=evaluation_llm,
                     **kwargs,
                 ),
             )
@@ -1675,7 +1736,14 @@ class OpenAITextGenerationService(BaseTextGenerationService[ChatOpenAI]):
                 # The note's [[msg:...]] anchors come back holding compact keys;
                 # clients need real UUIDs to link them to transcript messages.
                 "supervisor_note": remap_note_references(
-                    response.supervisor_note, key_to_uuid
+                    await self._ensure_note_sections(
+                        response.supervisor_note,
+                        prompts=prompts,
+                        llm_override=evaluation_llm,
+                        task=usage_task or LLMTask.SCENARIO_EVALUATION.value,
+                        **kwargs,
+                    ),
+                    key_to_uuid,
                 ),
                 "memory_update": {
                     "focus_areas": response.memory_update.focus_areas,

@@ -1,0 +1,31 @@
+Below is a debrief note a training supervisor wrote to a learner after a
+practice session. The app that shows it to the learner splits it into
+sections by finding machine markers, and this note is missing some of them:
+{MISSING_SECTIONS}. Without them the learner sees one unbroken paragraph.
+
+Rearrange the note into this structure, keeping its words:
+1. An opening with no marker: the greeting and anything about earlier
+   sessions or notes sent during the session.
+2. `## [what_worked]` then what worked, and why it worked.
+3. `## [what_it_cost]` then what to work on, framed as what it cost.
+4. `## [try_next]` then the one concrete thing to try next.
+5. `## [closing]` then the invitation to reply.
+
+Rules:
+- Write each marker exactly as shown, on its own line, in English, with the
+  square brackets — even if the note is in another language.
+- Keep the note's own sentences and language. Move sentences into the right
+  section; split a sentence only where it covers two sections. Do not add
+  advice, praise or detail that is not already in the note, and do not drop
+  any of it.
+- If the note has nothing for a section, leave that marker out rather than
+  inventing content for it.
+- Keep every [[msg:...]] anchor exactly as it is, attached to the same
+  sentence.
+
+The note:
+```
+{NOTE}
+```
+
+Return the rearranged note as "supervisor_note".
