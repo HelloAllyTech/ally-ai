@@ -263,6 +263,14 @@ class StructuredSummaryNote(BaseModel):
         ..., description="Quality rating of the call from 0 to 100."
     )
 
+    @field_validator("call_quality")
+    @classmethod
+    def clamp_call_quality(cls, v: int) -> int:
+        """
+        Clamp to [0, 100] — OpenAI structured outputs do not enforce numeric ranges.
+        """
+        return max(0, min(100, v))
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {

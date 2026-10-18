@@ -29,3 +29,28 @@ class TestStructuredOutputModelSchemaExamples:
         schema = StructuredDiarization.model_json_schema()
 
         assert "example" in schema
+
+
+class TestStructuredSummaryNoteValidators:
+    """The StructuredSummaryNote model should clamp out-of-range values."""
+
+    def test_call_quality_clamps_above_100(self):
+        """A call_quality > 100 should be clamped to 100."""
+        note = StructuredSummaryNote(
+            tags=[{"tag": "test", "positivity_rating": 3}], call_quality=150
+        )
+        assert note.call_quality == 100
+
+    def test_call_quality_clamps_below_0(self):
+        """A call_quality < 0 should be clamped to 0."""
+        note = StructuredSummaryNote(
+            tags=[{"tag": "test", "positivity_rating": 3}], call_quality=-10
+        )
+        assert note.call_quality == 0
+
+    def test_call_quality_allows_in_range(self):
+        """A call_quality between 0 and 100 should not be changed."""
+        note = StructuredSummaryNote(
+            tags=[{"tag": "test", "positivity_rating": 3}], call_quality=50
+        )
+        assert note.call_quality == 50
