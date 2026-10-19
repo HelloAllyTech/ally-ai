@@ -48,8 +48,13 @@ class OpenAISettings(BaseModel):
 
 class GeminiSettings(BaseModel):
     # Optional so the service still boots in envs that haven't set GEMINI__API_KEY
-    # yet; the drift judge raises a clear error if invoked without a key.
+    # yet; the drift judge raises a clear error if invoked without a key, and the
+    # transcription worker skips the Gemini provider at startup.
     API_KEY: Optional[str] = None
+    # Batch (Scribe) transcription model. Must be a model that accepts audio
+    # input and allows thinking to be disabled (the service sends
+    # thinking_budget=0 — Flash does, Pro does not).
+    TRANSCRIPTION_MODEL: str = Field("gemini-2.5-flash")
 
 
 class AnthropicSettings(BaseModel):
@@ -249,7 +254,9 @@ class AnalyticsAgentSettings(BaseModel):
 
 
 class DeepgramSettings(BaseModel):
-    API_KEY: str = Field(...)
+    # Optional: Deepgram is a legacy provider, kept only for an explicit
+    # TRANSCRIPTION__PROVIDERS opt-in.
+    API_KEY: Optional[str] = None
 
 
 class SarvamSettings(BaseModel):
@@ -264,10 +271,12 @@ class TranscriptionSettings(BaseModel):
     # error or an empty transcript. Comma-separated so it maps cleanly from an
     # env var (TRANSCRIPTION__PROVIDERS). Providers with a missing or
     # placeholder API key are skipped at startup, so this default safely
-    # degrades: with only Deepgram + OpenAI keys set it resolves to
-    # deepgram -> openai, and Sarvam slots back in automatically once a real
+    # degrades: with only Gemini + OpenAI keys set it resolves to
+    # gemini -> openai, and Sarvam slots back in automatically once a real
     # SARVAM key is configured. Set to a single name to disable fallback.
-    PROVIDERS: Optional[str] = Field(default="deepgram,sarvam,openai")
+    # Deepgram ('deepgram') is still buildable when DEEPGRAM__API_KEY is set,
+    # but is no longer in the default chain (credits exhausted 2026-10).
+    PROVIDERS: Optional[str] = Field(default="gemini,sarvam,openai")
     # Optional hard cap (seconds) on a single provider attempt inside the
     # fallback chain. The SUM of attempts must stay under the SQS visibility
     # timeout (900s). Leave unset to rely on each provider's own timeout.
@@ -365,7 +374,7 @@ class AppSettings(BaseSettings):
     LLM: LLMSettings
     HIPAA_AUDIT: HipaaAuditSettings
     ALLY_CORE: AllyCoreSettings
-    DEEPGRAM: DeepgramSettings
+    DEEPGRAM: DeepgramSettings = Field(default_factory=DeepgramSettings)
     SARVAM: SarvamSettings
     TRANSCRIPTION: TranscriptionSettings
     GEMINI: GeminiSettings = Field(default_factory=GeminiSettings)

@@ -25,6 +25,7 @@ from app.core.text_generations.openai_text_generation_service import (
 from app.core.transcriptions.services import (
     DeepgramTranscriptionService,
     FallbackTranscriptionService,
+    GeminiTranscriptionService,
     OpenAITranscriptionService,
     SarvamTranscriptionService,
 )
@@ -37,7 +38,7 @@ logger = get_logger(__name__)
 # whose key matches one of these is treated as unconfigured and skipped at
 # startup (rather than failing on every request with a 403), so the chain
 # degrades cleanly until a real key is set. Matched case-insensitively as a
-# prefix; real keys (e.g. OpenAI 'sk-…', Deepgram hex, the test suite's
+# prefix; real keys (e.g. OpenAI 'sk-…', Gemini 'AIza…', the test suite's
 # 'test-…' keys) are unaffected.
 _PLACEHOLDER_KEY_PREFIXES = (
     "fill",
@@ -74,7 +75,7 @@ def _build_single_service(provider_str: str):
     except KeyError:
         raise ValueError(
             f"Unsupported transcription provider: {provider_str}. Supported providers: "
-            "'openai', 'deepgram', 'sarvam'"
+            "'gemini', 'sarvam', 'openai', 'deepgram'"
         )
 
     if provider_enum == TranscriptionServiceProvider.OPENAI:
@@ -83,6 +84,13 @@ def _build_single_service(provider_str: str):
                 "OPENAI__API_KEY is missing or a placeholder for OpenAI provider"
             )
         return OpenAITranscriptionService()
+
+    elif provider_enum == TranscriptionServiceProvider.GEMINI:
+        if _is_missing_or_placeholder_key(getattr(settings.GEMINI, "API_KEY", None)):
+            raise ValueError(
+                "GEMINI__API_KEY is missing or a placeholder for Gemini provider"
+            )
+        return GeminiTranscriptionService()
 
     elif provider_enum == TranscriptionServiceProvider.DEEPGRAM:
         if _is_missing_or_placeholder_key(settings.DEEPGRAM.API_KEY):
@@ -105,7 +113,7 @@ def _resolve_provider_order() -> list[str]:
 
     Uses TRANSCRIPTION.PROVIDERS (comma-separated) when set, otherwise falls
     back to the single TRANSCRIPTION.PROVIDER. De-duplicates while preserving
-    order so a chain like "deepgram,deepgram,sarvam" collapses sensibly.
+    order so a chain like "gemini,gemini,sarvam" collapses sensibly.
     """
     raw = getattr(settings.TRANSCRIPTION, "PROVIDERS", None)
     if raw:
@@ -132,9 +140,9 @@ def create_transcription_service(provider: str | None = None):
     error or an empty transcript.
 
     Args:
-        provider (str, optional): Force a single provider ('openai',
-            'deepgram', 'sarvam'), bypassing the configured chain. Mainly for
-            tests. If None, resolves from settings.
+        provider (str, optional): Force a single provider ('gemini',
+            'sarvam', 'openai', 'deepgram'), bypassing the configured chain.
+            Mainly for tests. If None, resolves from settings.
 
     Returns:
         A transcription service exposing transcribe_audio_from_url(...).
