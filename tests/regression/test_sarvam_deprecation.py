@@ -7,7 +7,7 @@ def test_import_sarvamai_tts_module_does_not_fail_on_deprecation():
     """
     This test ensures that importing the sarvamai TTS module does not
     cause the test suite to fail due to a DeprecationWarning from websockets.
-    The warning is suppressed in tests/conftest.py. This test, when run with
+    The warning is suppressed locally in this test. This test, when run with
     -W error::DeprecationWarning, will pass if the suppression is effective.
     """
     with warnings.catch_warnings():
