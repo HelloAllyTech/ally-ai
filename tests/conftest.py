@@ -37,8 +37,9 @@ os.environ.update(
             "http://localhost:4566/requests-queue"
         ),
         "DEEPGRAM__API_KEY": "test-deepgram-key",
+        "GEMINI__API_KEY": "test-gemini-key",
         "SARVAM__API_KEY": "test-sarvam-key",
-        "TRANSCRIPTION__PROVIDER": "deepgram",
+        "TRANSCRIPTION__PROVIDER": "gemini",
         "LLM__MAX_CONCURRENT_LLM_CALLS": "100",
         "API__X_API_KEY": "test-x-api-key",
         "SLACK_ALERTS__ENABLED": "false",
