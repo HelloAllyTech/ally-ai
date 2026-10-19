@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.core.queue.transcription_request_sqs_worker as worker
+from app.core.config import TranscriptionSettings
 from app.core.transcriptions.services import FallbackTranscriptionService
 
 
@@ -17,6 +18,7 @@ class _FakeService:
 def patch_services(monkeypatch):
     # Avoid constructing real SDK clients; we only care about selection logic.
     monkeypatch.setattr(worker, "DeepgramTranscriptionService", _FakeService)
+    monkeypatch.setattr(worker, "GeminiTranscriptionService", _FakeService)
     monkeypatch.setattr(worker, "OpenAITranscriptionService", _FakeService)
     monkeypatch.setattr(worker, "SarvamTranscriptionService", _FakeService)
 
@@ -25,10 +27,11 @@ def _set(
     monkeypatch,
     *,
     providers,
+    gemini="AIza-real-key",
     deepgram="dg-real-key",
     sarvam="sv-real-key",
     openai="sk-real-key",
-    provider="deepgram",
+    provider="gemini",
 ):
     monkeypatch.setattr(
         worker.settings,
@@ -37,6 +40,7 @@ def _set(
             PROVIDERS=providers, PROVIDER=provider, PER_PROVIDER_TIMEOUT_SECONDS=None
         ),
     )
+    monkeypatch.setattr(worker.settings, "GEMINI", SimpleNamespace(API_KEY=gemini))
     monkeypatch.setattr(worker.settings, "DEEPGRAM", SimpleNamespace(API_KEY=deepgram))
     monkeypatch.setattr(worker.settings, "SARVAM", SimpleNamespace(API_KEY=sarvam))
     monkeypatch.setattr(worker.settings, "OPENAI", SimpleNamespace(API_KEY=openai))
@@ -76,6 +80,24 @@ class TestPlaceholderKey:
 
 
 class TestCreateTranscriptionService:
+    def test_default_chain_leads_with_gemini(self, monkeypatch):
+        # The code default (no TRANSCRIPTION__PROVIDERS in the env) must not
+        # touch Deepgram: its credits are gone and every call 402s.
+        _set(monkeypatch, providers=TranscriptionSettings(PROVIDER="gemini").PROVIDERS)
+        svc = worker.create_transcription_service()
+        assert isinstance(svc, FallbackTranscriptionService)
+        assert [name for name, _ in svc.services] == ["gemini", "sarvam", "openai"]
+
+    def test_placeholder_gemini_is_skipped(self, monkeypatch):
+        _set(monkeypatch, providers="gemini,sarvam,openai", gemini="your-gemini-key")
+        svc = worker.create_transcription_service()
+        assert [name for name, _ in svc.services] == ["sarvam", "openai"]
+
+    def test_deepgram_only_when_explicitly_listed(self, monkeypatch):
+        _set(monkeypatch, providers="deepgram,gemini")
+        svc = worker.create_transcription_service()
+        assert [name for name, _ in svc.services] == ["deepgram", "gemini"]
+
     def test_full_chain_when_all_keys_present(self, monkeypatch):
         _set(monkeypatch, providers="deepgram,sarvam,openai")
         svc = worker.create_transcription_service()

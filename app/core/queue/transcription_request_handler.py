@@ -30,6 +30,7 @@ logger = get_logger(__name__)
 class TranscriptionServiceProvider(str, Enum):
     """Enumeration of supported transcription providers."""
 
+    GEMINI = "gemini"
     OPENAI = "openai"
     DEEPGRAM = "deepgram"
     SARVAM = "sarvam"
