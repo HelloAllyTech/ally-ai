@@ -786,6 +786,26 @@ class TestRetryAfterFailure:
                 )
 
     @pytest.mark.asyncio
+    async def test_retries_on_a_gemini_server_error(self):
+        """A Gemini ServerError without an integer status code is still retryable."""
+        # Shaped like google-genai's `ServerError`: no integer status code.
+        err = type("ServerError", (Exception,), {})("internal error")
+
+        failing = AsyncMock(side_effect=err)
+        with (
+            patch.object(dispatch.settings.GEMINI, "API_KEY", "g"),
+            patch.object(dispatch.settings.OPENAI, "API_KEY", "o"),
+            patch.dict(dispatch._GENERATORS, {"gemini": failing}),
+            patch.object(dispatch, "_get_openai_client", return_value=openai_client()),
+        ):
+            _, meta = await dispatch.generate_structured(
+                schema=Answer, prompt="q", provider="gemini", model="gemini-2.5-pro"
+            )
+
+        assert meta["provider"] == "openai"
+        assert meta["fell_back_from"] == "gemini"
+
+    @pytest.mark.asyncio
     async def test_does_not_retry_a_rejected_request(self):
         # A 400 means the request was wrong. Retrying it elsewhere fails twice.
         failing = AsyncMock(side_effect=self._err(400))
