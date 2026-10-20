@@ -73,9 +73,12 @@ def _build_single_service(provider_str: str):
     try:
         provider_enum = TranscriptionServiceProvider[provider_str.upper()]
     except KeyError:
+        supported_providers = ", ".join(
+            sorted([f"'{p.value}'" for p in TranscriptionServiceProvider])
+        )
         raise ValueError(
-            f"Unsupported transcription provider: {provider_str}. Supported providers: "
-            "'gemini', 'sarvam', 'openai', 'deepgram'"
+            f"Unsupported transcription provider: {provider_str}. "
+            f"Supported providers: {supported_providers}"
         )
 
     if provider_enum == TranscriptionServiceProvider.OPENAI:
