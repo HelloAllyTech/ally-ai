@@ -268,6 +268,7 @@ async def main():
         if "queue_service" in locals():
             await queue_service.close()
         await SQSQueueClient.close_client()
+        await AllyCoreClient.close_client()
         logger.info("SQS client cleanup completed")
 
 

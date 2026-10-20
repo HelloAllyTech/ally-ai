@@ -43,6 +43,9 @@ class AllyCoreClient:
             )
 
     @staticmethod
-    async def close(client: httpx.AsyncClient) -> None:
-        logger.info("Closing ally core httpx client...")
-        return await client.aclose()
+    async def close_client() -> None:
+        global _ally_core_client
+        if _ally_core_client:
+            logger.info("Closing ally core httpx client...")
+            await _ally_core_client.aclose()
+            _ally_core_client = None

@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
 
     yield
     await WeaviateClient.close(WeaviateClient.get_client())
-    await AllyCoreClient.close(AllyCoreClient.get_client())
+    await AllyCoreClient.close_client()
     logger.info("Shutting down application...")
 
 

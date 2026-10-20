@@ -78,9 +78,21 @@ async def test_client_timeout_and_limits():
 
 
 @pytest.mark.asyncio
-async def test_close_calls_aclose():
-    mock_client = AsyncMock(spec=httpx.AsyncClient)
+async def test_close_client_closes_global_client():
+    with patch("app.core.ally_core.client.settings") as mock_settings:
+        mock_settings.ALLY_CORE.ENDPOINT = "https://ally-core.test"
+        mock_settings.ALLY_CORE.MAX_CONNECTIONS = 100
+        mock_settings.ALLY_CORE.MAX_KEEPALIVE_CONNECTIONS = 20
 
-    await AllyCoreClient.close(mock_client)
+        await AllyCoreClient.create_client()
+        client = AllyCoreClient.get_client()
+        client.aclose = AsyncMock()
 
-    mock_client.aclose.assert_awaited_once()
+        await AllyCoreClient.close_client()
+
+        client.aclose.assert_awaited_once()
+
+        # After closing, the global client should be None
+        from app.core.ally_core import client as client_mod
+
+        assert client_mod._ally_core_client is None

@@ -78,6 +78,9 @@ class TestTranscriptionRequestSQSWorker:
                 pass
 
         class FakeAllyCoreClient:
+            created = False
+            closed = False
+
             @classmethod
             async def create_client(cls):
                 cls.created = True
@@ -85,6 +88,10 @@ class TestTranscriptionRequestSQSWorker:
             @classmethod
             def get_client(cls):
                 return "ally-core-client"
+
+            @classmethod
+            async def close_client(cls):
+                cls.closed = True
 
         class FakeAllyCoreService:
             def __init__(self, client):
@@ -99,6 +106,10 @@ class TestTranscriptionRequestSQSWorker:
                 return None
 
         class FakeOpenAITranscriptionService:
+            def __init__(cls):
+                return None
+
+        class FakeGeminiTranscriptionService:
             def __init__(cls):
                 return None
 
@@ -186,6 +197,7 @@ class TestTranscriptionRequestSQSWorker:
             DeepgramTranscriptionService=FakeDeepgramTranscriptionService,
             OpenAITranscriptionService=FakeOpenAITranscriptionService,
             SarvamTranscriptionService=FakeSarvamTranscriptionService,
+            GeminiTranscriptionService=FakeGeminiTranscriptionService,
         )
 
     @pytest.fixture
@@ -249,6 +261,11 @@ class TestTranscriptionRequestSQSWorker:
             "OpenAITranscriptionService",
             fakes.OpenAITranscriptionService,
         )
+        monkeypatch.setattr(
+            transcription_request_sqs_worker,
+            "GeminiTranscriptionService",
+            fakes.GeminiTranscriptionService,
+        )
         # No-op client initializer
         monkeypatch.setattr(
             transcription_request_sqs_worker, "initialize_openai_clients", lambda: None
@@ -269,6 +286,8 @@ class TestTranscriptionRequestSQSWorker:
         # Assert queue client lifecycle
         assert fakes.QueueClient.created is True
         assert fakes.QueueClient.closed is True
+        assert fakes.AllyCoreClient.created is True
+        assert fakes.AllyCoreClient.closed is True
 
     @pytest.mark.asyncio
     async def test_main_handles_keyboard_interrupt(
@@ -294,6 +313,7 @@ class TestTranscriptionRequestSQSWorker:
 
         # Always closes client in finally
         assert fakes.QueueClient.closed is True
+        assert fakes.AllyCoreClient.closed is True
 
     @pytest.mark.asyncio
     async def test_main_propagates_unexpected_error_but_cleans_up(
@@ -318,6 +338,7 @@ class TestTranscriptionRequestSQSWorker:
 
         # Cleanup still happens
         assert fakes.QueueClient.closed is True
+        assert fakes.AllyCoreClient.closed is True
 
     @pytest.mark.asyncio
     async def test_main_wires_dependencies_and_arguments(
