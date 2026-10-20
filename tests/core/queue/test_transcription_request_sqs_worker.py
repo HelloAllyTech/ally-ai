@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.core.queue.transcription_request_sqs_worker as transcription_request_sqs_worker_mod  # noqa: E501
+from app.core.queue.transcription_request_handler import TranscriptionServiceProvider
 
 # from unittest.mock import MagicMock  # Unused import
 
@@ -437,3 +438,23 @@ class TestTranscriptionRequestSQSWorker:
             proc_kwargs["message_timeout_seconds"]
             == transcription_request_sqs_worker.SQSWorkerConstants.MESSAGE_PROCESSING_TIMEOUT_SECONDS  # noqa: E501
         )
+
+    def test_build_single_service_unsupported_provider_error_is_dynamic(
+        self, transcription_request_sqs_worker
+    ):
+        """
+        Verify the error message for an unsupported provider is generated dynamically.
+        """
+        unsupported_provider = "yoyodyne"
+        with pytest.raises(ValueError) as excinfo:
+            transcription_request_sqs_worker._build_single_service(unsupported_provider)
+
+        # The string should be dynamically generated from the enum
+        expected_providers = ", ".join(
+            sorted([f"'{p.value}'" for p in TranscriptionServiceProvider])
+        )
+        expected_msg_fragment = f"Supported providers: {expected_providers}"
+
+        # This will fail before the fix because the message is hardcoded and lacks
+        # quotes and may be unsorted.
+        assert expected_msg_fragment in str(excinfo.value)
