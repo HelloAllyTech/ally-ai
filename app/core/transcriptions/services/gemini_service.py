@@ -40,7 +40,7 @@ MAX_SEGMENT_SIZE_MB = 14
 # Hard cap on one model call. The SQS visibility timeout (900s) bounds the
 # whole message, and the fallback chain may still try two more providers after
 # this one, so a single segment must never be allowed to eat the budget.
-REQUEST_TIMEOUT_SECONDS = 240
+# REQUEST_TIMEOUT_SECONDS = 240
 
 # Segments of one recording are transcribed concurrently, bounded so a long
 # call does not fan out into dozens of simultaneous Gemini requests.
@@ -183,6 +183,7 @@ class GeminiTranscriptionService:
         self._types = types
         self._client = genai.Client(api_key=key)
         self._model = model or settings.GEMINI.TRANSCRIPTION_MODEL
+        self._request_timeout_seconds = settings.GEMINI.REQUEST_TIMEOUT_SECONDS
         self._config = types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=Transcript,
@@ -419,11 +420,11 @@ class GeminiTranscriptionService:
                     contents=[TRANSCRIPTION_PROMPT, audio_part],
                     config=self._config,
                 ),
-                timeout=REQUEST_TIMEOUT_SECONDS,
+                timeout=self._request_timeout_seconds,
             )
         except asyncio.TimeoutError as e:
             raise TranscriptionFailedException(
-                f"Gemini transcription timed out after {REQUEST_TIMEOUT_SECONDS}s",
+                f"Gemini transcription timed out after {self._request_timeout_seconds}s",
                 status_code=504,
             ) from e
         except Exception as e:
