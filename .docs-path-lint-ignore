@@ -1,0 +1,5 @@
+# Paths that docs-path-lint should not check. One per line; `#` starts a comment.
+# See scripts/docs-path-lint.mjs for the full rules and the inline `planned` / `ignore` markers.
+
+# A template in the routing table, not a file: NNN is filled in per migration.
+app/migrations/NNN-description.py

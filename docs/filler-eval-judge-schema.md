@@ -1,7 +1,7 @@
 # Filler Eval — Judge Schema & Rubric v1
 
 **Status:** v1. Changes to the enums once judging is live = new `judge_prompt_version` (and re-judging for comparability).
-**Companion docs:** `language-eval-judge-schema.md` (the judge this one is modelled on), and ally-ai-learn's `docs/thinking-fillers-perf-plan.md` (why the metrics exist).
+**Companion docs:** `language-eval-judge-schema.md` (the judge this one is modelled on), and `ally-ai-learn/docs/thinking-fillers-perf-plan.md` (why the metrics exist).
 **Implementation:** `ally-ai/app/core/filler_quality/{schemas,prompt,judge}.py` + endpoint `POST /api/v1/filler-quality/judge`. Rubric text lives in prompt management as `filler_quality_judge_rubric` (versioned; inline fallback in `prompt.py`).
 
 ---
