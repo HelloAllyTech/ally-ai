@@ -228,14 +228,14 @@ class TestGeminiTranscriptionService:
 
     @pytest.mark.asyncio
     async def test_timeout_is_read_from_settings(self, monkeypatch, no_audio_io):
-        monkeypatch.setattr(gemini_module.settings.GEMINI, "REQUEST_TIMEOUT_SECONDS", 123)
+        monkeypatch.setattr(gemini_module.settings.GEMINI, "REQUEST_TIMEOUT_SECONDS", 123)  # noqa: E501
         monkeypatch.setattr(gemini_module, "_read_bytes", lambda path: b"")
 
         # The _service test helper mocks out the _generate method where the
         # timeout is actually used, so this test needs to build its own service
         # and mock the google-genai SDK instead.
         fake_types = SimpleNamespace(
-            Part=SimpleNamespace(from_bytes=lambda data, mime_type: (mime_type, len(data))),
+            Part=SimpleNamespace(from_bytes=lambda data, mime_type: (mime_type, len(data))),  # noqa: E501
             GenerateContentConfig=lambda **kw: kw,
             ThinkingConfig=lambda **kw: kw,
         )
@@ -263,4 +263,3 @@ class TestGeminiTranscriptionService:
             assert "timed out after 123s" in str(info.value)
             mock_wait_for.assert_called_once()
             assert mock_wait_for.call_args.kwargs["timeout"] == 123
-

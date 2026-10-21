@@ -424,7 +424,7 @@ class GeminiTranscriptionService:
             )
         except asyncio.TimeoutError as e:
             raise TranscriptionFailedException(
-                f"Gemini transcription timed out after {self._request_timeout_seconds}s",
+                f"Gemini transcription timed out after {self._request_timeout_seconds}s",  # noqa: E501
                 status_code=504,
             ) from e
         except Exception as e:

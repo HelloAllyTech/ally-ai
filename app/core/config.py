@@ -57,7 +57,7 @@ class GeminiSettings(BaseModel):
     TRANSCRIPTION_MODEL: str = Field("gemini-2.5-flash")
     REQUEST_TIMEOUT_SECONDS: Optional[int] = Field(
         default=240,
-        description="Hard cap on one Gemini transcription call. The SQS visibility timeout bounds the whole message, and the fallback chain may still try two more providers after this one, so a single segment must never be allowed to eat the budget.",
+        description="Hard cap on one Gemini transcription call. The SQS visibility timeout bounds the whole message, and the fallback chain may still try two more providers after this one, so a single segment must never be allowed to eat the budget.",  # noqa: E501
     )
 
 
