@@ -46,7 +46,7 @@ The PRD assumes a mostly-greenfield build. It isn't. The shipped **conversation-
 
 ### 1.4 FR17 prompt-metadata inventory — starting answer (to be finalized as Phase 0 deliverable)
 
-From `ally-ai-learn/app/core/scenario/base.py` (`PromptData`) and `app/roleplay_v2/spec/models.py` (`ScenarioSpec`):
+From `ally-ai-learn/app/core/scenario/base.py` (`PromptData`) and `ally-ai-learn/app/roleplay_v2/spec/models.py` (`ScenarioSpec`; removed with Roleplay Studio v2, kept in git history) <!-- docs-path-lint: ignore -->:
 
 | Element (v1 name) | Independently variable? | Plausibly drives (PRD dims) |
 |---|---|---|
@@ -103,7 +103,7 @@ Shipped: script fidelity (Unicode target-script check in ally-be at judge time, 
 **Script fidelity (trivial, do first):** pure code in ally-be — Unicode-block check per AI message against the language's configured script; % clean turns stored on `language_judgment_sessions`. No LLM.
 
 **Round-trip WER/CER:**
-- Home: **ally-ai** (recommended) — batch STT-from-URL with provider fallback already exists there; it's the offline-eval service. Add a thin TTS-synthesis client for the providers used in prod (start with the 1–2 TTS providers actually configured for launch languages; learn-core's `app/tts/factory.py` is the reference implementation).
+- Home: **ally-ai** (recommended) — batch STT-from-URL with provider fallback already exists there; it's the offline-eval service. Add a thin TTS-synthesis client for the providers used in prod (start with the 1–2 TTS providers actually configured for launch languages; learn-core's `ally-ai-learn/app/tts/factory.py` is the reference implementation).
 - New endpoint `POST /api/v1/round-trip-wer`: `{utterances: [{text, turn_index}], tts_config{provider, voice, language}, asr_config{provider, model, language}, unit: wer|cer}` → per-utterance `{wer, ref, hyp}` + aggregate. Compute with `jiwer`; normalize text per language (strip punctuation, normalize Unicode) before scoring.
 - ally-be orchestrates: **sample** N AI utterances per experiment cell (not every turn — cost), call ally-ai, persist to `round_trip_wer_results` (per-utterance) with the same denormalized dims. Thresholds from PRD (≤20 good / 20–30 warn / >30 critical) applied at read time; the session/experiment-level gate flag written to `language_judgment_sessions` (masks the human-audio layer in the dashboard).
 - Per-language precondition honored via language config: if no reliable ASR is declared for a language, the metric is marked unavailable (dashboard shows "leaning on human testers"), not silently wrong.
@@ -172,5 +172,5 @@ Rough total to the full shipped scope (Phases 0–4): **~6–7 weeks** of focuse
 7. **Existing scalar judges (§1.3.5):** keep scenario-report 0–100 scalars as product features; eval dashboard never shows them; review deprecation post-calibration.
 
 ### Remaining defaults (proceeding unless overridden)
-- **Round-trip WER home:** ally-ai (batch STT + eval role live there; add a thin TTS-synthesis client, using learn-core's `app/tts/factory.py` as reference).
+- **Round-trip WER home:** ally-ai (batch STT + eval role live there; add a thin TTS-synthesis client, using learn-core's `ally-ai-learn/app/tts/factory.py` as reference).
 - **Judge model:** the pinned Gemini already used by drift (pinned per NFR1); benchmark alternatives later per the drift spec's expansion recipe.

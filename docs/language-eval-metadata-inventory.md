@@ -2,7 +2,7 @@
 
 **Status:** v1 — authoritative for the Language-Capability Evaluation & RCA system.
 **Companion docs:** `language-capability-eval-implementation-plan.md` (plan), `language-eval-judge-schema.md` (judge schema + rubric).
-**Sources verified in code:** `ally-be/src/learn/dto/update-scenario.dto.ts` (the studio form = the variable surface), `ally-be/src/learn/service/scenario-shared.service.ts` (what is actually sent to the agent), `ally-ai-learn/app/core/scenario/base.py` (`PromptData`, what the agent consumes), `ally-ai-learn/app/roleplay_v2/spec/models.py` (`ScenarioSpec`), `ally-be/src/learn/service/scenario-version.service.ts` (`buildConfigFromScenario`, what is versioned).
+**Sources verified in code:** `ally-be/src/learn/dto/update-scenario.dto.ts` (the studio form = the variable surface), `ally-be/src/learn/service/scenario-shared.service.ts` (what is actually sent to the agent), `ally-ai-learn/app/core/scenario/base.py` (`PromptData`, what the agent consumes), `ally-ai-learn/app/roleplay_v2/spec/models.py` (`ScenarioSpec`; removed with Roleplay Studio v2, kept in git history), `ally-be/src/learn/service/scenario-version.service.ts` (`buildConfigFromScenario`, what is versioned). <!-- docs-path-lint: ignore -->
 
 This document is normative for the dashboard's **"implicates"** column and for experiment design: an experiment's `changed_from_prev` must name an **element ID** from this inventory. It replaces the PRD §4.6 illustrative list.
 
