@@ -256,7 +256,7 @@ If the STT bucket is large and you want to compare providers: sample ~50–100 u
 | Response contract | `ally-be/.../dto/platform-analytics.dto.ts` (`ConversationDriftResponseDto`) |
 | Endpoint | `ally-be/.../controller/analytics.controller.ts` (`GET conversation-drift`) |
 | Chart kit (palette, `ChartCard`, option factories) | `ally-web/.../pages/Analytics/chartKit.tsx` |
-| Drift charts + types | `ally-web/.../pages/Analytics/ConversationDrift.tsx`, `types/auth.ts`, `api/analytics.ts` |
+| Drift charts + types | `ally-web/apps/ally-admin-dashboard/src/pages/ConversationDrift/ConversationDrift.tsx`, `ally-web/apps/ally-admin-dashboard/src/types/auth.ts`, `ally-web/apps/ally-admin-dashboard/src/api/analytics.ts` |
 
 **Recipe — add one new per-turn judged field, in dependency order:**
 
@@ -284,7 +284,7 @@ If the STT bucket is large and you want to compare providers: sample ~50–100 u
    Add the repo mock to `platform-analytics.service.spec.ts` if you add a
    constructor dep.
 5. **ally-web — chart it.** Add the field to `ConversationDriftResponse`
-   (`types/auth.ts`), then render a `ChartCard` + an option factory from
+   (`ally-web/apps/ally-admin-dashboard/src/types/auth.ts`), then render a `ChartCard` + an option factory from
    `chartKit.tsx` in `ConversationDrift.tsx`. Reuse `PALETTE`; don't hand-roll
    option objects or hex literals.
 6. **Gate:** run **all** tests in every touched repo and keep them green before
@@ -295,7 +295,7 @@ If the STT bucket is large and you want to compare providers: sample ~50–100 u
 tab registry — add an entry to `TABS` in `Analytics.tsx` (`{id, label, uses,
 render}`), declare `uses.language` to opt into the shared page-level language
 picker, and build the tab component from the chart kit (see
-`tabs/OverviewTab.tsx` / `LatencyTab.tsx` as templates). No page-shell changes
+`ally-web/apps/ally-admin-dashboard/src/pages/Analytics/tabs/LatencyTab.tsx` as a template). No page-shell changes
 needed.
 
 ---
