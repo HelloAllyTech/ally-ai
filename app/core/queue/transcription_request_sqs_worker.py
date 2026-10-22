@@ -267,6 +267,10 @@ async def main():
         logger.info("Cleaning up SQS client...")
         if "queue_service" in locals():
             await queue_service.close()
+        if hasattr(selected_transcription_service, "aclose") and callable(
+            getattr(selected_transcription_service, "aclose")
+        ):
+            await selected_transcription_service.aclose()
         await SQSQueueClient.close_client()
         logger.info("SQS client cleanup completed")
 
