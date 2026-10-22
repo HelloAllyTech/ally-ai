@@ -232,6 +232,8 @@ class FallbackTranscriptionService:
                     await service.aclose()
                 except Exception as e:
                     logger.warning(
-                        f"Error closing transcription service '{name}': {type(e).__name__}"
+                        (
+                            "Error closing transcription service "
+                            f"'{name}': {type(e).__name__}"
+                        )
                     )
-
