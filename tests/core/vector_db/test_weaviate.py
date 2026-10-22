@@ -195,6 +195,42 @@ class TestWeaviateDB:
             )
 
     @pytest.mark.asyncio
+    async def test_create_document_already_exists_handled_gracefully(
+        self, weaviate_db, mock_collection, caplog
+    ):
+        """Test that creating a document that already exists is handled gracefully."""
+        # Setup mocks
+        collection_name = "test_collection"
+        document_data = {"content": "test content"}
+        vector = [0.1, 0.2, 0.3]
+        document_id = str(uuid4())
+
+        mock_response = httpx.Response(
+            422, json={"error": [{"message": f"id '{document_id}' already exists"}]}
+        )
+        mock_collection.data.insert.side_effect = [
+            document_id,
+            UnexpectedStatusCodeError("already exists", mock_response),
+        ]
+        weaviate_db.client.collections.get.return_value = mock_collection
+
+        # Execute first call (should succeed)
+        result1 = await weaviate_db.create_document(
+            collection_name, document_data, vector, document_id
+        )
+
+        # Execute second call (should be handled gracefully)
+        result2 = await weaviate_db.create_document(
+            collection_name, document_data, vector, document_id
+        )
+
+        # Assert
+        assert result1 == document_id
+        assert result2 == document_id
+        assert mock_collection.data.insert.call_count == 2
+        assert "already exists" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_create_document_unexpected_status_code_error(
         self, weaviate_db, mock_collection, caplog
     ):
