@@ -221,3 +221,19 @@ class FallbackTranscriptionService:
             f"All {total} transcription provider(s) failed for chat_id "
             f"{chat_id}: {last_exception}"
         )
+
+    async def aclose(self) -> None:
+        """
+        Close all wrapped transcription services that have an aclose method.
+        """
+        for name, service in self.services:
+            if hasattr(service, "aclose") and callable(getattr(service, "aclose")):
+                try:
+                    await service.aclose()
+                except Exception as e:
+                    logger.warning(
+                        (
+                            "Error closing transcription service "
+                            f"'{name}': {type(e).__name__}"
+                        )
+                    )
