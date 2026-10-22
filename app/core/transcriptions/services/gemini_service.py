@@ -196,6 +196,9 @@ class GeminiTranscriptionService:
     def model(self) -> str:
         return self._model
 
+    async def aclose(self):
+        await self._client.aclose()
+
     async def transcribe_audio_from_url(
         self,
         audio_url: str,
