@@ -219,6 +219,11 @@ class WeaviateDB(VectorDB):
             return str(result_id)
 
         except UnexpectedStatusCodeError as e:
+            if "already exists" in str(e):
+                logger.warning(
+                    f"Document with ID {document_id} already exists, returning ID."
+                )
+                return document_id
             logger.exception(
                 f"Failed to create document due to unexpected status code: {e}"
             )
