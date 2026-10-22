@@ -204,7 +204,12 @@ def _is_retryable_provider_failure(error: BaseException) -> bool:
     # `ConnectError`, `ReadTimeout`, `TimeoutException` and friends all qualify;
     # ValidationError and LLMInvocationFailedException deliberately do not.
     name = type(error).__name__
-    return "Connection" in name or "Timeout" in name or isinstance(error, TimeoutError)
+    return (
+        "Connection" in name
+        or "Timeout" in name
+        or "ServerError" in name
+        or isinstance(error, TimeoutError)
+    )
 
 
 _anthropic_client = None
